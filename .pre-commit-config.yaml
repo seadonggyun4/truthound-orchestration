@@ -1,0 +1,141 @@
+# Pre-commit configuration for Truthound Integrations
+# https://pre-commit.com/
+#
+# Install hooks: pre-commit install
+# Run all hooks: pre-commit run --all-files
+# Update hooks: pre-commit autoupdate
+
+default_language_version:
+  python: python3.11
+
+# Default stages for all hooks
+default_stages: [pre-commit]
+
+# Fail fast on first failure
+fail_fast: false
+
+repos:
+  # ==========================================================================
+  # General hooks
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Prevent giant files from being committed
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+      # Check for files that would conflict in case-insensitive filesystems
+      - id: check-case-conflict
+
+      # Check for files that contain merge conflict strings
+      - id: check-merge-conflict
+
+      # Check yaml files for parseable syntax
+      - id: check-yaml
+        args: ['--unsafe']
+
+      # Check toml files for parseable syntax
+      - id: check-toml
+
+      # Check json files for parseable syntax
+      - id: check-json
+
+      # Ensure files end with a newline
+      - id: end-of-file-fixer
+
+      # Remove trailing whitespace
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+
+      # Check for debugger imports and py37+ `breakpoint()` calls
+      - id: debug-statements
+
+      # Check for private key files
+      - id: detect-private-key
+
+      # Ensure that executables have shebangs
+      - id: check-executables-have-shebangs
+
+      # Check for symlinks that do not point to anything
+      - id: check-symlinks
+
+      # Prevent commit to main/master branch
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'master']
+
+  # ==========================================================================
+  # Python - Ruff (linting and formatting)
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+        types_or: [python, pyi]
+
+      # Run the formatter
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ==========================================================================
+  # Python - Type checking with MyPy
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        name: mypy (common)
+        files: ^common/
+        args: ['--config-file=mypy.ini']
+        additional_dependencies:
+          - polars>=0.20.0
+          - pyyaml>=6.0.0
+        pass_filenames: false
+        entry: mypy common
+
+  # ==========================================================================
+  # Security checks
+  # ==========================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ['-c', 'pyproject.toml', '-r']
+        additional_dependencies: ['bandit[toml]']
+        exclude: ^tests/
+
+  # ==========================================================================
+  # Documentation
+  # ==========================================================================
+  - repo: https://github.com/pycqa/doc8
+    rev: v1.1.2
+    hooks:
+      - id: doc8
+        args: ['--max-line-length', '100']
+        files: \.rst$
+
+  # ==========================================================================
+  # Commit message
+  # ==========================================================================
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.1.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+# ==========================================================================
+# CI-specific configuration
+# ==========================================================================
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [mypy]  # Skip mypy in CI (run separately)
+  submodules: false

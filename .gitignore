@@ -1,0 +1,330 @@
+# =============================================================================
+# Truthound Integrations - .gitignore
+# =============================================================================
+
+# =============================================================================
+# Python
+# =============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytest_cache/
+
+# Type checker
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# =============================================================================
+# Virtual Environments
+# =============================================================================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+pythonenv*
+
+# =============================================================================
+# UV / pip-tools
+# =============================================================================
+# UV lock file is committed, but local UV cache is not
+.uv_cache/
+.uv/
+
+# =============================================================================
+# IDEs and Editors
+# =============================================================================
+# PyCharm / JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+out/
+
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+tags
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# =============================================================================
+# OS Generated Files
+# =============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# =============================================================================
+# Secrets and Credentials
+# =============================================================================
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+*.p12
+secrets.yaml
+secrets.yml
+secrets.json
+credentials.json
+service-account*.json
+*.secret
+.secrets/
+.credentials/
+
+# =============================================================================
+# Logs and Databases
+# =============================================================================
+*.log
+*.logs
+logs/
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# =============================================================================
+# Apache Airflow
+# =============================================================================
+airflow.cfg
+airflow_login.py
+webserver_config.py
+unittests.cfg
+airflow.db
+airflow-webserver.pid
+standalone_admin_password.txt
+airflow_home/
+logs/
+dags/__pycache__/
+
+# =============================================================================
+# Dagster
+# =============================================================================
+.dagster_home/
+.dagster/
+dagster.yaml
+*.dagster
+storage/
+schedules/
+history/
+
+# =============================================================================
+# Prefect
+# =============================================================================
+.prefect/
+.prefectignore
+prefect.yaml
+*.prefect
+
+# =============================================================================
+# dbt
+# =============================================================================
+target/
+dbt_packages/
+dbt_modules/
+logs/
+.user.yml
+profiles.yml
+!profiles.yml.example
+
+# =============================================================================
+# Build and Compilation
+# =============================================================================
+*.o
+*.obj
+*.dll
+*.dylib
+*.exe
+*.out
+*.app
+*.a
+*.lib
+
+# =============================================================================
+# Docker
+# =============================================================================
+docker-compose.override.yml
+.docker/
+
+# =============================================================================
+# Terraform (if used for infrastructure)
+# =============================================================================
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# =============================================================================
+# Node.js (if used for docs or tooling)
+# =============================================================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# =============================================================================
+# Documentation Build
+# =============================================================================
+docs/_build/
+site/
+.mkdocs/
+
+# =============================================================================
+# Miscellaneous
+# =============================================================================
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+*.patch
+.cache/
+.temp/
+.tmp/
+tmp/
+temp/
+
+# =============================================================================
+# Claude Code / AI Tools
+# =============================================================================
+.claude/
+CLAUDE.md
+
+# =============================================================================
+# Project Specific
+# =============================================================================
+# Local development overrides
+local/
+local_settings.py
+*.local.py
+
+# Test artifacts
+.benchmarks/
+test-results/
+test-reports/
+CLAUDE.md

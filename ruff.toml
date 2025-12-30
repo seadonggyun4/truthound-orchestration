@@ -1,0 +1,112 @@
+# Ruff configuration for Truthound Integrations
+# https://docs.astral.sh/ruff/configuration/
+
+# Target Python version
+target-version = "py311"
+
+# Maximum line length
+line-length = 100
+
+# Exclude directories
+exclude = [
+    ".git",
+    ".github",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "*.egg-info",
+]
+
+# Fix violations automatically where possible
+fix = true
+
+[lint]
+# Enable rules
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented-out code)
+    "PL",     # pylint
+    "RUF",    # ruff-specific rules
+    "PERF",   # perflint
+    "FURB",   # refurb
+    "LOG",    # flake8-logging
+    "G",      # flake8-logging-format
+]
+
+# Ignore specific rules
+ignore = [
+    "E501",     # line too long (handled by formatter)
+    "PLR0913",  # too many arguments (we use dataclasses with many fields)
+    "PLR2004",  # magic value comparison (sometimes acceptable)
+    "PLW0603",  # global statement (needed for singleton pattern in registry)
+    "ARG002",   # unused method argument (protocols may have unused args)
+    "PLC0415",  # import not at top-level (needed for optional dependencies)
+    "RUF022",   # __all__ not sorted (we use semantic grouping with comments)
+]
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Per-file ignores
+[lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ARG",      # unused arguments in tests are common
+    "PLR2004",  # magic values in tests are fine
+    "S101",     # assert statements in tests
+]
+"common/testing.py" = [
+    "ARG",      # mock classes may have unused args
+]
+"**/conftest.py" = [
+    "ARG",      # fixtures may have unused args
+]
+
+[lint.isort]
+# isort configuration
+known-first-party = ["common", "truthound_airflow", "truthound_dagster", "truthound_prefect"]
+force-single-line = false
+lines-after-imports = 2
+combine-as-imports = true
+split-on-trailing-comma = true
+
+[lint.flake8-bugbear]
+# Extend immutable calls to include our frozen dataclasses
+extend-immutable-calls = []
+
+[lint.flake8-type-checking]
+# Strict type checking imports
+strict = true
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+[lint.pylint]
+# Pylint configuration
+max-args = 10
+max-branches = 15
+max-returns = 8
+max-statements = 60
+
+[format]
+# Formatter configuration
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = 80
