@@ -1,0 +1,6 @@
+id,email,age,status,amount,created_at,user_uuid,phone,url
+1,invalid-email,25,active,100.50,2024-01-15,550e8400-e29b-41d4-a716-446655440000,+14155551234,https://example.com
+2,valid@email.com,-5,unknown,-50.00,2024-02-20,invalid-uuid,bad-phone,not-a-url
+3,,150,active,0.00,2099-12-31,6ba7b810-9dad-11d1-80b4-00c04fd430c8,+442071234567,https://test.org
+4,another@test.org,25,active,100.00,2024-03-10,f47ac10b-58cc-4372-a567-0e02b2c3d479,+14155551234,ftp://invalid.protocol
+5,test@test.com,25,,75.50,2024-04-01,a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,,

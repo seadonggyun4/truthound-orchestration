@@ -1,0 +1,6 @@
+id,email,age,status,amount,created_at,user_uuid,phone,url
+1,valid@email.com,25,active,100.50,2024-01-15,550e8400-e29b-41d4-a716-446655440000,+14155551234,https://example.com
+2,another@test.org,30,inactive,200.00,2024-02-20,6ba7b810-9dad-11d1-80b4-00c04fd430c8,+442071234567,https://test.org/page
+3,user@domain.io,45,pending,50.25,2024-03-10,f47ac10b-58cc-4372-a567-0e02b2c3d479,+81312345678,http://localhost:8080
+4,test.user@company.co.uk,28,active,75.00,2024-04-05,a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11,+33123456789,https://subdomain.example.com/path
+5,simple@test.net,35,inactive,150.75,2024-05-12,b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12,+49301234567,https://example.org

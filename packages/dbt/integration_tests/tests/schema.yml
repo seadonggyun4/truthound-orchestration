@@ -1,0 +1,194 @@
+version: 2
+
+models:
+  # =========================================================================
+  # Valid Data Model - All tests should PASS
+  # =========================================================================
+  - name: test_model_valid
+    description: "Model with valid data - all Truthound checks should pass"
+    tests:
+      # Comprehensive model-level test
+      - truthound_check:
+          rules:
+            # Completeness checks
+            - column: id
+              check: not_null
+            - column: email
+              check: not_null
+            - column: age
+              check: not_null
+            - column: status
+              check: not_null
+
+            # Uniqueness checks
+            - column: id
+              check: unique
+            - column: email
+              check: unique
+
+            # Format checks
+            - column: email
+              check: email_format
+            - column: user_uuid
+              check: uuid_format
+            - column: url
+              check: url_format
+
+            # Range checks
+            - column: age
+              check: range
+              min: 0
+              max: 150
+            - column: amount
+              check: positive
+
+            # Set membership
+            - column: status
+              check: in_set
+              values: ['active', 'inactive', 'pending']
+
+    columns:
+      - name: id
+        description: "Unique identifier"
+        tests:
+          - truthound_not_null
+          - truthound_unique
+
+      - name: email
+        description: "User email address"
+        tests:
+          - truthound_email_format
+
+      - name: age
+        description: "User age"
+        tests:
+          - truthound_range:
+              min: 0
+              max: 150
+
+      - name: amount
+        description: "Transaction amount"
+        tests:
+          - truthound_positive
+
+
+  # =========================================================================
+  # Invalid Data Model - Tests expected to FAIL (use warn severity)
+  # =========================================================================
+  - name: test_model_invalid
+    description: "Model with invalid data - Truthound checks should fail"
+    tests:
+      # This test should find failures (email format)
+      - truthound_check:
+          rules:
+            - column: email
+              check: email_format
+          config:
+            severity: warn  # Don't fail build
+
+      # This test should find failures (negative amount)
+      - truthound_check:
+          rules:
+            - column: amount
+              check: positive
+          config:
+            severity: warn
+
+      # This test should find failures (invalid status)
+      - truthound_check:
+          rules:
+            - column: status
+              check: in_set
+              values: ['active', 'inactive', 'pending']
+          config:
+            severity: warn
+
+      # This test should find failures (null email)
+      - truthound_check:
+          rules:
+            - column: email
+              check: not_null
+          config:
+            severity: warn
+
+      # This test should find failures (invalid UUID)
+      - truthound_check:
+          rules:
+            - column: user_uuid
+              check: uuid_format
+          config:
+            severity: warn
+
+      # Age out of reasonable range
+      - truthound_check:
+          rules:
+            - column: age
+              check: range
+              min: 0
+              max: 120
+          config:
+            severity: warn
+
+
+  # =========================================================================
+  # Orders Model - Referential Integrity Tests
+  # =========================================================================
+  - name: test_orders_model
+    description: "Orders model for testing referential integrity"
+    tests:
+      # Basic validity checks that should pass
+      - truthound_check:
+          rules:
+            - column: order_id
+              check: not_null
+            - column: quantity
+              check: positive
+            - column: total_amount
+              check: non_negative
+            - column: status
+              check: in_set
+              values: ['pending', 'shipped', 'delivered', 'cancelled']
+
+      # Referential integrity - should fail for product_id=999
+      - truthound_check:
+          rules:
+            - column: product_id
+              check: referential_integrity
+              to_model: test_reference_model
+              to_column: id
+          config:
+            severity: warn
+
+    columns:
+      - name: order_id
+        tests:
+          - truthound_not_null
+          - truthound_unique
+
+      - name: quantity
+        tests:
+          - truthound_positive
+
+      - name: total_amount
+        tests:
+          - truthound_range:
+              min: 0
+
+
+  # =========================================================================
+  # Reference Model
+  # =========================================================================
+  - name: test_reference_model
+    description: "Reference table for FK testing"
+    tests:
+      - truthound_check:
+          rules:
+            - column: id
+              check: not_null
+            - column: id
+              check: unique
+            - column: name
+              check: not_empty
+            - column: category
+              check: in_set
+              values: ['electronics', 'clothing', 'food', 'home', 'other']

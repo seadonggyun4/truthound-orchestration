@@ -1,0 +1,31 @@
+name: 'truthound_integration_tests'
+version: '1.0.0'
+config-version: 2
+
+require-dbt-version: [">=1.6.0", "<2.0.0"]
+
+profile: 'integration_tests'
+
+# Paths
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+# Target paths
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Package configuration
+vars:
+  truthound:
+    default_severity: 'error'
+    debug_mode: true
+
+# Seed configuration
+seeds:
+  truthound_integration_tests:
+    +quote_columns: true

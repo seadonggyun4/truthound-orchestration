@@ -1,0 +1,6 @@
+order_id,product_id,customer_id,quantity,total_amount,order_date,status
+ORD001,1,100,2,50.00,2024-01-15,shipped
+ORD002,2,101,1,25.00,2024-02-20,pending
+ORD003,3,102,5,125.00,2024-03-10,delivered
+ORD004,1,100,3,75.00,2024-04-05,shipped
+ORD005,999,103,1,10.00,2024-05-12,pending

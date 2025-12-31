@@ -1,0 +1,40 @@
+name: 'truthound'
+version: '0.1.0'
+config-version: 2
+
+require-dbt-version: [">=1.6.0", "<2.0.0"]
+
+# Package metadata
+description: |
+  Truthound data quality package for dbt.
+  Provides declarative data quality checks via Generic Tests and Jinja Macros.
+
+# Default configuration
+vars:
+  truthound:
+    # Global settings
+    default_severity: 'error'
+    fail_on_first: false
+    sample_size: null
+
+    # Logging
+    debug_mode: false
+
+    # Rule patterns (customizable)
+    patterns:
+      email: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+      uuid: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      url: '^https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+      phone_e164: '^\+?[1-9]\d{1,14}$'
+      ipv4: '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
+
+# Test configuration
+tests:
+  truthound:
+    +severity: "{{ var('truthound', {}).get('default_severity', 'error') }}"
+    +tags: ['truthound', 'data-quality']
+
+# Paths
+macro-paths: ["macros"]
+test-paths: ["tests"]
+docs-paths: ["docs"]

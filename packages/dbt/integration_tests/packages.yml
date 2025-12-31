@@ -1,0 +1,4 @@
+# Integration test dependencies
+packages:
+  # Reference the parent truthound package
+  - local: ../
