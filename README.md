@@ -9,8 +9,6 @@
 
 **Truthound Orchestration** is a **generic data quality integration framework** that provides adapters for major workflow orchestration platforms. While [Truthound](https://github.com/seadonggyun4/Truthound) serves as the default data quality engine, the framework supports **any data quality engine** through its Protocol-based architecture.
 
-> **v1.0.0 Stable Release** - Production-ready with comprehensive platform integrations.
-
 ---
 
 ## Quick Start
