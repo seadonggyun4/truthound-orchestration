@@ -208,6 +208,8 @@ The platform integration layer provides native adapters for major workflow orche
 | Dagster | `packages/dagster/` | Resources, Assets, Ops with native type support | Complete |
 | Prefect | `packages/prefect/` | Blocks, Tasks, Flows with async support | Complete |
 | dbt | `packages/dbt/` | Generic Tests, Jinja macros, cross-adapter support | Complete |
+| Mage AI | `packages/mage/` | Transformer, Sensor, Condition blocks with SLA monitoring | Complete |
+| Kestra | `packages/kestra/` | Python scripts, YAML flow generators, output handlers | Complete |
 
 ### Enterprise Extensions
 
@@ -319,6 +321,54 @@ dbt package providing Generic Tests, Jinja macros, and Python utilities for SQL-
 
 ---
 
+### truthound-mage
+
+| Status | Complete |
+|--------|----------|
+
+Mage AI integration providing custom block implementations for data quality operations.
+
+| Component | Description |
+|-----------|-------------|
+| `CheckTransformer` | Transformer block for data quality validation |
+| `ProfileTransformer` | Transformer block for statistical profiling |
+| `LearnTransformer` | Transformer block for schema inference |
+| `DataQualitySensor` | Sensor block for quality condition monitoring |
+| `DataQualityCondition` | Condition block for pipeline branching |
+| `SLAMonitor` | SLA monitoring with violation tracking |
+
+**Key Features:**
+- Native Mage block architecture with execution context
+- SLA monitoring with configurable thresholds and hooks
+- Thread-safe consecutive failure tracking
+- Builder pattern for immutable configuration
+
+---
+
+### truthound-kestra
+
+| Status | Complete |
+|--------|----------|
+
+Kestra integration providing Python script executors and YAML flow generators.
+
+| Component | Description |
+|-----------|-------------|
+| `check_quality_script` | Script executor for data validation |
+| `profile_data_script` | Script executor for statistical profiling |
+| `learn_schema_script` | Script executor for schema inference |
+| `FlowGenerator` | YAML flow generation from configuration |
+| `KestraOutputHandler` | Native Kestra output integration |
+| `SLAMonitor` | SLA monitoring with evaluation results |
+
+**Key Features:**
+- YAML flow generation for check, profile, learn, and pipeline flows
+- Script executors with Kestra-native output handling
+- Support for schedule, flow, and webhook triggers
+- Retry configuration with exponential backoff
+
+---
+
 ## Installation
 
 ### Requirements
@@ -340,6 +390,8 @@ pip install truthound-orchestration
 pip install truthound-orchestration[airflow]
 pip install truthound-orchestration[dagster]
 pip install truthound-orchestration[prefect]
+pip install truthound-orchestration[mage]
+pip install truthound-orchestration[kestra]
 
 # Multiple platforms
 pip install truthound-orchestration[airflow,dagster]
@@ -642,6 +694,17 @@ truthound-orchestration/
 │   │   ├── macros/             # SQL macros (truthound_check, truthound_rules, truthound_utils)
 │   │   ├── tests/generic/      # Generic test implementations
 │   │   └── integration_tests/  # Integration test suite
+│   ├── mage/                   # Mage AI Blocks (Complete)
+│   │   ├── blocks/             # Transformer, Sensor, Condition blocks
+│   │   ├── io/                 # IO configuration
+│   │   ├── sla/                # SLA monitoring
+│   │   └── utils/              # Utilities and exceptions
+│   ├── kestra/                 # Kestra Scripts and Flows (Complete)
+│   │   ├── scripts/            # Python script executors
+│   │   ├── flows/              # YAML flow generators
+│   │   ├── outputs/            # Output handlers
+│   │   ├── sla/                # SLA monitoring
+│   │   └── utils/              # Utilities and exceptions
 │   └── enterprise/             # Enterprise extensions (Complete)
 │       ├── engines/            # Enterprise engine adapters
 │       │   ├── base.py         # EnterpriseEngineAdapter, protocols
@@ -681,11 +744,15 @@ truthound-orchestration/
 │   ├── dagster/                # Dagster integration guide
 │   ├── prefect/                # Prefect integration guide
 │   ├── dbt/                    # dbt integration guide
+│   ├── mage/                   # Mage AI integration guide
+│   ├── kestra/                 # Kestra integration guide
 │   ├── enterprise/             # Enterprise features guide
 │   └── api-reference/          # API reference documentation
 └── tests/                      # Test suites
     ├── common/                 # Common module tests
     ├── dbt/                    # dbt module tests
+    ├── mage/                   # Mage module tests
+    ├── kestra/                 # Kestra module tests
     └── enterprise/             # Enterprise module tests
 ```
 
