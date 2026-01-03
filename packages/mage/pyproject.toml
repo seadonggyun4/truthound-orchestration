@@ -1,0 +1,112 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "truthound-mage"
+version = "0.1.0"
+description = "Mage AI integration for data quality validation with pluggable engine support"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Truthound Team", email = "team@truthound.dev" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["mage", "mage-ai", "data-quality", "truthound", "validation", "great-expectations", "pandera"]
+
+dependencies = [
+    "mage-ai>=0.9.0",
+    "truthound-orchestration>=0.1.0",
+    "polars>=0.20.0",
+]
+
+[project.optional-dependencies]
+postgres = [
+    "psycopg2-binary>=2.9.0",
+]
+bigquery = [
+    "google-cloud-bigquery>=3.0.0",
+]
+s3 = [
+    "boto3>=1.28.0",
+]
+gcs = [
+    "google-cloud-storage>=2.0.0",
+]
+all = [
+    "truthound-mage[postgres,bigquery,s3,gcs]",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-asyncio>=0.21.0",
+    "mypy>=1.5.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/seadonggyun4/truthound-orchestration"
+Documentation = "https://truthound.dev/docs/integrations/mage"
+Repository = "https://github.com/seadonggyun4/truthound-orchestration"
+Issues = "https://github.com/seadonggyun4/truthound-orchestration/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/truthound_mage"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ARG", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "mage_ai.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
+markers = [
+    "integration: marks tests as integration tests",
+    "slow: marks tests as slow",
+    "mage: marks tests requiring mage-ai",
+]
+
+[tool.coverage.run]
+source = ["src/truthound_mage"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
