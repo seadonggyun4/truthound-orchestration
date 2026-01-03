@@ -14,6 +14,8 @@ keywords = [
     "airflow",
     "dagster",
     "prefect",
+    "mage",
+    "kestra",
     "dbt",
     "truthound",
 ]
@@ -59,6 +61,15 @@ prefect = [
     "prefect>=2.14.0",
 ]
 
+mage = [
+    "mage-ai>=0.9.0",
+]
+
+kestra = [
+    "kestra>=0.15.0",
+    "pyyaml>=6.0.0",
+]
+
 opentelemetry = [
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
@@ -67,7 +78,7 @@ opentelemetry = [
 ]
 
 all = [
-    "truthound-orchestration[dev,airflow,dagster,prefect,opentelemetry]",
+    "truthound-orchestration[dev,airflow,dagster,prefect,mage,kestra,opentelemetry]",
 ]
 
 [project.urls]
@@ -118,6 +129,8 @@ members = [
     "packages/airflow",
     "packages/dagster",
     "packages/prefect",
+    "packages/mage",
+    "packages/kestra",
 ]
 
 [tool.pytest.ini_options]
@@ -137,6 +150,8 @@ markers = [
     "airflow: marks tests requiring airflow",
     "dagster: marks tests requiring dagster",
     "prefect: marks tests requiring prefect",
+    "mage: marks tests requiring mage",
+    "kestra: marks tests requiring kestra",
     "opentelemetry: marks tests requiring opentelemetry",
 ]
 asyncio_mode = "auto"
