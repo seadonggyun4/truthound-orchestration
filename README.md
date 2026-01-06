@@ -3,8 +3,8 @@
 # Truthound Orchestration
 
 [![PyPI version](https://img.shields.io/pypi/v/truthound-orchestration.svg)](https://pypi.org/project/truthound-orchestration/)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
 **Truthound Orchestration** is a **generic data quality integration framework** that provides adapters for major workflow orchestration platforms. While [Truthound](https://github.com/seadonggyun4/Truthound) serves as the default data quality engine, the framework supports **any data quality engine** through its Protocol-based architecture.
