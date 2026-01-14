@@ -314,6 +314,7 @@ temp/
 # =============================================================================
 .claude/
 CLAUDE.md
+.truthound_docs/
 
 # =============================================================================
 # Project Specific
@@ -327,4 +328,3 @@ local_settings.py
 .benchmarks/
 test-results/
 test-reports/
-CLAUDE.md
