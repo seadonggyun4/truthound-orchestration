@@ -2,6 +2,8 @@
 
 # Truthound Orchestration
 
+> **Note**: The [Truthound](https://github.com/seadonggyun4/Truthound) core library is currently undergoing significant API improvements and feature enhancements. This orchestration project is **actively being developed** to align with the new Truthound API. Some features may be incomplete or subject to change. Please check the [Truthound releases](https://github.com/seadonggyun4/Truthound/releases) for the latest updates.
+
 [![PyPI version](https://img.shields.io/pypi/v/truthound-orchestration.svg)](https://pypi.org/project/truthound-orchestration/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](https://opensource.org/licenses/Apache-2.0)
