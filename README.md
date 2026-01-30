@@ -1,8 +1,8 @@
 <img width="300" height="300" alt="Truthound_icon" src="https://github.com/user-attachments/assets/90d9e806-8895-45ec-97dc-f8300da4d997" />
 
-# Truthound Orchestration
+> **Alpha Stage** — This project is currently in **alpha**. APIs may change without notice. Not recommended for production use yet.
 
-> **Note**: The [Truthound](https://github.com/seadonggyun4/Truthound) core library is currently undergoing significant API improvements and feature enhancements. This orchestration project is **actively being developed** to align with the new Truthound API. Some features may be incomplete or subject to change. Please check the [Truthound releases](https://github.com/seadonggyun4/Truthound/releases) for the latest updates.
+# Truthound Orchestration
 
 [![PyPI version](https://img.shields.io/pypi/v/truthound-orchestration.svg)](https://pypi.org/project/truthound-orchestration/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -39,9 +39,17 @@ engine = TruthoundEngine()
 df = pl.read_csv("data.csv")
 
 with engine:
+    # Data validation
     result = engine.check(df, auto_schema=True)
     print(f"Status: {result.status.name}")
-    print(f"Passed: {result.passed_count}, Failed: {result.failed_count}")
+
+    # Drift detection (14 statistical methods)
+    drift = engine.detect_drift(baseline_df, current_df, method="ks")
+    print(f"Drifted: {drift.is_drifted}, Rate: {drift.drift_rate:.2%}")
+
+    # Anomaly detection (ML-based)
+    anomalies = engine.detect_anomalies(df, detector="isolation_forest")
+    print(f"Anomalies: {anomalies.has_anomalies}, Rate: {anomalies.anomaly_rate:.2%}")
 ```
 
 ---
@@ -55,6 +63,9 @@ with engine:
 - [Supported Platforms](#supported-platforms)
 - [Installation](#installation)
 - [Usage Examples](#usage-examples)
+  - [Drift Detection](#drift-detection)
+  - [Anomaly Detection](#anomaly-detection)
+  - [Streaming Validation](#streaming-validation)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -87,35 +98,27 @@ Modern data ecosystems require robust quality assurance mechanisms that integrat
 - **Data Validation**: Execute comprehensive validation rules across multiple data quality dimensions
 - **Data Profiling**: Perform automated statistical analysis and pattern detection
 - **Schema Learning**: Automatically infer validation rules from data characteristics
+- **Data Drift Detection**: Detect distribution changes between baseline and current data using 14 statistical methods (KS, PSI, Chi2, KL, JS, Wasserstein, etc.)
+- **Anomaly Detection**: ML-based anomaly detection with Isolation Forest, Z-Score, LOF, and Ensemble detectors
+- **Streaming Validation**: Memory-efficient batch-by-batch validation of streaming data via Iterator/Generator patterns
 - **Cross-Platform Consistency**: Maintain uniform validation semantics across all supported platforms
 
 ---
 
 ## Architecture
 
-The system architecture employs a layered design pattern with **engine abstraction** at its core. The `DataQualityEngine` Protocol enables any data quality engine to be plugged in, with Truthound as the default implementation.
+The system architecture employs a layered design pattern with **engine abstraction** at its core. The `DataQualityEngine` Protocol enables any data quality engine to be plugged in, with Truthound as the default implementation. Extended Protocols (`DriftDetectionEngine`, `AnomalyDetectionEngine`, `StreamingEngine`) provide opt-in advanced capabilities.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                        Workflow Orchestration Layer                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Airflow   │  │   Dagster   │  │   Prefect   │  │     dbt     │        │
-│  │    DAGs     │  │   Graphs    │  │    Flows    │  │   Models    │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
-└─────────┼────────────────┼────────────────┼────────────────┼────────────────┘
-          │                │                │                │
-          ▼                ▼                ▼                ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      Platform Integration Layer                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │  truthound- │  │  truthound- │  │  truthound- │  │  truthound- │        │
-│  │   airflow   │  │   dagster   │  │   prefect   │  │     dbt     │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
-└─────────┼────────────────┼────────────────┼────────────────┼────────────────┘
-          │                │                │                │
-          └────────────────┴───────┬────────┴────────────────┘
-                                   │
-                                   ▼
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────┐ ┌──────┐ ┌────────┐          │
+│  │ Airflow │ │ Dagster │ │ Prefect │ │ dbt │ │ Mage │ │ Kestra │          │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └──┬──┘ └──┬───┘ └───┬────┘          │
+└───────┼───────────┼───────────┼─────────┼───────┼─────────┼────────────────┘
+        └───────────┴───────────┴────┬────┴───────┴─────────┘
+                                     │
+                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Common Module                                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
@@ -123,10 +126,16 @@ The system architecture employs a layered design pattern with **engine abstracti
 │  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘    │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    DataQualityEngine Protocol                        │   │
+│  │               DataQualityEngine Protocol (Core)                      │   │
 │  │   check(data, rules) -> CheckResult                                  │   │
 │  │   profile(data) -> ProfileResult                                     │   │
 │  │   learn(data) -> LearnResult                                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │              Extended Protocols (Opt-in)                              │   │
+│  │   DriftDetectionEngine  -> detect_drift()      (14 methods)          │   │
+│  │   AnomalyDetectionEngine -> detect_anomalies() (4 detectors)         │   │
+│  │   StreamingEngine        -> check_stream()     (Iterator pattern)    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                    │
@@ -136,7 +145,9 @@ The system architecture employs a layered design pattern with **engine abstracti
 ┌─────────────────┐  ┌─────────────────────────┐  ┌─────────────────┐
 │    Truthound    │  │   Great Expectations    │  │  Custom Engine  │
 │    (Default)    │  │      (Optional)         │  │   (Optional)    │
-└─────────────────┘  └─────────────────────────┘  └─────────────────┘
+│ Drift/Anomaly/  │  └─────────────────────────┘  └─────────────────┘
+│   Streaming     │
+└─────────────────┘
 ```
 
 ---
@@ -164,6 +175,7 @@ The Common Module provides the foundational types and utilities shared across al
 | `cache.py` | Caching infrastructure with configurable eviction policies and backend abstraction | Complete |
 | `serializers.py` | Platform-specific serialization utilities | Complete |
 | `testing.py` | Mock objects, fixtures, and assertion helpers | Complete |
+| `rule_validation.py` | Rule validation with schema definitions and engine-specific validators | Complete |
 | `engines/` | Engine implementations (Truthound default, adapter for other engines) | Complete |
 | `engines/batch.py` | Batch operations with chunking, parallel execution, and result aggregation | Complete |
 | `engines/config.py` | Engine configuration system (Builder, Loader, Validator, Registry) | Complete |
@@ -175,12 +187,15 @@ The Common Module provides the foundational types and utilities shared across al
 **Key Components:**
 
 - **Engine Protocol**: `DataQualityEngine`, `AsyncDataQualityEngine` - core abstraction for any data quality engine
+- **Extended Protocols**: `DriftDetectionEngine`, `AnomalyDetectionEngine`, `StreamingEngine`, `AsyncStreamingEngine` - opt-in protocols for advanced capabilities
 - **Engine Lifecycle**: `ManagedEngine`, `AsyncManagedEngine`, `EngineLifecycleManager`, `AsyncEngineLifecycleManager` - lifecycle management with start/stop/health_check
-- **Engine Implementations**: `TruthoundEngine` (default), `GreatExpectationsAdapter`, `PanderaAdapter`
+- **Engine Implementations**: `TruthoundEngine` (default, supports drift/anomaly/streaming), `GreatExpectationsAdapter`, `PanderaAdapter`
 - **Engine Configuration**: `BaseEngineConfig`, `ConfigBuilder`, `ConfigLoader`, `ConfigValidator`, `ConfigRegistry`, `EnvironmentConfig` - flexible configuration with builder pattern, multi-source loading, and validation
-- **Protocols**: `WorkflowIntegration`, `AsyncWorkflowIntegration`
-- **Configuration Types**: `CheckConfig`, `ProfileConfig`, `LearnConfig`, `RetryConfig`, `CircuitBreakerConfig`, `HealthCheckConfig`, `MetricsConfig`, `TracingConfig`, `RateLimitConfig`
-- **Result Types**: `CheckResult`, `ProfileResult`, `LearnResult`, `HealthCheckResult`
+- **Protocols**: `WorkflowIntegration`, `AsyncWorkflowIntegration`, `ExtendedWorkflowIntegration`
+- **Configuration Types**: `CheckConfig`, `ProfileConfig`, `LearnConfig`, `DriftConfig`, `AnomalyConfig`, `StreamConfig`, `RetryConfig`, `CircuitBreakerConfig`, `HealthCheckConfig`, `MetricsConfig`, `TracingConfig`, `RateLimitConfig`
+- **Result Types**: `CheckResult`, `ProfileResult`, `LearnResult`, `DriftResult`, `AnomalyResult`, `HealthCheckResult`
+- **Drift/Anomaly Types**: `DriftStatus`, `AnomalyStatus`, `DriftMethod`, `ColumnDrift`, `AnomalyScore`
+- **Feature Detection**: `supports_drift()`, `supports_anomaly()`, `supports_streaming()` - runtime engine capability checking
 - **Serializers**: `AirflowXComSerializer`, `DagsterOutputSerializer`, `PrefectArtifactSerializer`
 - **Logging**: `TruthoundLogger`, `LogContext`, `PerformanceLogger`, `SensitiveDataMasker`
 - **Retry**: `retry`, `RetryConfig`, `RetryStrategy`, `RetryExecutor`, `LoggingRetryHook`
@@ -197,7 +212,7 @@ The Common Module provides the foundational types and utilities shared across al
 - **Engine Metrics**: `InstrumentedEngine`, `AsyncInstrumentedEngine`, `EngineMetricsHook`, `MetricsEngineHook`, `LoggingEngineHook`, `TracingEngineHook`, `StatsCollectorHook` - automatic metrics collection for engine operations
 - **Result Aggregation**: `MultiEngineAggregator`, `AggregationConfig`, `ResultAggregationStrategy`, `CheckResultMergeAggregator`, `CheckResultWeightedAggregator`, `AggregatorRegistry` - multi-engine result combination with strategies
 - **Engine Versioning**: `SemanticVersion`, `VersionConstraint`, `VersionRange`, `VersionCompatibilityChecker`, `VersionRegistry`, `parse_version`, `parse_constraint`, `require_version` - SemVer 2.0.0 support with compatibility checking
-- **Testing Utilities**: `MockDataQualityEngine`, `AsyncMockDataQualityEngine`, `AsyncMockManagedEngine`, `MockCacheBackend`, `DataQualityTestContext`
+- **Testing Utilities**: `MockDataQualityEngine`, `MockDriftDetectionEngine`, `MockAnomalyDetectionEngine`, `MockStreamingEngine`, `MockFullEngine`, `AsyncMockDataQualityEngine`, `AsyncMockManagedEngine`, `MockCacheBackend`, `DataQualityTestContext`
 - **Prometheus Export**: `PrometheusExporter`, `PrometheusPushGatewayClient`, `PrometheusHttpServer`, `TenantAwarePrometheusExporter`, `AsyncPrometheusExporter`
 
 ### Platform Integrations
@@ -246,6 +261,8 @@ Apache Airflow Provider package implementing native Operators, Sensors, and Hook
 | `DataQualityCheckOperator` | Execute data quality validation with any engine (default: Truthound) |
 | `DataQualityProfileOperator` | Perform statistical profiling of datasets |
 | `DataQualityLearnOperator` | Automatically infer validation schemas |
+| `DataQualityDriftOperator` | Detect data drift between baseline and current datasets |
+| `DataQualityAnomalyOperator` | Detect anomalies using ML-based detectors |
 | `DataQualitySensor` | Monitor data quality conditions |
 | `DataQualityHook` | Manage connections and data source interactions |
 
@@ -269,6 +286,8 @@ Dagster integration utilizing ConfigurableResource and Software-Defined Assets w
 | `DataQualityResource` | Configurable resource with pluggable engine support |
 | `create_quality_check_asset` | Factory function for quality validation assets |
 | `data_quality_check_op` | Op implementation for graph-based workflows |
+| `data_quality_drift_op` | Drift detection op with dual-input (baseline + current) |
+| `data_quality_anomaly_op` | Anomaly detection op with ML detectors |
 | `DataQualitySensor` | Event-driven quality monitoring |
 
 **Key Features:**
@@ -291,6 +310,8 @@ Prefect integration providing Blocks, Tasks, and Flow templates with **engine-ag
 | `DataQualityBlock` | Persistent configuration storage with engine selection |
 | `data_quality_check` | Task decorator for validation operations |
 | `data_quality_profile` | Task decorator for profiling operations |
+| `data_quality_drift_task` | Async drift detection task with table artifact visualization |
+| `data_quality_anomaly_task` | Async anomaly detection task with table artifact visualization |
 | `validation_flow` | Reusable flow template for quality pipelines |
 
 **Key Features:**
@@ -316,6 +337,8 @@ dbt package providing Generic Tests, Jinja macros, and Python utilities for SQL-
 | `truthound_utils.sql` | Cross-adapter utility macros |
 | `adapters/` | Database-specific optimizations (Snowflake, BigQuery, Redshift, Databricks, PostgreSQL) |
 | Python Package | Adapters, converters, generators, parsers, and hooks |
+| Drift SQL Handlers | SQL-based drift detection (mean, stddev, null rate, distinct count, row count) |
+| Anomaly SQL Handlers | SQL-based anomaly detection (Z-Score, IQR, range) |
 
 **Supported Databases:**
 - PostgreSQL (default)
@@ -338,6 +361,8 @@ Mage AI integration providing custom block implementations for data quality oper
 | `CheckTransformer` | Transformer block for data quality validation |
 | `ProfileTransformer` | Transformer block for statistical profiling |
 | `LearnTransformer` | Transformer block for schema inference |
+| `DriftTransformer` | Transformer block for drift detection (dual-input) |
+| `AnomalyTransformer` | Transformer block for ML anomaly detection |
 | `DataQualitySensor` | Sensor block for quality condition monitoring |
 | `DataQualityCondition` | Condition block for pipeline branching |
 | `SLAMonitor` | SLA monitoring with violation tracking |
@@ -362,6 +387,8 @@ Kestra integration providing Python script executors and YAML flow generators.
 | `check_quality_script` | Script executor for data validation |
 | `profile_data_script` | Script executor for statistical profiling |
 | `learn_schema_script` | Script executor for schema inference |
+| `drift_detection_script` | Script executor for drift detection |
+| `anomaly_detection_script` | Script executor for anomaly detection |
 | `FlowGenerator` | YAML flow generation from configuration |
 | `KestraOutputHandler` | Native Kestra output integration |
 | `SLAMonitor` | SLA monitoring with evaluation results |
@@ -595,6 +622,78 @@ models:
               pattern: "^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$"
 ```
 
+### Drift Detection
+
+```python
+from common.engines import TruthoundEngine
+import polars as pl
+
+engine = TruthoundEngine()
+
+baseline = pl.read_parquet("baseline.parquet")
+current = pl.read_parquet("current.parquet")
+
+# Detect drift with auto method selection
+result = engine.detect_drift(baseline, current)
+
+if result.is_drifted:
+    print(f"Drift detected! {result.drifted_count}/{result.total_columns} columns")
+    for col in result.drifted_columns:
+        print(f"  {col.column}: {col.method.name} stat={col.statistic:.4f}")
+
+# Specify method and columns
+result = engine.detect_drift(
+    baseline, current,
+    method="ks",
+    columns=["revenue", "user_count"],
+    threshold=0.05,
+)
+```
+
+### Anomaly Detection
+
+```python
+from common.engines import TruthoundEngine
+import polars as pl
+
+engine = TruthoundEngine()
+data = pl.read_parquet("data.parquet")
+
+# Detect anomalies with Isolation Forest (default)
+result = engine.detect_anomalies(data)
+
+if result.has_anomalies:
+    print(f"Anomalies found! rate={result.anomaly_rate:.2%}")
+    for score in result.anomalies:
+        print(f"  {score.column}: score={score.score:.4f}, anomaly={score.is_anomaly}")
+
+# Use Z-Score detector on specific columns
+result = engine.detect_anomalies(
+    data,
+    detector="z_score",
+    columns=["transaction_amount", "login_count"],
+    contamination=0.03,
+)
+```
+
+### Streaming Validation
+
+```python
+from common.engines import TruthoundEngine
+
+engine = TruthoundEngine()
+
+def data_stream():
+    for chunk in read_large_file("data.csv", chunk_size=10000):
+        yield chunk
+
+# Memory-efficient batch-by-batch validation
+for batch_result in engine.check_stream(data_stream(), batch_size=5000):
+    print(f"Batch: {batch_result.status.name}")
+    if batch_result.status.name == "FAILED":
+        break  # fail-fast
+```
+
 ---
 
 ## Development
@@ -810,6 +909,20 @@ from common.engines import get_engine
 engine = get_engine("truthound")  # Default
 engine = get_engine("great_expectations")
 engine = get_engine("pandera")
+```
+
+### Feature Detection
+
+```python
+from common.engines.base import supports_drift, supports_anomaly, supports_streaming
+
+engine = get_engine("truthound")
+print(supports_drift(engine))      # True
+print(supports_anomaly(engine))    # True
+print(supports_streaming(engine))  # True
+
+ge = get_engine("great_expectations")
+print(supports_drift(ge))          # False
 ```
 
 ---
