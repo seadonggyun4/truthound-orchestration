@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Protocol, Self, TypeVar, runtime_checkable
 
-from common.base import CheckResult, LearnResult, ProfileResult
+from common.base import AnomalyResult, CheckResult, DriftResult, LearnResult, ProfileResult
 from common.exceptions import DeserializeError, SerializationError, SerializeError
 
 
@@ -33,7 +33,7 @@ from common.exceptions import DeserializeError, SerializationError, SerializeErr
 # Type Variables
 # =============================================================================
 
-T = TypeVar("T", CheckResult, ProfileResult, LearnResult)
+T = TypeVar("T", CheckResult, ProfileResult, LearnResult, DriftResult, AnomalyResult)
 
 
 # =============================================================================
@@ -123,7 +123,10 @@ class JSONSerializer:
         """Return the format name."""
         return "json"
 
-    def serialize(self, result: CheckResult | ProfileResult | LearnResult) -> str:
+    def serialize(
+        self,
+        result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    ) -> str:
         """Serialize a result to JSON string.
 
         Args:
@@ -211,7 +214,10 @@ class DictSerializer:
         """Return the format name."""
         return "dict"
 
-    def serialize(self, result: CheckResult | ProfileResult | LearnResult) -> dict[str, Any]:
+    def serialize(
+        self,
+        result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    ) -> dict[str, Any]:
         """Serialize a result to dictionary.
 
         Args:
@@ -307,7 +313,10 @@ class AirflowXComSerializer:
         """Return the format name."""
         return "airflow_xcom"
 
-    def serialize(self, result: CheckResult | ProfileResult | LearnResult) -> dict[str, Any]:
+    def serialize(
+        self,
+        result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    ) -> dict[str, Any]:
         """Serialize a result for XCom storage.
 
         Args:
@@ -324,6 +333,10 @@ class AirflowXComSerializer:
 
             if isinstance(result, CheckResult):
                 data = self._optimize_check_result(data, result)
+            elif isinstance(result, DriftResult):
+                data = self._optimize_drift_result(data, result)
+            elif isinstance(result, AnomalyResult):
+                data = self._optimize_anomaly_result(data, result)
 
             return data
         except Exception as e:
@@ -372,6 +385,60 @@ class AirflowXComSerializer:
 
         return data
 
+    def _optimize_drift_result(
+        self,
+        data: dict[str, Any],
+        result: DriftResult,
+    ) -> dict[str, Any]:
+        """Optimize DriftResult for XCom size limits.
+
+        Args:
+            data: Serialized result data.
+            result: Original result object.
+
+        Returns:
+            Optimized dictionary.
+        """
+        columns = data.get("drifted_columns", [])
+        if len(columns) > self.config.max_failures:
+            data["drifted_columns"] = columns[: self.config.max_failures]
+            data["columns_truncated"] = True
+            data["total_drifted_columns_count"] = len(columns)
+
+        if not self.config.include_metadata:
+            data.pop("metadata", None)
+            for col in data.get("drifted_columns", []):
+                col.pop("metadata", None)
+
+        return data
+
+    def _optimize_anomaly_result(
+        self,
+        data: dict[str, Any],
+        result: AnomalyResult,
+    ) -> dict[str, Any]:
+        """Optimize AnomalyResult for XCom size limits.
+
+        Args:
+            data: Serialized result data.
+            result: Original result object.
+
+        Returns:
+            Optimized dictionary.
+        """
+        anomalies = data.get("anomalies", [])
+        if len(anomalies) > self.config.max_failures:
+            data["anomalies"] = anomalies[: self.config.max_failures]
+            data["anomalies_truncated"] = True
+            data["total_anomalies_count"] = len(anomalies)
+
+        if not self.config.include_metadata:
+            data.pop("metadata", None)
+            for a in data.get("anomalies", []):
+                a.pop("metadata", None)
+
+        return data
+
     def deserialize(
         self,
         data: dict[str, Any],
@@ -416,7 +483,10 @@ class DagsterOutputSerializer:
         """Return the format name."""
         return "dagster"
 
-    def serialize(self, result: CheckResult | ProfileResult | LearnResult) -> dict[str, Any]:
+    def serialize(
+        self,
+        result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    ) -> dict[str, Any]:
         """Serialize a result for Dagster output.
 
         Args:
@@ -440,6 +510,10 @@ class DagsterOutputSerializer:
                 metadata.update(self._format_check_metadata(result))
             elif isinstance(result, ProfileResult):
                 metadata.update(self._format_profile_metadata(result))
+            elif isinstance(result, DriftResult):
+                metadata.update(self._format_drift_metadata(result))
+            elif isinstance(result, AnomalyResult):
+                metadata.update(self._format_anomaly_metadata(result))
 
             return metadata
         except Exception as e:
@@ -486,6 +560,50 @@ class DagsterOutputSerializer:
             "execution_time_ms": {"raw_value": result.execution_time_ms, "type": "float"},
         }
 
+    def _format_drift_metadata(self, result: DriftResult) -> dict[str, Any]:
+        """Format DriftResult metadata for Dagster UI.
+
+        Args:
+            result: DriftResult to format.
+
+        Returns:
+            Dagster-compatible metadata dictionary.
+        """
+        return {
+            "status": {"raw_value": result.status.name, "type": "text"},
+            "drift_rate": {"raw_value": result.drift_rate, "type": "float"},
+            "total_columns": {"raw_value": result.total_columns, "type": "int"},
+            "drifted_count": {"raw_value": result.drifted_count, "type": "int"},
+            "method": {"raw_value": result.method.value, "type": "text"},
+            "execution_time_ms": {"raw_value": result.execution_time_ms, "type": "float"},
+            "drift_summary": {
+                "raw_value": self._create_drift_summary(result),
+                "type": "md",
+            },
+        }
+
+    def _format_anomaly_metadata(self, result: AnomalyResult) -> dict[str, Any]:
+        """Format AnomalyResult metadata for Dagster UI.
+
+        Args:
+            result: AnomalyResult to format.
+
+        Returns:
+            Dagster-compatible metadata dictionary.
+        """
+        return {
+            "status": {"raw_value": result.status.name, "type": "text"},
+            "anomaly_rate": {"raw_value": result.anomaly_rate, "type": "float"},
+            "anomalous_row_count": {"raw_value": result.anomalous_row_count, "type": "int"},
+            "total_row_count": {"raw_value": result.total_row_count, "type": "int"},
+            "detector": {"raw_value": result.detector, "type": "text"},
+            "execution_time_ms": {"raw_value": result.execution_time_ms, "type": "float"},
+            "anomaly_summary": {
+                "raw_value": self._create_anomaly_summary(result),
+                "type": "md",
+            },
+        }
+
     def _create_failure_summary(self, result: CheckResult) -> str:
         """Create markdown summary of failures.
 
@@ -507,6 +625,60 @@ class DagsterOutputSerializer:
 
         if len(result.failures) > 10:
             lines.append(f"\n*...and {len(result.failures) - 10} more failures*")
+
+        return "\n".join(lines)
+
+    def _create_drift_summary(self, result: DriftResult) -> str:
+        """Create markdown summary of drift results.
+
+        Args:
+            result: DriftResult to summarize.
+
+        Returns:
+            Markdown formatted summary.
+        """
+        if not result.drifted_columns:
+            return "No drift detected"
+
+        lines = [
+            "| Column | Method | Statistic | P-Value | Drifted |",
+            "|--------|--------|-----------|---------|---------|",
+        ]
+        for col in result.drifted_columns[:10]:
+            lines.append(
+                f"| {col.column} | {col.method} | {col.statistic:.4f} | "
+                f"{col.p_value:.4f} | {'Yes' if col.is_drifted else 'No'} |"
+            )
+
+        if len(result.drifted_columns) > 10:
+            lines.append(f"\n*...and {len(result.drifted_columns) - 10} more columns*")
+
+        return "\n".join(lines)
+
+    def _create_anomaly_summary(self, result: AnomalyResult) -> str:
+        """Create markdown summary of anomaly results.
+
+        Args:
+            result: AnomalyResult to summarize.
+
+        Returns:
+            Markdown formatted summary.
+        """
+        if not result.anomalies:
+            return "No anomalies detected"
+
+        lines = [
+            "| Column | Score | Threshold | Anomaly | Detector |",
+            "|--------|-------|-----------|---------|----------|",
+        ]
+        for a in result.anomalies[:10]:
+            lines.append(
+                f"| {a.column} | {a.score:.4f} | {a.threshold:.4f} | "
+                f"{'Yes' if a.is_anomaly else 'No'} | {a.detector} |"
+            )
+
+        if len(result.anomalies) > 10:
+            lines.append(f"\n*...and {len(result.anomalies) - 10} more anomalies*")
 
         return "\n".join(lines)
 
@@ -556,7 +728,10 @@ class PrefectArtifactSerializer:
         """Return the format name."""
         return "prefect"
 
-    def serialize(self, result: CheckResult | ProfileResult | LearnResult) -> dict[str, Any]:
+    def serialize(
+        self,
+        result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    ) -> dict[str, Any]:
         """Serialize a result for Prefect artifact.
 
         Args:
@@ -580,6 +755,10 @@ class PrefectArtifactSerializer:
                 artifact["markdown"] = self._create_check_markdown(result)
             elif isinstance(result, ProfileResult):
                 artifact["markdown"] = self._create_profile_markdown(result)
+            elif isinstance(result, DriftResult):
+                artifact["markdown"] = self._create_drift_markdown(result)
+            elif isinstance(result, AnomalyResult):
+                artifact["markdown"] = self._create_anomaly_markdown(result)
 
             return artifact
         except Exception as e:
@@ -672,6 +851,93 @@ class PrefectArtifactSerializer:
             "",
             f"**Execution Time:** {result.execution_time_ms:.2f}ms",
         ])
+
+        return "\n".join(lines)
+
+    def _create_drift_markdown(self, result: DriftResult) -> str:
+        """Create markdown report for DriftResult.
+
+        Args:
+            result: DriftResult to format.
+
+        Returns:
+            Markdown formatted report.
+        """
+        lines = [
+            "# Truthound Drift Detection Report",
+            "",
+            f"**Status:** {result.status.name}",
+            f"**Drift Rate:** {result.drift_rate:.1f}%",
+            f"**Method:** {result.method.value}",
+            "",
+            "## Summary",
+            "",
+            f"- Total Columns: {result.total_columns}",
+            f"- Drifted Columns: {result.drifted_count}",
+            "",
+            f"**Execution Time:** {result.execution_time_ms:.2f}ms",
+            "",
+        ]
+
+        if result.drifted_columns:
+            lines.extend([
+                "## Drifted Columns",
+                "",
+                "| Column | Method | Statistic | P-Value | Severity |",
+                "|--------|--------|-----------|---------|----------|",
+            ])
+            for col in result.drifted_columns[:20]:
+                severity = col.severity if hasattr(col, "severity") else "-"
+                lines.append(
+                    f"| {col.column} | {col.method} | {col.statistic:.4f} | "
+                    f"{col.p_value:.4f} | {severity} |"
+                )
+
+            if len(result.drifted_columns) > 20:
+                lines.append(f"\n*...and {len(result.drifted_columns) - 20} more columns*")
+
+        return "\n".join(lines)
+
+    def _create_anomaly_markdown(self, result: AnomalyResult) -> str:
+        """Create markdown report for AnomalyResult.
+
+        Args:
+            result: AnomalyResult to format.
+
+        Returns:
+            Markdown formatted report.
+        """
+        lines = [
+            "# Truthound Anomaly Detection Report",
+            "",
+            f"**Status:** {result.status.name}",
+            f"**Anomaly Rate:** {result.anomaly_rate:.1f}%",
+            f"**Detector:** {result.detector}",
+            "",
+            "## Summary",
+            "",
+            f"- Total Rows: {result.total_row_count:,}",
+            f"- Anomalous Rows: {result.anomalous_row_count:,}",
+            "",
+            f"**Execution Time:** {result.execution_time_ms:.2f}ms",
+            "",
+        ]
+
+        if result.anomalies:
+            lines.extend([
+                "## Anomaly Scores",
+                "",
+                "| Column | Score | Threshold | Anomaly | Detector |",
+                "|--------|-------|-----------|---------|----------|",
+            ])
+            for a in result.anomalies[:20]:
+                lines.append(
+                    f"| {a.column} | {a.score:.4f} | {a.threshold:.4f} | "
+                    f"{'Yes' if a.is_anomaly else 'No'} | {a.detector} |"
+                )
+
+            if len(result.anomalies) > 20:
+                lines.append(f"\n*...and {len(result.anomalies) - 20} more anomalies*")
 
         return "\n".join(lines)
 
@@ -818,7 +1084,7 @@ _default_factory = SerializerFactory()
 
 
 def serialize_result(
-    result: CheckResult | ProfileResult | LearnResult,
+    result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
     format: str = "dict",
 ) -> Any:
     """Serialize a result using the default factory.

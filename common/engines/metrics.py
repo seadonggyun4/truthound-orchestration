@@ -66,10 +66,21 @@ from common.exceptions import TruthoundIntegrationError
 
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
-    from common.base import CheckResult, LearnResult, ProfileResult
-    from common.engines.base import DataQualityEngine
+    from common.base import (
+        AnomalyResult,
+        CheckResult,
+        DriftResult,
+        LearnResult,
+        ProfileResult,
+    )
+    from common.engines.base import (
+        AnomalyDetectionEngine,
+        DataQualityEngine,
+        DriftDetectionEngine,
+        StreamingEngine,
+    )
     from common.health import HealthCheckResult
     from common.metrics import (
         Counter,
@@ -141,6 +152,9 @@ class EngineOperation(Enum):
     PROFILE = auto()
     LEARN = auto()
     HEALTH_CHECK = auto()
+    DRIFT = auto()
+    ANOMALY = auto()
+    STREAM_CHECK = auto()
 
 
 class OperationStatus(Enum):
@@ -463,6 +477,106 @@ class EngineMetricsHook(Protocol):
         ...
 
     @abstractmethod
+    def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when drift detection starts.
+
+        Args:
+            engine_name: Name of the engine.
+            data_size: Size of input data (row count if available).
+            context: Additional context including method, columns, threshold.
+        """
+        ...
+
+    @abstractmethod
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when drift detection completes.
+
+        Args:
+            engine_name: Name of the engine.
+            result: Drift detection result.
+            duration_ms: Duration in milliseconds.
+            context: Additional context.
+        """
+        ...
+
+    @abstractmethod
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when anomaly detection starts.
+
+        Args:
+            engine_name: Name of the engine.
+            data_size: Size of input data.
+            context: Additional context including detector, columns, contamination.
+        """
+        ...
+
+    @abstractmethod
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when anomaly detection completes.
+
+        Args:
+            engine_name: Name of the engine.
+            result: Anomaly detection result.
+            duration_ms: Duration in milliseconds.
+            context: Additional context.
+        """
+        ...
+
+    @abstractmethod
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when streaming check starts.
+
+        Args:
+            engine_name: Name of the engine.
+            context: Additional context including batch_size.
+        """
+        ...
+
+    @abstractmethod
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when streaming check completes.
+
+        Args:
+            engine_name: Name of the engine.
+            batch_count: Number of batches processed.
+            duration_ms: Duration in milliseconds.
+            context: Additional context.
+        """
+        ...
+
+    @abstractmethod
     def on_error(
         self,
         engine_name: str,
@@ -555,6 +669,68 @@ class AsyncEngineMetricsHook(Protocol):
         ...
 
     @abstractmethod
+    async def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async drift detection starts."""
+        ...
+
+    @abstractmethod
+    async def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async drift detection completes."""
+        ...
+
+    @abstractmethod
+    async def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async anomaly detection starts."""
+        ...
+
+    @abstractmethod
+    async def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async anomaly detection completes."""
+        ...
+
+    @abstractmethod
+    async def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async streaming check starts."""
+        ...
+
+    @abstractmethod
+    async def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Called when async streaming check completes."""
+        ...
+
+    @abstractmethod
     async def on_error(
         self,
         engine_name: str,
@@ -636,6 +812,62 @@ class BaseEngineMetricsHook:
         """No-op implementation."""
         pass
 
+    def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
     def on_error(
         self,
         engine_name: str,
@@ -711,6 +943,62 @@ class AsyncBaseEngineMetricsHook:
         """No-op implementation."""
         pass
 
+    async def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    async def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    async def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    async def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    async def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
+    async def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """No-op implementation."""
+        pass
+
     async def on_error(
         self,
         engine_name: str,
@@ -771,10 +1059,16 @@ class MetricsEngineHook(BaseEngineMetricsHook):
         self._check_duration: Histogram | None = None
         self._profile_duration: Histogram | None = None
         self._learn_duration: Histogram | None = None
+        self._drift_duration: Histogram | None = None
+        self._anomaly_duration: Histogram | None = None
+        self._stream_check_duration: Histogram | None = None
         self._operations_total: Counter | None = None
         self._errors_total: Counter | None = None
         self._passed_total: Counter | None = None
         self._failed_total: Counter | None = None
+        self._drift_detected_total: Counter | None = None
+        self._anomaly_detected_total: Counter | None = None
+        self._stream_batches_total: Counter | None = None
         self._rows_processed: Counter | None = None
         self._active_operations: Gauge | None = None
 
@@ -810,6 +1104,21 @@ class MetricsEngineHook(BaseEngineMetricsHook):
                 "Duration of learn operations in seconds",
                 buckets=self._config.histogram_buckets,
             )
+            self._drift_duration = self._registry.histogram(
+                self._get_metric_name("drift_duration_seconds"),
+                "Duration of drift detection operations in seconds",
+                buckets=self._config.histogram_buckets,
+            )
+            self._anomaly_duration = self._registry.histogram(
+                self._get_metric_name("anomaly_duration_seconds"),
+                "Duration of anomaly detection operations in seconds",
+                buckets=self._config.histogram_buckets,
+            )
+            self._stream_check_duration = self._registry.histogram(
+                self._get_metric_name("stream_check_duration_seconds"),
+                "Duration of streaming check operations in seconds",
+                buckets=self._config.histogram_buckets,
+            )
 
             # Operation counters
             self._operations_total = self._registry.counter(
@@ -829,6 +1138,20 @@ class MetricsEngineHook(BaseEngineMetricsHook):
             self._failed_total = self._registry.counter(
                 self._get_metric_name("check_failed_total"),
                 "Total number of failed validations",
+            )
+
+            # Drift/Anomaly/Stream counters
+            self._drift_detected_total = self._registry.counter(
+                self._get_metric_name("drift_detected_total"),
+                "Total number of drift detections",
+            )
+            self._anomaly_detected_total = self._registry.counter(
+                self._get_metric_name("anomaly_detected_total"),
+                "Total number of anomaly detections",
+            )
+            self._stream_batches_total = self._registry.counter(
+                self._get_metric_name("stream_batches_total"),
+                "Total number of stream batches processed",
             )
 
             # Data processing
@@ -1018,6 +1341,160 @@ class MetricsEngineHook(BaseEngineMetricsHook):
         learn_labels = self._merge_labels(engine=engine_name, operation="learn")
         if self._active_operations:
             self._active_operations.dec(labels=learn_labels)
+
+    def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Record drift detection start metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+        labels = self._merge_labels(engine=engine_name, operation="drift")
+
+        if self._active_operations:
+            self._active_operations.inc(labels=labels)
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record drift detection completion metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+
+        status = "drift_detected" if result.is_drifted else "no_drift"
+        labels = self._merge_labels(
+            engine=engine_name,
+            operation="drift",
+            status=status,
+        )
+
+        if self._drift_duration:
+            self._drift_duration.observe(duration_ms / 1000.0, labels=labels)
+
+        if self._operations_total:
+            self._operations_total.inc(labels=labels)
+
+        drift_labels = self._merge_labels(engine=engine_name, operation="drift")
+        if self._active_operations:
+            self._active_operations.dec(labels=drift_labels)
+
+        if self._config.include_result_counts and result.is_drifted:
+            engine_labels = self._merge_labels(engine=engine_name)
+            if self._drift_detected_total:
+                self._drift_detected_total.inc(
+                    result.drifted_count, labels=engine_labels
+                )
+
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Record anomaly detection start metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+        labels = self._merge_labels(engine=engine_name, operation="anomaly")
+
+        if self._active_operations:
+            self._active_operations.inc(labels=labels)
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record anomaly detection completion metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+
+        status = "anomaly_detected" if result.has_anomalies else "normal"
+        labels = self._merge_labels(
+            engine=engine_name,
+            operation="anomaly",
+            status=status,
+        )
+
+        if self._anomaly_duration:
+            self._anomaly_duration.observe(duration_ms / 1000.0, labels=labels)
+
+        if self._operations_total:
+            self._operations_total.inc(labels=labels)
+
+        anomaly_labels = self._merge_labels(engine=engine_name, operation="anomaly")
+        if self._active_operations:
+            self._active_operations.dec(labels=anomaly_labels)
+
+        if self._config.include_result_counts and result.has_anomalies:
+            engine_labels = self._merge_labels(engine=engine_name)
+            if self._anomaly_detected_total:
+                self._anomaly_detected_total.inc(
+                    result.anomalous_row_count, labels=engine_labels
+                )
+
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Record streaming check start metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+        labels = self._merge_labels(engine=engine_name, operation="stream_check")
+
+        if self._active_operations:
+            self._active_operations.inc(labels=labels)
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record streaming check completion metrics."""
+        if not self._config.enabled:
+            return
+
+        self._ensure_metrics_initialized()
+
+        labels = self._merge_labels(
+            engine=engine_name,
+            operation="stream_check",
+            status="success",
+        )
+
+        if self._stream_check_duration:
+            self._stream_check_duration.observe(duration_ms / 1000.0, labels=labels)
+
+        if self._operations_total:
+            self._operations_total.inc(labels=labels)
+
+        stream_labels = self._merge_labels(engine=engine_name, operation="stream_check")
+        if self._active_operations:
+            self._active_operations.dec(labels=stream_labels)
+
+        if self._config.include_result_counts and self._stream_batches_total:
+            engine_labels = self._merge_labels(engine=engine_name)
+            self._stream_batches_total.inc(batch_count, labels=engine_labels)
 
     def on_error(
         self,
@@ -1219,6 +1696,125 @@ class LoggingEngineHook(BaseEngineMetricsHook):
             status=result.status.name,
             rules_learned=len(result.rules),
             columns_analyzed=result.columns_analyzed,
+            duration_ms=round(duration_ms, 2),
+        )
+
+    def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Log drift detection start."""
+        if not self._log_start:
+            return
+
+        self._logger.debug(
+            "Drift detection starting",
+            engine=engine_name,
+            operation="drift",
+            data_size=data_size,
+            method=context.get("method"),
+        )
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Log drift detection completion."""
+        if not self._log_end:
+            return
+
+        log_method = self._logger.warning if result.is_drifted else self._logger.info
+        log_method(
+            "Drift detection completed",
+            engine=engine_name,
+            operation="drift",
+            status=result.status.name,
+            is_drifted=result.is_drifted,
+            drifted_columns=result.drifted_count,
+            total_columns=result.total_columns,
+            drift_rate=round(result.drift_rate, 4),
+            duration_ms=round(duration_ms, 2),
+        )
+
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Log anomaly detection start."""
+        if not self._log_start:
+            return
+
+        self._logger.debug(
+            "Anomaly detection starting",
+            engine=engine_name,
+            operation="anomaly",
+            data_size=data_size,
+            detector=context.get("detector"),
+        )
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Log anomaly detection completion."""
+        if not self._log_end:
+            return
+
+        log_method = self._logger.warning if result.has_anomalies else self._logger.info
+        log_method(
+            "Anomaly detection completed",
+            engine=engine_name,
+            operation="anomaly",
+            status=result.status.name,
+            has_anomalies=result.has_anomalies,
+            anomalous_rows=result.anomalous_row_count,
+            total_rows=result.total_row_count,
+            anomaly_rate=round(result.anomaly_rate, 4),
+            duration_ms=round(duration_ms, 2),
+        )
+
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Log streaming check start."""
+        if not self._log_start:
+            return
+
+        self._logger.debug(
+            "Streaming check starting",
+            engine=engine_name,
+            operation="stream_check",
+            batch_size=context.get("batch_size"),
+        )
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Log streaming check completion."""
+        if not self._log_end:
+            return
+
+        self._logger.info(
+            "Streaming check completed",
+            engine=engine_name,
+            operation="stream_check",
+            batch_count=batch_count,
             duration_ms=round(duration_ms, 2),
         )
 
@@ -1454,6 +2050,167 @@ class TracingEngineHook(BaseEngineMetricsHook):
             span.set_status(status)
             span.end()
 
+    def on_drift_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Start drift detection span."""
+        if not self._config.include_tracing:
+            return
+
+        from common.metrics import SpanKind
+
+        span = self._registry.start_span(
+            self._get_span_name("drift"),
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "engine.name": engine_name,
+                "engine.operation": "drift",
+                **({"data.size": data_size} if data_size else {}),
+                **({"drift.method": context["method"]} if "method" in context else {}),
+            },
+        )
+
+        key = self._get_span_key(engine_name, "drift")
+        with self._lock:
+            self._active_spans[key] = span
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """End drift detection span."""
+        if not self._config.include_tracing:
+            return
+
+        key = self._get_span_key(engine_name, "drift")
+        with self._lock:
+            span = self._active_spans.pop(key, None)
+
+        if span:
+            from common.metrics import SpanStatus
+
+            span.set_attribute("drift.status", result.status.name)
+            span.set_attribute("drift.is_drifted", result.is_drifted)
+            span.set_attribute("drift.drifted_count", result.drifted_count)
+            span.set_attribute("drift.total_columns", result.total_columns)
+            span.set_attribute("drift.drift_rate", round(result.drift_rate, 4))
+            span.set_attribute("duration_ms", round(duration_ms, 2))
+
+            status = SpanStatus.OK if not result.is_drifted else SpanStatus.ERROR
+            span.set_status(status)
+            span.end()
+
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Start anomaly detection span."""
+        if not self._config.include_tracing:
+            return
+
+        from common.metrics import SpanKind
+
+        span = self._registry.start_span(
+            self._get_span_name("anomaly"),
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "engine.name": engine_name,
+                "engine.operation": "anomaly",
+                **({"data.size": data_size} if data_size else {}),
+                **({"anomaly.detector": context["detector"]} if "detector" in context else {}),
+            },
+        )
+
+        key = self._get_span_key(engine_name, "anomaly")
+        with self._lock:
+            self._active_spans[key] = span
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """End anomaly detection span."""
+        if not self._config.include_tracing:
+            return
+
+        key = self._get_span_key(engine_name, "anomaly")
+        with self._lock:
+            span = self._active_spans.pop(key, None)
+
+        if span:
+            from common.metrics import SpanStatus
+
+            span.set_attribute("anomaly.status", result.status.name)
+            span.set_attribute("anomaly.has_anomalies", result.has_anomalies)
+            span.set_attribute("anomaly.anomalous_rows", result.anomalous_row_count)
+            span.set_attribute("anomaly.total_rows", result.total_row_count)
+            span.set_attribute("anomaly.anomaly_rate", round(result.anomaly_rate, 4))
+            span.set_attribute("duration_ms", round(duration_ms, 2))
+
+            status = SpanStatus.OK if not result.has_anomalies else SpanStatus.ERROR
+            span.set_status(status)
+            span.end()
+
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        context: dict[str, Any],
+    ) -> None:
+        """Start streaming check span."""
+        if not self._config.include_tracing:
+            return
+
+        from common.metrics import SpanKind
+
+        span = self._registry.start_span(
+            self._get_span_name("stream_check"),
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "engine.name": engine_name,
+                "engine.operation": "stream_check",
+                **({"stream.batch_size": context["batch_size"]} if "batch_size" in context else {}),
+            },
+        )
+
+        key = self._get_span_key(engine_name, "stream_check")
+        with self._lock:
+            self._active_spans[key] = span
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """End streaming check span."""
+        if not self._config.include_tracing:
+            return
+
+        key = self._get_span_key(engine_name, "stream_check")
+        with self._lock:
+            span = self._active_spans.pop(key, None)
+
+        if span:
+            from common.metrics import SpanStatus
+
+            span.set_attribute("stream.batch_count", batch_count)
+            span.set_attribute("duration_ms", round(duration_ms, 2))
+
+            span.set_status(SpanStatus.OK)
+            span.end()
+
     def on_error(
         self,
         engine_name: str,
@@ -1606,6 +2363,76 @@ class CompositeEngineHook(BaseEngineMetricsHook):
             with contextlib.suppress(Exception):
                 hook.on_learn_end(engine_name, result, duration_ms, context)
 
+    def on_drift_start(
+        self,
+        engine_name: str,
+        baseline_size: int | None,
+        current_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_drift_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_drift_start(engine_name, baseline_size, current_size, context)
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_drift_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_drift_end(engine_name, result, duration_ms, context)
+
+    def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_anomaly_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_anomaly_start(engine_name, data_size, context)
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_anomaly_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_anomaly_end(engine_name, result, duration_ms, context)
+
+    def on_stream_check_start(
+        self,
+        engine_name: str,
+        batch_size: int,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_stream_check_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_stream_check_start(engine_name, batch_size, context)
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_stream_check_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                hook.on_stream_check_end(engine_name, batch_count, duration_ms, context)
+
     def on_error(
         self,
         engine_name: str,
@@ -1711,6 +2538,76 @@ class AsyncCompositeEngineHook(AsyncBaseEngineMetricsHook):
         for hook in self.hooks:
             with contextlib.suppress(Exception):
                 await hook.on_learn_end(engine_name, result, duration_ms, context)
+
+    async def on_drift_start(
+        self,
+        engine_name: str,
+        baseline_size: int | None,
+        current_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_drift_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_drift_start(engine_name, baseline_size, current_size, context)
+
+    async def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_drift_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_drift_end(engine_name, result, duration_ms, context)
+
+    async def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_anomaly_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_anomaly_start(engine_name, data_size, context)
+
+    async def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_anomaly_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_anomaly_end(engine_name, result, duration_ms, context)
+
+    async def on_stream_check_start(
+        self,
+        engine_name: str,
+        batch_size: int,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_stream_check_start on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_stream_check_start(engine_name, batch_size, context)
+
+    async def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call on_stream_check_end on all hooks."""
+        for hook in self.hooks:
+            with contextlib.suppress(Exception):
+                await hook.on_stream_check_end(engine_name, batch_count, duration_ms, context)
 
     async def on_error(
         self,
@@ -1848,6 +2745,110 @@ class SyncToAsyncEngineHookAdapter(AsyncBaseEngineMetricsHook):
             self._sync_hook.on_learn_end,
             engine_name,
             result,
+            duration_ms,
+            context,
+        )
+
+    async def on_drift_start(
+        self,
+        engine_name: str,
+        baseline_size: int | None,
+        current_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_drift_start,
+            engine_name,
+            baseline_size,
+            current_size,
+            context,
+        )
+
+    async def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_drift_end,
+            engine_name,
+            result,
+            duration_ms,
+            context,
+        )
+
+    async def on_anomaly_start(
+        self,
+        engine_name: str,
+        data_size: int | None,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_anomaly_start,
+            engine_name,
+            data_size,
+            context,
+        )
+
+    async def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_anomaly_end,
+            engine_name,
+            result,
+            duration_ms,
+            context,
+        )
+
+    async def on_stream_check_start(
+        self,
+        engine_name: str,
+        batch_size: int,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_stream_check_start,
+            engine_name,
+            batch_size,
+            context,
+        )
+
+    async def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Call sync hook in executor."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            self._sync_hook.on_stream_check_end,
+            engine_name,
+            batch_count,
             duration_ms,
             context,
         )
@@ -2145,6 +3146,187 @@ class InstrumentedEngine:
 
             raise
 
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute drift detection with metrics collection.
+
+        Args:
+            baseline: Baseline data for comparison.
+            current: Current data to check for drift.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            DriftResult from the wrapped engine.
+        """
+        if not self._config.enabled:
+            return self._engine.detect_drift(baseline, current, **kwargs)
+
+        data_size = _get_data_size(current)
+        context: dict[str, Any] = {
+            "data_type": type(current).__name__,
+            "data_size": data_size,
+            "method": kwargs.get("method"),
+        }
+
+        baseline_size = _get_data_size(baseline)
+
+        # Notify start
+        with contextlib.suppress(Exception):
+            self._composite_hook.on_drift_start(
+                self.engine_name, baseline_size, data_size, context
+            )
+
+        start_time = time.perf_counter()
+        try:
+            result = self._engine.detect_drift(baseline, current, **kwargs)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify end
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_drift_end(
+                    self.engine_name, result, duration_ms, context
+                )
+
+            return result
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify error
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.DRIFT,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute anomaly detection with metrics collection.
+
+        Args:
+            data: Data to check for anomalies.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            AnomalyResult from the wrapped engine.
+        """
+        if not self._config.enabled:
+            return self._engine.detect_anomalies(data, **kwargs)
+
+        data_size = _get_data_size(data)
+        context: dict[str, Any] = {
+            "data_type": type(data).__name__,
+            "data_size": data_size,
+            "detector": kwargs.get("detector"),
+        }
+
+        # Notify start
+        with contextlib.suppress(Exception):
+            self._composite_hook.on_anomaly_start(self.engine_name, data_size, context)
+
+        start_time = time.perf_counter()
+        try:
+            result = self._engine.detect_anomalies(data, **kwargs)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify end
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_anomaly_end(
+                    self.engine_name, result, duration_ms, context
+                )
+
+            return result
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify error
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.ANOMALY,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
+    def check_stream(
+        self,
+        data: Any,
+        rules: Sequence[Mapping[str, Any]] = (),
+        **kwargs: Any,
+    ) -> Iterator[CheckResult]:
+        """Execute streaming check with metrics collection.
+
+        Args:
+            data: Data to validate in streaming fashion.
+            rules: Validation rules.
+            **kwargs: Engine-specific parameters.
+
+        Yields:
+            CheckResult for each batch from the wrapped engine.
+        """
+        if not self._config.enabled:
+            yield from self._engine.check_stream(data, rules, **kwargs)
+            return
+
+        context: dict[str, Any] = {
+            "data_type": type(data).__name__,
+            "batch_size": kwargs.get("batch_size"),
+        }
+
+        batch_size = kwargs.get("batch_size", 1000)
+
+        # Notify start
+        with contextlib.suppress(Exception):
+            self._composite_hook.on_stream_check_start(
+                self.engine_name, batch_size, context
+            )
+
+        start_time = time.perf_counter()
+        batch_count = 0
+        try:
+            for batch_result in self._engine.check_stream(data, rules, **kwargs):
+                batch_count += 1
+                yield batch_result
+
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify end
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_stream_check_end(
+                    self.engine_name, batch_count, duration_ms, context
+                )
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Notify error
+            with contextlib.suppress(Exception):
+                self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.STREAM_CHECK,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
     # Proxy lifecycle methods if available
     def start(self) -> None:
         """Proxy start method if available."""
@@ -2400,6 +3582,151 @@ class AsyncInstrumentedEngine:
 
             raise
 
+    async def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute async drift detection with metrics collection."""
+        if not self._config.enabled:
+            return await self._engine.detect_drift(baseline, current, **kwargs)
+
+        data_size = _get_data_size(current)
+        baseline_size = _get_data_size(baseline)
+        context: dict[str, Any] = {
+            "data_type": type(current).__name__,
+            "data_size": data_size,
+            "method": kwargs.get("method"),
+        }
+
+        with contextlib.suppress(Exception):
+            await self._composite_hook.on_drift_start(
+                self.engine_name, baseline_size, data_size, context
+            )
+
+        start_time = time.perf_counter()
+        try:
+            result = await self._engine.detect_drift(baseline, current, **kwargs)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_drift_end(
+                    self.engine_name, result, duration_ms, context
+                )
+
+            return result
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.DRIFT,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
+    async def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute async anomaly detection with metrics collection."""
+        if not self._config.enabled:
+            return await self._engine.detect_anomalies(data, **kwargs)
+
+        data_size = _get_data_size(data)
+        context: dict[str, Any] = {
+            "data_type": type(data).__name__,
+            "data_size": data_size,
+            "detector": kwargs.get("detector"),
+        }
+
+        with contextlib.suppress(Exception):
+            await self._composite_hook.on_anomaly_start(self.engine_name, data_size, context)
+
+        start_time = time.perf_counter()
+        try:
+            result = await self._engine.detect_anomalies(data, **kwargs)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_anomaly_end(
+                    self.engine_name, result, duration_ms, context
+                )
+
+            return result
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.ANOMALY,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
+    async def check_stream(
+        self,
+        data: Any,
+        rules: Sequence[Mapping[str, Any]] = (),
+        **kwargs: Any,
+    ) -> Any:
+        """Execute async streaming check with metrics collection."""
+        if not self._config.enabled:
+            async for batch_result in self._engine.check_stream(data, rules, **kwargs):
+                yield batch_result
+            return
+
+        batch_size = kwargs.get("batch_size", 1000)
+        context: dict[str, Any] = {
+            "data_type": type(data).__name__,
+            "batch_size": batch_size,
+        }
+
+        with contextlib.suppress(Exception):
+            await self._composite_hook.on_stream_check_start(
+                self.engine_name, batch_size, context
+            )
+
+        start_time = time.perf_counter()
+        batch_count = 0
+        try:
+            async for batch_result in self._engine.check_stream(data, rules, **kwargs):
+                batch_count += 1
+                yield batch_result
+
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_stream_check_end(
+                    self.engine_name, batch_count, duration_ms, context
+                )
+
+        except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            with contextlib.suppress(Exception):
+                await self._composite_hook.on_error(
+                    self.engine_name,
+                    EngineOperation.STREAM_CHECK,
+                    e,
+                    duration_ms,
+                    context,
+                )
+
+            raise
+
     async def __aenter__(self) -> AsyncInstrumentedEngine:
         """Enter async context manager."""
         if hasattr(self._engine, "__aenter__"):
@@ -2557,6 +3884,63 @@ class EngineOperationStats:
             return 0.0
         return (self.error_operations / self.total_operations) * 100
 
+    @property
+    def check_count(self) -> int:
+        """Get total check operations count."""
+        return self.operation_counts.get("check", 0)
+
+    @property
+    def profile_count(self) -> int:
+        """Get total profile operations count."""
+        return self.operation_counts.get("profile", 0)
+
+    @property
+    def learn_count(self) -> int:
+        """Get total learn operations count."""
+        return self.operation_counts.get("learn", 0)
+
+    @property
+    def drift_count(self) -> int:
+        """Get total drift detection operations count."""
+        return self.operation_counts.get("drift", 0)
+
+    @property
+    def anomaly_count(self) -> int:
+        """Get total anomaly detection operations count."""
+        return self.operation_counts.get("anomaly", 0)
+
+    @property
+    def stream_check_count(self) -> int:
+        """Get total streaming check operations count."""
+        return self.operation_counts.get("stream_check", 0)
+
+    @property
+    def check_success_rate(self) -> float:
+        """Calculate check operation success rate as a percentage."""
+        check_total = self.check_count
+        if check_total == 0:
+            return 100.0
+        check_errors = self.operation_counts.get("check_errors", 0)
+        return ((check_total - check_errors) / check_total) * 100
+
+    @property
+    def drift_success_rate(self) -> float:
+        """Calculate drift detection success rate (no drift = success)."""
+        drift_total = self.drift_count
+        if drift_total == 0:
+            return 100.0
+        drift_errors = self.operation_counts.get("drift_errors", 0)
+        return ((drift_total - drift_errors) / drift_total) * 100
+
+    @property
+    def anomaly_success_rate(self) -> float:
+        """Calculate anomaly detection success rate (no anomaly = success)."""
+        anomaly_total = self.anomaly_count
+        if anomaly_total == 0:
+            return 100.0
+        anomaly_errors = self.operation_counts.get("anomaly_errors", 0)
+        return ((anomaly_total - anomaly_errors) / anomaly_total) * 100
+
 
 class StatsCollectorHook(BaseEngineMetricsHook):
     """Hook that collects operation statistics in memory.
@@ -2662,6 +4046,62 @@ class StatsCollectorHook(BaseEngineMetricsHook):
                 self._stats.successful_operations += 1
             else:
                 self._stats.failed_operations += 1
+
+    def on_drift_end(
+        self,
+        engine_name: str,
+        result: DriftResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record drift detection statistics."""
+        with self._lock:
+            self._stats.total_operations += 1
+            self._stats.total_duration_ms += duration_ms
+            self._stats.operation_counts["drift"] = (
+                self._stats.operation_counts.get("drift", 0) + 1
+            )
+
+            if not result.is_drifted:
+                self._stats.successful_operations += 1
+            else:
+                self._stats.failed_operations += 1
+
+    def on_anomaly_end(
+        self,
+        engine_name: str,
+        result: AnomalyResult,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record anomaly detection statistics."""
+        with self._lock:
+            self._stats.total_operations += 1
+            self._stats.total_duration_ms += duration_ms
+            self._stats.operation_counts["anomaly"] = (
+                self._stats.operation_counts.get("anomaly", 0) + 1
+            )
+
+            if not result.has_anomalies:
+                self._stats.successful_operations += 1
+            else:
+                self._stats.failed_operations += 1
+
+    def on_stream_check_end(
+        self,
+        engine_name: str,
+        batch_count: int,
+        duration_ms: float,
+        context: dict[str, Any],
+    ) -> None:
+        """Record streaming check statistics."""
+        with self._lock:
+            self._stats.total_operations += 1
+            self._stats.total_duration_ms += duration_ms
+            self._stats.operation_counts["stream_check"] = (
+                self._stats.operation_counts.get("stream_check", 0) + 1
+            )
+            self._stats.successful_operations += 1
 
     def on_error(
         self,

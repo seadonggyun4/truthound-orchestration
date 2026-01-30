@@ -55,11 +55,15 @@ from typing import (
     runtime_checkable,
 )
 
-from common.base import CheckResult, LearnResult, ProfileResult
+from common.base import AnomalyResult, CheckResult, DriftResult, LearnResult, ProfileResult
 from common.engines.base import (
+    AnomalyDetectionEngine,
     DataQualityEngine,
+    DriftDetectionEngine,
     EngineCapabilities,
     EngineInfoMixin,
+    supports_anomaly,
+    supports_drift,
 )
 from common.exceptions import TruthoundIntegrationError
 
@@ -1622,6 +1626,90 @@ class EngineChain(EngineInfoMixin):
             **kwargs,
         )
 
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute drift detection across engine chain.
+
+        Only engines implementing DriftDetectionEngine are considered.
+        Non-drift engines are automatically skipped.
+
+        Args:
+            baseline: Baseline data for comparison.
+            current: Current data to check for drift.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            DriftResult from first successful drift-capable engine.
+
+        Raises:
+            NoEngineSelectedError: If no engines support drift detection.
+            AllEnginesFailedError: If all drift-capable engines fail.
+        """
+        drift_engines = [e for e in self._engines if supports_drift(e)]
+        if not drift_engines:
+            raise NoEngineSelectedError(
+                f"No engines in chain '{self._name}' support drift detection",
+                chain_name=self._name,
+            )
+
+        # Temporarily swap engines to only drift-capable ones
+        original_engines = self._engines
+        self._engines = drift_engines
+        try:
+            return self._execute_chain(
+                "detect_drift",
+                lambda e: lambda b, c, **kw: e.detect_drift(b, c, **kw),
+                baseline,
+                current,
+                **kwargs,
+            )
+        finally:
+            self._engines = original_engines
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute anomaly detection across engine chain.
+
+        Only engines implementing AnomalyDetectionEngine are considered.
+        Non-anomaly engines are automatically skipped.
+
+        Args:
+            data: Data to check for anomalies.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            AnomalyResult from first successful anomaly-capable engine.
+
+        Raises:
+            NoEngineSelectedError: If no engines support anomaly detection.
+            AllEnginesFailedError: If all anomaly-capable engines fail.
+        """
+        anomaly_engines = [e for e in self._engines if supports_anomaly(e)]
+        if not anomaly_engines:
+            raise NoEngineSelectedError(
+                f"No engines in chain '{self._name}' support anomaly detection",
+                chain_name=self._name,
+            )
+
+        original_engines = self._engines
+        self._engines = anomaly_engines
+        try:
+            return self._execute_chain(
+                "detect_anomalies",
+                lambda e: lambda d, **kw: e.detect_anomalies(d, **kw),
+                data,
+                **kwargs,
+            )
+        finally:
+            self._engines = original_engines
+
     def add_engine(
         self,
         engine: DataQualityEngine,
@@ -2038,6 +2126,47 @@ class ConditionalEngineChain(EngineInfoMixin):
             lambda e, d: e.learn(d[0], **kwargs),
         )
 
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute drift detection with conditionally selected engine.
+
+        Raises:
+            NoEngineSelectedError: If selected engine doesn't support drift.
+        """
+        def _op(e: Any, d: tuple[Any, ...]) -> DriftResult:
+            if not supports_drift(e):
+                raise NoEngineSelectedError(
+                    f"Selected engine '{e.engine_name}' does not support drift detection",
+                    chain_name=self._name,
+                )
+            return e.detect_drift(d[0], d[1], **kwargs)
+
+        return self._execute("detect_drift", (baseline, current), _op)
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute anomaly detection with conditionally selected engine.
+
+        Raises:
+            NoEngineSelectedError: If selected engine doesn't support anomaly.
+        """
+        def _op(e: Any, d: tuple[Any, ...]) -> AnomalyResult:
+            if not supports_anomaly(e):
+                raise NoEngineSelectedError(
+                    f"Selected engine '{e.engine_name}' does not support anomaly detection",
+                    chain_name=self._name,
+                )
+            return e.detect_anomalies(d[0], **kwargs)
+
+        return self._execute("detect_anomalies", (data, []), _op)
+
     def __enter__(self) -> Self:
         """Enter context manager."""
         from common.engines.lifecycle import ManagedEngine
@@ -2324,6 +2453,39 @@ class SelectorEngineChain(EngineInfoMixin):
             lambda e: e.learn(data, **kwargs),
         )
 
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute drift detection with selected engine."""
+        def _op(e: Any) -> DriftResult:
+            if not supports_drift(e):
+                raise NoEngineSelectedError(
+                    f"Selected engine '{e.engine_name}' does not support drift detection",
+                    chain_name=self._name,
+                )
+            return e.detect_drift(baseline, current, **kwargs)
+
+        return self._execute("detect_drift", baseline, [], _op)
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute anomaly detection with selected engine."""
+        def _op(e: Any) -> AnomalyResult:
+            if not supports_anomaly(e):
+                raise NoEngineSelectedError(
+                    f"Selected engine '{e.engine_name}' does not support anomaly detection",
+                    chain_name=self._name,
+                )
+            return e.detect_anomalies(data, **kwargs)
+
+        return self._execute("detect_anomalies", data, [], _op)
+
 
 # =============================================================================
 # Async Engine Chain
@@ -2578,6 +2740,72 @@ class AsyncEngineChain:
             data,
             **kwargs,
         )
+
+    async def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute async drift detection across chain.
+
+        Only engines implementing DriftDetectionEngine are considered.
+
+        Raises:
+            NoEngineSelectedError: If no engines support drift detection.
+            AllEnginesFailedError: If all drift-capable engines fail.
+        """
+        drift_engines = [e for e in self._engines if supports_drift(e)]
+        if not drift_engines:
+            raise NoEngineSelectedError(
+                f"No engines in async chain '{self._name}' support drift detection",
+                chain_name=self._name,
+            )
+
+        original_engines = self._engines
+        self._engines = drift_engines
+        try:
+            return await self._execute_chain(
+                "detect_drift",
+                lambda e: lambda b, c, **kw: e.detect_drift(b, c, **kw),
+                baseline,
+                current,
+                **kwargs,
+            )
+        finally:
+            self._engines = original_engines
+
+    async def detect_anomalies(
+        self,
+        data: Any,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute async anomaly detection across chain.
+
+        Only engines implementing AnomalyDetectionEngine are considered.
+
+        Raises:
+            NoEngineSelectedError: If no engines support anomaly detection.
+            AllEnginesFailedError: If all anomaly-capable engines fail.
+        """
+        anomaly_engines = [e for e in self._engines if supports_anomaly(e)]
+        if not anomaly_engines:
+            raise NoEngineSelectedError(
+                f"No engines in async chain '{self._name}' support anomaly detection",
+                chain_name=self._name,
+            )
+
+        original_engines = self._engines
+        self._engines = anomaly_engines
+        try:
+            return await self._execute_chain(
+                "detect_anomalies",
+                lambda e: lambda d, **kw: e.detect_anomalies(d, **kw),
+                data,
+                **kwargs,
+            )
+        finally:
+            self._engines = original_engines
 
     async def __aenter__(self) -> Self:
         """Enter async context manager."""

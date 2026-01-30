@@ -42,8 +42,12 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, runtime_checkable
 
 from common.base import (
+    AnomalyResult,
+    AnomalyStatus,
     CheckResult,
     CheckStatus,
+    DriftResult,
+    DriftStatus,
     LearnResult,
     LearnStatus,
     ProfileResult,
@@ -953,6 +957,148 @@ class LearnResultAggregator:
         )
 
 
+class DriftResultBatchAggregator:
+    """Aggregator for DriftResult objects in batch context.
+
+    Merges drift results from multiple chunks/datasets, deduplicating
+    column drifts and selecting the worst overall status.
+    """
+
+    def aggregate(
+        self,
+        results: Sequence[DriftResult],
+        config: BatchConfig,
+    ) -> DriftResult:
+        """Aggregate multiple DriftResults.
+
+        Args:
+            results: DriftResults to aggregate.
+            config: Batch configuration.
+
+        Returns:
+            Aggregated DriftResult.
+        """
+        if not results:
+            from common.base import DriftMethod
+
+            return DriftResult(
+                status=DriftStatus.NO_DRIFT,
+                drifted_columns=(),
+                total_columns=0,
+                drifted_count=0,
+                method=DriftMethod.AUTO,
+            )
+
+        # Merge column drifts, keeping the higher statistic per column
+        seen: dict[str, Any] = {}
+        for result in results:
+            for col in result.drifted_columns:
+                key = col.column
+                if key not in seen or col.statistic > seen[key].statistic:
+                    seen[key] = col
+
+        all_columns = tuple(seen.values())
+        drifted_count = sum(1 for c in all_columns if c.is_drifted)
+        total_columns = max(r.total_columns for r in results)
+
+        # Worst status wins
+        status_priority = {
+            DriftStatus.ERROR: 0,
+            DriftStatus.DRIFT_DETECTED: 1,
+            DriftStatus.WARNING: 2,
+            DriftStatus.NO_DRIFT: 3,
+        }
+        worst = min(results, key=lambda r: status_priority.get(r.status, 3))
+
+        total_time = sum(r.execution_time_ms for r in results)
+
+        from common.base import DriftMethod
+
+        # Use most common method
+        methods = [r.method for r in results]
+        method = max(set(methods), key=methods.count) if methods else DriftMethod.AUTO
+
+        return DriftResult(
+            status=worst.status,
+            drifted_columns=all_columns,
+            total_columns=total_columns,
+            drifted_count=drifted_count,
+            method=method,
+            execution_time_ms=total_time,
+            metadata={
+                "batch_count": len(results),
+                "aggregation_strategy": config.aggregation_strategy.name,
+            },
+        )
+
+
+class AnomalyResultBatchAggregator:
+    """Aggregator for AnomalyResult objects in batch context.
+
+    Merges anomaly results from multiple chunks/datasets, deduplicating
+    anomaly scores and selecting the worst overall status.
+    """
+
+    def aggregate(
+        self,
+        results: Sequence[AnomalyResult],
+        config: BatchConfig,
+    ) -> AnomalyResult:
+        """Aggregate multiple AnomalyResults.
+
+        Args:
+            results: AnomalyResults to aggregate.
+            config: Batch configuration.
+
+        Returns:
+            Aggregated AnomalyResult.
+        """
+        if not results:
+            return AnomalyResult(
+                status=AnomalyStatus.NORMAL,
+                anomalies=(),
+                anomalous_row_count=0,
+                total_row_count=0,
+                detector="merged",
+            )
+
+        # Merge anomaly scores, keeping highest score per column
+        seen: dict[str, Any] = {}
+        for result in results:
+            for anomaly in result.anomalies:
+                key = anomaly.column
+                if key not in seen or anomaly.score > seen[key].score:
+                    seen[key] = anomaly
+
+        all_anomalies = tuple(seen.values())
+        total_rows = sum(r.total_row_count for r in results)
+        anomalous_rows = sum(r.anomalous_row_count for r in results)
+
+        # Worst status wins
+        status_priority = {
+            AnomalyStatus.ERROR: 0,
+            AnomalyStatus.ANOMALY_DETECTED: 1,
+            AnomalyStatus.WARNING: 2,
+            AnomalyStatus.NORMAL: 3,
+        }
+        worst = min(results, key=lambda r: status_priority.get(r.status, 3))
+
+        total_time = sum(r.execution_time_ms for r in results)
+
+        return AnomalyResult(
+            status=worst.status,
+            anomalies=all_anomalies,
+            anomalous_row_count=anomalous_rows,
+            total_row_count=total_rows,
+            detector="merged",
+            execution_time_ms=total_time,
+            metadata={
+                "batch_count": len(results),
+                "aggregation_strategy": config.aggregation_strategy.name,
+            },
+        )
+
+
 # =============================================================================
 # Batch Hooks
 # =============================================================================
@@ -1218,7 +1364,21 @@ class BatchExecutor:
         self._check_aggregator = CheckResultAggregator()
         self._profile_aggregator = ProfileResultAggregator()
         self._learn_aggregator = LearnResultAggregator()
+        self._drift_aggregator: ResultAggregator[Any] | None = None
+        self._anomaly_aggregator: ResultAggregator[Any] | None = None
         self._chunker = PolarsChunker()
+
+    def _get_drift_aggregator(self) -> ResultAggregator[Any]:
+        """Lazily initialize and return the drift result aggregator."""
+        if self._drift_aggregator is None:
+            self._drift_aggregator = DriftResultBatchAggregator()
+        return self._drift_aggregator
+
+    def _get_anomaly_aggregator(self) -> ResultAggregator[Any]:
+        """Lazily initialize and return the anomaly result aggregator."""
+        if self._anomaly_aggregator is None:
+            self._anomaly_aggregator = AnomalyResultBatchAggregator()
+        return self._anomaly_aggregator
 
     @property
     def engine(self) -> DataQualityEngine:
@@ -1472,6 +1632,193 @@ class BatchExecutor:
             operation_name="learn_chunked",
         )
 
+    def drift_batch(
+        self,
+        baseline_datasets: Sequence[Any],
+        current_datasets: Sequence[Any],
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[DriftResult]:
+        """Execute drift detection on multiple dataset pairs.
+
+        Each baseline/current pair is processed as a batch item.
+        The engine must implement DriftDetectionEngine.
+
+        Args:
+            baseline_datasets: Sequence of baseline datasets.
+            current_datasets: Sequence of current datasets (same length).
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_drift().
+
+        Returns:
+            BatchResult containing individual and aggregated drift results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support drift detection.
+            ValueError: If baseline and current datasets have different lengths.
+        """
+        from common.engines.base import supports_drift
+
+        if not supports_drift(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support drift detection"
+            )
+        if len(baseline_datasets) != len(current_datasets):
+            msg = (
+                f"baseline_datasets ({len(baseline_datasets)}) and "
+                f"current_datasets ({len(current_datasets)}) must have the same length"
+            )
+            raise ValueError(msg)
+
+        config = config or self._default_config
+        pairs = list(zip(baseline_datasets, current_datasets))
+
+        def drift_one(pair: tuple[Any, Any]) -> DriftResult:
+            return self._engine.detect_drift(pair[0], pair[1], **kwargs)
+
+        return self._execute_batch(
+            items=pairs,
+            operation=drift_one,
+            aggregator=self._get_drift_aggregator(),
+            config=config,
+            operation_name="drift",
+        )
+
+    def drift_chunked(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[DriftResult]:
+        """Execute drift detection on large datasets by chunking.
+
+        Both baseline and current are chunked in parallel, and drift is
+        detected per chunk pair.
+
+        Args:
+            baseline: Large baseline dataset.
+            current: Large current dataset.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_drift().
+
+        Returns:
+            BatchResult containing individual and aggregated drift results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support drift detection.
+        """
+        from common.engines.base import supports_drift
+
+        if not supports_drift(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support drift detection"
+            )
+
+        config = config or self._default_config
+        baseline_chunks = list(self._chunker.chunk(baseline, config))
+        current_chunks = list(self._chunker.chunk(current, config))
+
+        # Align chunks: use min length
+        chunk_count = min(len(baseline_chunks), len(current_chunks))
+        pairs = [(baseline_chunks[i], current_chunks[i]) for i in range(chunk_count)]
+
+        def drift_one(pair: tuple[Any, Any]) -> DriftResult:
+            return self._engine.detect_drift(pair[0], pair[1], **kwargs)
+
+        return self._execute_batch(
+            items=pairs,
+            operation=drift_one,
+            aggregator=self._get_drift_aggregator(),
+            config=config,
+            operation_name="drift_chunked",
+        )
+
+    def anomaly_batch(
+        self,
+        datasets: Sequence[Any],
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[AnomalyResult]:
+        """Execute anomaly detection on multiple datasets.
+
+        The engine must implement AnomalyDetectionEngine.
+
+        Args:
+            datasets: Sequence of datasets to check for anomalies.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_anomalies().
+
+        Returns:
+            BatchResult containing individual and aggregated anomaly results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support anomaly detection.
+        """
+        from common.engines.base import supports_anomaly
+
+        if not supports_anomaly(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support anomaly detection"
+            )
+
+        config = config or self._default_config
+
+        def anomaly_one(data: Any) -> AnomalyResult:
+            return self._engine.detect_anomalies(data, **kwargs)
+
+        return self._execute_batch(
+            items=list(datasets),
+            operation=anomaly_one,
+            aggregator=self._get_anomaly_aggregator(),
+            config=config,
+            operation_name="anomaly",
+        )
+
+    def anomaly_chunked(
+        self,
+        data: Any,
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[AnomalyResult]:
+        """Execute anomaly detection on a large dataset by chunking.
+
+        Args:
+            data: Large dataset to chunk and check for anomalies.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_anomalies().
+
+        Returns:
+            BatchResult containing individual and aggregated anomaly results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support anomaly detection.
+        """
+        from common.engines.base import supports_anomaly
+
+        if not supports_anomaly(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support anomaly detection"
+            )
+
+        config = config or self._default_config
+        chunks = list(self._chunker.chunk(data, config))
+
+        def anomaly_one(chunk: Any) -> AnomalyResult:
+            return self._engine.detect_anomalies(chunk, **kwargs)
+
+        return self._execute_batch(
+            items=chunks,
+            operation=anomaly_one,
+            aggregator=self._get_anomaly_aggregator(),
+            config=config,
+            operation_name="anomaly_chunked",
+        )
+
     def _execute_batch(
         self,
         items: list[Any],
@@ -1719,7 +2066,21 @@ class AsyncBatchExecutor:
         self._check_aggregator = CheckResultAggregator()
         self._profile_aggregator = ProfileResultAggregator()
         self._learn_aggregator = LearnResultAggregator()
+        self._drift_aggregator: ResultAggregator[Any] | None = None
+        self._anomaly_aggregator: ResultAggregator[Any] | None = None
         self._chunker = PolarsChunker()
+
+    def _get_drift_aggregator(self) -> ResultAggregator[Any]:
+        """Lazily initialize and return drift result aggregator."""
+        if self._drift_aggregator is None:
+            self._drift_aggregator = DriftResultBatchAggregator()
+        return self._drift_aggregator
+
+    def _get_anomaly_aggregator(self) -> ResultAggregator[Any]:
+        """Lazily initialize and return anomaly result aggregator."""
+        if self._anomaly_aggregator is None:
+            self._anomaly_aggregator = AnomalyResultBatchAggregator()
+        return self._anomaly_aggregator
 
     @property
     def engine(self) -> AsyncDataQualityEngine:
@@ -1952,6 +2313,193 @@ class AsyncBatchExecutor:
             aggregator=self._learn_aggregator,
             config=config,
             operation_name="learn_chunked",
+        )
+
+    async def drift_batch(
+        self,
+        baseline_datasets: Sequence[Any],
+        current_datasets: Sequence[Any],
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[DriftResult]:
+        """Execute drift detection on multiple dataset pairs asynchronously.
+
+        Each baseline/current pair is processed as a batch item.
+        The engine must implement DriftDetectionEngine.
+
+        Args:
+            baseline_datasets: Sequence of baseline datasets.
+            current_datasets: Sequence of current datasets (same length).
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_drift().
+
+        Returns:
+            BatchResult containing individual and aggregated drift results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support drift detection.
+            ValueError: If baseline and current datasets have different lengths.
+        """
+        from common.engines.base import supports_drift
+
+        if not supports_drift(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support drift detection"
+            )
+        if len(baseline_datasets) != len(current_datasets):
+            msg = (
+                f"baseline_datasets ({len(baseline_datasets)}) and "
+                f"current_datasets ({len(current_datasets)}) must have the same length"
+            )
+            raise ValueError(msg)
+
+        config = config or self._default_config
+        pairs = list(zip(baseline_datasets, current_datasets))
+
+        async def drift_one(pair: tuple[Any, Any]) -> DriftResult:
+            return await self._engine.detect_drift(pair[0], pair[1], **kwargs)
+
+        return await self._execute_batch(
+            items=pairs,
+            operation=drift_one,
+            aggregator=self._get_drift_aggregator(),
+            config=config,
+            operation_name="drift",
+        )
+
+    async def drift_chunked(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[DriftResult]:
+        """Execute drift detection on large datasets by chunking asynchronously.
+
+        Both baseline and current are chunked in parallel, and drift is
+        detected per chunk pair.
+
+        Args:
+            baseline: Large baseline dataset.
+            current: Large current dataset.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_drift().
+
+        Returns:
+            BatchResult containing individual and aggregated drift results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support drift detection.
+        """
+        from common.engines.base import supports_drift
+
+        if not supports_drift(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support drift detection"
+            )
+
+        config = config or self._default_config
+        baseline_chunks = list(self._chunker.chunk(baseline, config))
+        current_chunks = list(self._chunker.chunk(current, config))
+
+        # Align chunks: use min length
+        chunk_count = min(len(baseline_chunks), len(current_chunks))
+        pairs = [(baseline_chunks[i], current_chunks[i]) for i in range(chunk_count)]
+
+        async def drift_one(pair: tuple[Any, Any]) -> DriftResult:
+            return await self._engine.detect_drift(pair[0], pair[1], **kwargs)
+
+        return await self._execute_batch(
+            items=pairs,
+            operation=drift_one,
+            aggregator=self._get_drift_aggregator(),
+            config=config,
+            operation_name="drift_chunked",
+        )
+
+    async def anomaly_batch(
+        self,
+        datasets: Sequence[Any],
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[AnomalyResult]:
+        """Execute anomaly detection on multiple datasets asynchronously.
+
+        The engine must implement AnomalyDetectionEngine.
+
+        Args:
+            datasets: Sequence of datasets to check for anomalies.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_anomalies().
+
+        Returns:
+            BatchResult containing individual and aggregated anomaly results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support anomaly detection.
+        """
+        from common.engines.base import supports_anomaly
+
+        if not supports_anomaly(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support anomaly detection"
+            )
+
+        config = config or self._default_config
+
+        async def anomaly_one(data: Any) -> AnomalyResult:
+            return await self._engine.detect_anomalies(data, **kwargs)
+
+        return await self._execute_batch(
+            items=list(datasets),
+            operation=anomaly_one,
+            aggregator=self._get_anomaly_aggregator(),
+            config=config,
+            operation_name="anomaly",
+        )
+
+    async def anomaly_chunked(
+        self,
+        data: Any,
+        *,
+        config: BatchConfig | None = None,
+        **kwargs: Any,
+    ) -> BatchResult[AnomalyResult]:
+        """Execute anomaly detection on a large dataset by chunking asynchronously.
+
+        Args:
+            data: Large dataset to chunk and check for anomalies.
+            config: Batch configuration.
+            **kwargs: Additional arguments passed to engine.detect_anomalies().
+
+        Returns:
+            BatchResult containing individual and aggregated anomaly results.
+
+        Raises:
+            BatchOperationError: If engine doesn't support anomaly detection.
+        """
+        from common.engines.base import supports_anomaly
+
+        if not supports_anomaly(self._engine):
+            raise BatchOperationError(
+                f"Engine '{self._engine.engine_name}' does not support anomaly detection"
+            )
+
+        config = config or self._default_config
+        chunks = list(self._chunker.chunk(data, config))
+
+        async def anomaly_one(chunk: Any) -> AnomalyResult:
+            return await self._engine.detect_anomalies(chunk, **kwargs)
+
+        return await self._execute_batch(
+            items=chunks,
+            operation=anomaly_one,
+            aggregator=self._get_anomaly_aggregator(),
+            config=config,
+            operation_name="anomaly_chunked",
         )
 
     async def _execute_batch(

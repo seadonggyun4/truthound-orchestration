@@ -143,6 +143,30 @@ class StatusPriority(Enum):
         return cls[name] if name in cls.__members__ else cls.PASSED
 
     @classmethod
+    def from_drift_status(cls, status: Any) -> StatusPriority:
+        """Convert DriftStatus to StatusPriority."""
+        name = status.name if hasattr(status, "name") else str(status)
+        mapping = {
+            "ERROR": cls.ERROR,
+            "DRIFT_DETECTED": cls.FAILED,
+            "WARNING": cls.WARNING,
+            "NO_DRIFT": cls.PASSED,
+        }
+        return mapping.get(name, cls.PASSED)
+
+    @classmethod
+    def from_anomaly_status(cls, status: Any) -> StatusPriority:
+        """Convert AnomalyStatus to StatusPriority."""
+        name = status.name if hasattr(status, "name") else str(status)
+        mapping = {
+            "ERROR": cls.ERROR,
+            "ANOMALY_DETECTED": cls.FAILED,
+            "WARNING": cls.WARNING,
+            "NORMAL": cls.PASSED,
+        }
+        return mapping.get(name, cls.PASSED)
+
+    @classmethod
     def from_profile_status(cls, status: Any) -> StatusPriority:
         """Convert ProfileStatus to StatusPriority."""
         name = status.name if hasattr(status, "name") else str(status)
@@ -1405,6 +1429,326 @@ class LearnResultAggregator(BaseResultAggregator["LearnResult"]):
 
 
 # =============================================================================
+# DriftResult Aggregator
+# =============================================================================
+
+
+class DriftResultAggregator(BaseResultAggregator["DriftResult"]):
+    """Aggregator for DriftResult objects.
+
+    Supports WORST (most critical drift state) and MERGE (all column results
+    combined) strategies for multi-engine drift detection results.
+    """
+
+    def _aggregate_merge(
+        self,
+        results: Sequence[Any],  # DriftResult
+        config: AggregationConfig,
+    ) -> Any:  # DriftResult
+        """Merge all DriftResults into one."""
+        from common.base import DriftMethod, DriftResult, DriftStatus
+
+        # Merge all column drifts, deduplicating by column name
+        all_column_drifts: list[Any] = []
+        seen_columns: set[str] = set()
+
+        for result in results:
+            for col_drift in result.drifted_columns:
+                if config.deduplicate_failures:
+                    if col_drift.column in seen_columns:
+                        continue
+                    seen_columns.add(col_drift.column)
+                all_column_drifts.append(col_drift)
+
+        total_columns = max(r.total_columns for r in results)
+        drifted_count = sum(1 for cd in all_column_drifts if cd.is_drifted)
+        total_time = sum(r.execution_time_ms for r in results)
+
+        # Determine status: worst across all results
+        if any(r.status == DriftStatus.ERROR for r in results):
+            status = DriftStatus.ERROR
+        elif any(r.status == DriftStatus.DRIFT_DETECTED for r in results):
+            status = DriftStatus.DRIFT_DETECTED
+        elif any(r.status == DriftStatus.WARNING for r in results):
+            status = DriftStatus.WARNING
+        else:
+            status = DriftStatus.NO_DRIFT
+
+        # Use the most common method, or AUTO
+        methods = [r.method for r in results]
+        method = max(set(methods), key=methods.count) if methods else DriftMethod.AUTO
+
+        metadata: dict[str, Any] = {
+            "aggregation_strategy": config.strategy.name,
+            "source_count": len(results),
+        }
+        if config.include_metadata:
+            metadata["source_timestamps"] = [r.timestamp for r in results]
+        if config.preserve_individual_results:
+            metadata["individual_results"] = [r.to_dict() for r in results]
+
+        return DriftResult(
+            status=status,
+            drifted_columns=tuple(all_column_drifts),
+            total_columns=total_columns,
+            drifted_count=drifted_count,
+            method=method,
+            execution_time_ms=total_time,
+            metadata=metadata,
+        )
+
+    def _get_status_priority(self, result: Any) -> int:
+        """Get priority for DriftResult status."""
+        if hasattr(result, "status"):
+            return StatusPriority.from_drift_status(result.status).value
+        return StatusPriority.PASSED.value
+
+    def _is_failure(self, result: Any) -> bool:
+        """Check if drift result represents a failure (drift detected or error)."""
+        status_name = self._get_status_name(result)
+        return status_name in ("DRIFT_DETECTED", "ERROR")
+
+    def _is_success(self, result: Any) -> bool:
+        """Check if drift result represents success (no drift)."""
+        return self._get_status_name(result) == "NO_DRIFT"
+
+    def _create_failed_result(
+        self,
+        merged: Any,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Create a failed drift result from merged data."""
+        from common.base import DriftResult, DriftStatus
+
+        return DriftResult(
+            status=DriftStatus.DRIFT_DETECTED,
+            drifted_columns=merged.drifted_columns,
+            total_columns=merged.total_columns,
+            drifted_count=merged.drifted_count,
+            method=merged.method,
+            execution_time_ms=merged.execution_time_ms,
+            metadata={**merged.metadata, "aggregation_override": "STRICT_ALL"},
+        )
+
+    def _create_passed_result(
+        self,
+        merged: Any,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Create a passed drift result from merged data."""
+        from common.base import DriftResult, DriftStatus
+
+        return DriftResult(
+            status=DriftStatus.NO_DRIFT,
+            drifted_columns=merged.drifted_columns,
+            total_columns=merged.total_columns,
+            drifted_count=merged.drifted_count,
+            method=merged.method,
+            execution_time_ms=merged.execution_time_ms,
+            metadata={**merged.metadata, "aggregation_override": "LENIENT_ANY"},
+        )
+
+
+# =============================================================================
+# AnomalyResult Aggregator
+# =============================================================================
+
+
+class AnomalyResultAggregator(BaseResultAggregator["AnomalyResult"]):
+    """Aggregator for AnomalyResult objects.
+
+    Supports MERGE (all anomaly scores combined) and CONSENSUS (only anomalies
+    agreed upon by multiple engines) strategies.
+    """
+
+    def _aggregate_merge(
+        self,
+        results: Sequence[Any],  # AnomalyResult
+        config: AggregationConfig,
+    ) -> Any:  # AnomalyResult
+        """Merge all AnomalyResults into one."""
+        from common.base import AnomalyResult, AnomalyStatus
+
+        # Merge all anomaly scores, deduplicating by column
+        all_anomalies: list[Any] = []
+        seen_columns: set[str] = set()
+
+        for result in results:
+            for anomaly in result.anomalies:
+                if config.deduplicate_failures:
+                    if anomaly.column in seen_columns:
+                        continue
+                    seen_columns.add(anomaly.column)
+                all_anomalies.append(anomaly)
+
+        total_rows = max(r.total_row_count for r in results) if results else 0
+        anomalous_rows = max(r.anomalous_row_count for r in results) if results else 0
+        total_time = sum(r.execution_time_ms for r in results)
+
+        # Determine status: worst across all results
+        if any(r.status == AnomalyStatus.ERROR for r in results):
+            status = AnomalyStatus.ERROR
+        elif any(r.status == AnomalyStatus.ANOMALY_DETECTED for r in results):
+            status = AnomalyStatus.ANOMALY_DETECTED
+        elif any(r.status == AnomalyStatus.WARNING for r in results):
+            status = AnomalyStatus.WARNING
+        else:
+            status = AnomalyStatus.NORMAL
+
+        # Use the most common detector
+        detectors = [r.detector for r in results]
+        detector = max(set(detectors), key=detectors.count) if detectors else "isolation_forest"
+
+        metadata: dict[str, Any] = {
+            "aggregation_strategy": config.strategy.name,
+            "source_count": len(results),
+        }
+        if config.include_metadata:
+            metadata["source_timestamps"] = [r.timestamp for r in results]
+        if config.preserve_individual_results:
+            metadata["individual_results"] = [r.to_dict() for r in results]
+
+        return AnomalyResult(
+            status=status,
+            anomalies=tuple(all_anomalies),
+            anomalous_row_count=anomalous_rows,
+            total_row_count=total_rows,
+            detector=detector,
+            execution_time_ms=total_time,
+            metadata=metadata,
+        )
+
+    def _aggregate_consensus(
+        self,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Only include anomalies that multiple engines agree on.
+
+        A column is considered anomalous only if at least `consensus_threshold`
+        fraction of engines flag it.
+        """
+        from common.base import AnomalyResult, AnomalyStatus
+
+        threshold = config.consensus_threshold
+        engine_count = len(results)
+
+        # Count how many engines flag each column as anomalous
+        column_votes: dict[str, int] = {}
+        column_scores: dict[str, list[Any]] = {}
+
+        for result in results:
+            for anomaly in result.anomalies:
+                col = anomaly.column
+                if col not in column_votes:
+                    column_votes[col] = 0
+                    column_scores[col] = []
+                if anomaly.is_anomaly:
+                    column_votes[col] += 1
+                column_scores[col].append(anomaly)
+
+        # Keep only columns meeting consensus threshold
+        consensus_anomalies: list[Any] = []
+        for col, votes in column_votes.items():
+            ratio = votes / engine_count if engine_count > 0 else 0.0
+            if ratio >= threshold:
+                # Use the first score entry for this column
+                consensus_anomalies.append(column_scores[col][0])
+
+        total_rows = max(r.total_row_count for r in results) if results else 0
+        anomalous_count = sum(1 for a in consensus_anomalies if a.is_anomaly)
+
+        if anomalous_count > 0:
+            status = AnomalyStatus.ANOMALY_DETECTED
+        else:
+            status = AnomalyStatus.NORMAL
+
+        detectors = [r.detector for r in results]
+        detector = max(set(detectors), key=detectors.count) if detectors else "isolation_forest"
+
+        return AnomalyResult(
+            status=status,
+            anomalies=tuple(consensus_anomalies),
+            anomalous_row_count=anomalous_count,
+            total_row_count=total_rows,
+            detector=detector,
+            execution_time_ms=sum(r.execution_time_ms for r in results),
+            metadata={
+                "aggregation_strategy": "CONSENSUS",
+                "consensus_threshold": threshold,
+                "source_count": engine_count,
+            },
+        )
+
+    def aggregate(
+        self,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Aggregate with consensus strategy support."""
+        if config.strategy == ResultAggregationStrategy.CONSENSUS:
+            if not results:
+                raise NoResultsError()
+            return self._aggregate_consensus(results, config)
+        return super().aggregate(results, config)
+
+    def _get_status_priority(self, result: Any) -> int:
+        """Get priority for AnomalyResult status."""
+        if hasattr(result, "status"):
+            return StatusPriority.from_anomaly_status(result.status).value
+        return StatusPriority.PASSED.value
+
+    def _is_failure(self, result: Any) -> bool:
+        """Check if anomaly result represents a failure."""
+        status_name = self._get_status_name(result)
+        return status_name in ("ANOMALY_DETECTED", "ERROR")
+
+    def _is_success(self, result: Any) -> bool:
+        """Check if anomaly result represents success (normal)."""
+        return self._get_status_name(result) == "NORMAL"
+
+    def _create_failed_result(
+        self,
+        merged: Any,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Create a failed anomaly result."""
+        from common.base import AnomalyResult, AnomalyStatus
+
+        return AnomalyResult(
+            status=AnomalyStatus.ANOMALY_DETECTED,
+            anomalies=merged.anomalies,
+            anomalous_row_count=merged.anomalous_row_count,
+            total_row_count=merged.total_row_count,
+            detector=merged.detector,
+            execution_time_ms=merged.execution_time_ms,
+            metadata={**merged.metadata, "aggregation_override": "STRICT_ALL"},
+        )
+
+    def _create_passed_result(
+        self,
+        merged: Any,
+        results: Sequence[Any],
+        config: AggregationConfig,
+    ) -> Any:
+        """Create a passed anomaly result."""
+        from common.base import AnomalyResult, AnomalyStatus
+
+        return AnomalyResult(
+            status=AnomalyStatus.NORMAL,
+            anomalies=merged.anomalies,
+            anomalous_row_count=merged.anomalous_row_count,
+            total_row_count=merged.total_row_count,
+            detector=merged.detector,
+            execution_time_ms=merged.execution_time_ms,
+            metadata={**merged.metadata, "aggregation_override": "LENIENT_ANY"},
+        )
+
+
+# =============================================================================
 # Multi-Engine Aggregator
 # =============================================================================
 
@@ -1451,6 +1795,8 @@ class MultiEngineAggregator:
         self._check_weighted_aggregator = CheckResultWeightedAggregator(hooks)
         self._profile_aggregator = ProfileResultAggregator(hooks)
         self._learn_aggregator = LearnResultAggregator(hooks)
+        self._drift_aggregator = DriftResultAggregator(hooks)
+        self._anomaly_aggregator = AnomalyResultAggregator(hooks)
 
     @property
     def config(self) -> AggregationConfig:
@@ -1563,6 +1909,80 @@ class MultiEngineAggregator:
 
         results_list = list(engine_results.values())
         result = self._learn_aggregator.aggregate(results_list, cfg)
+
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        individual = dict(engine_results) if cfg.preserve_individual_results else None
+
+        return AggregatedResult(
+            result=result,
+            strategy=cfg.strategy,
+            source_engines=tuple(engine_results.keys()),
+            source_count=len(engine_results),
+            aggregation_time_ms=duration,
+            individual_results=individual,
+            metadata={"config": cfg.strategy.name},
+        )
+
+    def aggregate_drift_results(
+        self,
+        engine_results: Mapping[str, Any],  # DriftResult
+        config: AggregationConfig | None = None,
+    ) -> AggregatedResult[Any]:  # AggregatedResult[DriftResult]
+        """Aggregate DriftResults from multiple engines.
+
+        Args:
+            engine_results: Mapping of engine name to DriftResult.
+            config: Optional override configuration.
+
+        Returns:
+            Aggregated result with provenance.
+        """
+        cfg = config or self._config
+        start_time = datetime.now(timezone.utc)
+
+        if not engine_results:
+            raise NoResultsError("No engine results provided")
+
+        results_list = list(engine_results.values())
+        result = self._drift_aggregator.aggregate(results_list, cfg)
+
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+
+        individual = dict(engine_results) if cfg.preserve_individual_results else None
+
+        return AggregatedResult(
+            result=result,
+            strategy=cfg.strategy,
+            source_engines=tuple(engine_results.keys()),
+            source_count=len(engine_results),
+            aggregation_time_ms=duration,
+            individual_results=individual,
+            metadata={"config": cfg.strategy.name},
+        )
+
+    def aggregate_anomaly_results(
+        self,
+        engine_results: Mapping[str, Any],  # AnomalyResult
+        config: AggregationConfig | None = None,
+    ) -> AggregatedResult[Any]:  # AggregatedResult[AnomalyResult]
+        """Aggregate AnomalyResults from multiple engines.
+
+        Args:
+            engine_results: Mapping of engine name to AnomalyResult.
+            config: Optional override configuration.
+
+        Returns:
+            Aggregated result with provenance.
+        """
+        cfg = config or self._config
+        start_time = datetime.now(timezone.utc)
+
+        if not engine_results:
+            raise NoResultsError("No engine results provided")
+
+        results_list = list(engine_results.values())
+        result = self._anomaly_aggregator.aggregate(results_list, cfg)
 
         duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
@@ -1927,6 +2347,8 @@ class AggregatorRegistry:
         self._aggregators["check_weighted"] = CheckResultWeightedAggregator()
         self._aggregators["profile"] = ProfileResultAggregator()
         self._aggregators["learn"] = LearnResultAggregator()
+        self._aggregators["drift"] = DriftResultAggregator()
+        self._aggregators["anomaly"] = AnomalyResultAggregator()
 
     def register(
         self,
@@ -2133,6 +2555,56 @@ def compare_check_results(
     """
     aggregator = MultiEngineAggregator()
     return aggregator.compare_check_results(engine_results)
+
+
+def aggregate_drift_results(
+    engine_results: Mapping[str, Any],
+    config: AggregationConfig | None = None,
+) -> AggregatedResult[Any]:
+    """Aggregate DriftResults from multiple engines.
+
+    Convenience function that creates a MultiEngineAggregator and aggregates.
+
+    Args:
+        engine_results: Mapping of engine name to DriftResult.
+        config: Optional aggregation configuration.
+
+    Returns:
+        Aggregated result with provenance.
+
+    Example:
+        >>> combined = aggregate_drift_results({
+        ...     "truthound": drift_result1,
+        ...     "ge": drift_result2,
+        ... })
+    """
+    aggregator = MultiEngineAggregator(config=config)
+    return aggregator.aggregate_drift_results(engine_results)
+
+
+def aggregate_anomaly_results(
+    engine_results: Mapping[str, Any],
+    config: AggregationConfig | None = None,
+) -> AggregatedResult[Any]:
+    """Aggregate AnomalyResults from multiple engines.
+
+    Convenience function that creates a MultiEngineAggregator and aggregates.
+
+    Args:
+        engine_results: Mapping of engine name to AnomalyResult.
+        config: Optional aggregation configuration.
+
+    Returns:
+        Aggregated result with provenance.
+
+    Example:
+        >>> combined = aggregate_anomaly_results({
+        ...     "truthound": anomaly_result1,
+        ...     "ge": anomaly_result2,
+        ... })
+    """
+    aggregator = MultiEngineAggregator(config=config)
+    return aggregator.aggregate_anomaly_results(engine_results)
 
 
 def create_multi_engine_aggregator(
