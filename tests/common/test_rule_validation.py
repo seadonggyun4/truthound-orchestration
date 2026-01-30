@@ -138,7 +138,7 @@ class TestRuleCategory:
 
     def test_all_categories_defined(self):
         """Verify all expected categories are defined."""
-        expected = {"COMPLETENESS", "UNIQUENESS", "VALIDITY", "CONSISTENCY", "ACCURACY", "TIMELINESS"}
+        expected = {"COMPLETENESS", "UNIQUENESS", "VALIDITY", "CONSISTENCY", "ACCURACY", "TIMELINESS", "DRIFT", "ANOMALY"}
         actual = {c.name for c in RuleCategory}
         assert actual == expected
 

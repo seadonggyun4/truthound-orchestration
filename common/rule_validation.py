@@ -83,6 +83,8 @@ class RuleCategory(Enum):
     CONSISTENCY = auto()  # foreign_key, cross_column
     ACCURACY = auto()  # statistical checks
     TIMELINESS = auto()  # freshness, recency
+    DRIFT = auto()  # data drift detection
+    ANOMALY = auto()  # anomaly detection
 
 
 # =============================================================================
@@ -998,6 +1000,286 @@ COMMON_RULE_SCHEMAS: dict[str, RuleSchema] = {
         category=RuleCategory.VALIDITY,
         description="Check that a column exists in the data",
         examples=({"type": "column_exists", "column": "id"},),
+    ),
+    # =========================================================================
+    # Drift Rules
+    # =========================================================================
+    "statistical_drift": RuleSchema(
+        rule_type="statistical_drift",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="method",
+                field_type=FieldType.STRING,
+                required=False,
+                default="ks",
+                description="Statistical test method (e.g., ks, psi, chi2, auto)",
+                aliases=("test_method", "drift_method"),
+            ),
+            FieldSchema(
+                name="threshold",
+                field_type=FieldType.FLOAT,
+                required=False,
+                default=0.05,
+                description="Drift detection threshold (p-value or score)",
+                min_value=0.0,
+                max_value=1.0,
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.DRIFT,
+        description="Detect statistical drift in a column between baseline and current data",
+        engines=("truthound",),
+        aliases=("drift", "stat_drift"),
+        examples=(
+            {"type": "statistical_drift", "column": "age", "method": "ks", "threshold": 0.05},
+        ),
+    ),
+    "distribution_change": RuleSchema(
+        rule_type="distribution_change",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="baseline_profile",
+                field_type=FieldType.DICT,
+                required=True,
+                description="Baseline distribution profile for comparison",
+                aliases=("baseline", "reference_profile"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.DRIFT,
+        description="Detect distribution changes compared to a baseline profile",
+        engines=("truthound",),
+        aliases=("dist_change",),
+        examples=(
+            {
+                "type": "distribution_change",
+                "column": "income",
+                "baseline_profile": {"mean": 50000, "std": 15000},
+            },
+        ),
+    ),
+    # =========================================================================
+    # Anomaly Rules
+    # =========================================================================
+    "outlier": RuleSchema(
+        rule_type="outlier",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="detector",
+                field_type=FieldType.STRING,
+                required=False,
+                default="isolation_forest",
+                description="Anomaly detector algorithm",
+                aliases=("algorithm", "method"),
+            ),
+            FieldSchema(
+                name="contamination",
+                field_type=FieldType.FLOAT,
+                required=False,
+                default=0.05,
+                description="Expected proportion of anomalies",
+                min_value=0.0,
+                max_value=0.5,
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.ANOMALY,
+        description="Detect outliers in column values using anomaly detection",
+        engines=("truthound",),
+        aliases=("anomaly", "outlier_detection"),
+        examples=(
+            {"type": "outlier", "column": "transaction_amount", "detector": "isolation_forest"},
+        ),
+    ),
+    "z_score_outlier": RuleSchema(
+        rule_type="z_score_outlier",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="threshold",
+                field_type=FieldType.FLOAT,
+                required=False,
+                default=3.0,
+                description="Z-score threshold for outlier detection",
+                min_value=0.0,
+                aliases=("z_threshold", "sigma"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.ANOMALY,
+        description="Detect outliers using z-score (standard deviations from mean)",
+        engines=("truthound",),
+        aliases=("zscore", "z_score"),
+        examples=(
+            {"type": "z_score_outlier", "column": "price", "threshold": 3.0},
+        ),
+    ),
+    # =========================================================================
+    # Extended Rules
+    # =========================================================================
+    "completeness_ratio": RuleSchema(
+        rule_type="completeness_ratio",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="min_ratio",
+                field_type=FieldType.FLOAT,
+                required=True,
+                description="Minimum non-null ratio (0.0 to 1.0)",
+                min_value=0.0,
+                max_value=1.0,
+                aliases=("ratio", "min_completeness"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.COMPLETENESS,
+        description="Check that column has at least a minimum ratio of non-null values",
+        aliases=("completeness",),
+        examples=(
+            {"type": "completeness_ratio", "column": "email", "min_ratio": 0.95},
+        ),
+    ),
+    "referential_integrity": RuleSchema(
+        rule_type="referential_integrity",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="reference_table",
+                field_type=FieldType.STRING,
+                required=True,
+                description="Reference table name",
+                aliases=("ref_table", "foreign_table"),
+            ),
+            FieldSchema(
+                name="reference_column",
+                field_type=FieldType.STRING,
+                required=True,
+                description="Reference column name",
+                aliases=("ref_column", "foreign_column"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.CONSISTENCY,
+        description="Check referential integrity between tables",
+        aliases=("foreign_key", "ref_integrity"),
+        examples=(
+            {
+                "type": "referential_integrity",
+                "column": "user_id",
+                "reference_table": "users",
+                "reference_column": "id",
+            },
+        ),
+    ),
+    "cross_table_row_count": RuleSchema(
+        rule_type="cross_table_row_count",
+        fields=(
+            FieldSchema(
+                name="table1",
+                field_type=FieldType.STRING,
+                required=True,
+                description="First table name",
+            ),
+            FieldSchema(
+                name="table2",
+                field_type=FieldType.STRING,
+                required=True,
+                description="Second table name",
+            ),
+            FieldSchema(
+                name="tolerance",
+                field_type=FieldType.FLOAT,
+                required=False,
+                default=0.0,
+                description="Allowed row count difference ratio (0.0 to 1.0)",
+                min_value=0.0,
+                max_value=1.0,
+                aliases=("diff_tolerance", "threshold"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.CONSISTENCY,
+        description="Check that two tables have comparable row counts",
+        aliases=("row_count_match",),
+        examples=(
+            {"type": "cross_table_row_count", "table1": "orders", "table2": "order_items"},
+        ),
+    ),
+    "conditional_null": RuleSchema(
+        rule_type="conditional_null",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="condition",
+                field_type=FieldType.STRING,
+                required=True,
+                description="SQL-like condition expression when column must not be null",
+                aliases=("when", "predicate"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.COMPLETENESS,
+        description="Check that column is not null when a condition is met",
+        aliases=("conditional_not_null",),
+        examples=(
+            {"type": "conditional_null", "column": "email", "condition": "status = 'active'"},
+        ),
+    ),
+    "expression": RuleSchema(
+        rule_type="expression",
+        fields=(
+            FieldSchema(
+                name="expression",
+                field_type=FieldType.STRING,
+                required=True,
+                description="Boolean expression to evaluate against each row",
+                aliases=("expr", "formula"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.VALIDITY,
+        description="Evaluate a custom boolean expression against data",
+        aliases=("custom_expression", "eval"),
+        examples=(
+            {"type": "expression", "expression": "price * quantity == total"},
+        ),
+    ),
+    "distribution": RuleSchema(
+        rule_type="distribution",
+        fields=(
+            COLUMN_FIELD,
+            FieldSchema(
+                name="distribution_type",
+                field_type=FieldType.STRING,
+                required=True,
+                description="Expected distribution type (e.g., normal, uniform, exponential)",
+                aliases=("dist_type", "dist"),
+            ),
+            FieldSchema(
+                name="parameters",
+                field_type=FieldType.DICT,
+                required=False,
+                default=None,
+                description="Distribution parameters (e.g., mean, std for normal)",
+                aliases=("params", "dist_params"),
+            ),
+            SEVERITY_FIELD,
+        ),
+        category=RuleCategory.ACCURACY,
+        description="Check that column values follow an expected distribution",
+        engines=("truthound",),
+        aliases=("dist_check", "distribution_fit"),
+        examples=(
+            {
+                "type": "distribution",
+                "column": "height",
+                "distribution_type": "normal",
+                "parameters": {"mean": 170, "std": 10},
+            },
+        ),
     ),
 }
 
