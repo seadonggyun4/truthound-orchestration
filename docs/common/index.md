@@ -103,6 +103,12 @@ learn = LearnResult(
 )
 ```
 
+### DriftResult / AnomalyResult
+
+See [drift-config.md](drift-config.md) for DriftConfig, AnomalyConfig, StreamConfig types.
+
+See [drift-detection.md](../engines/drift-detection.md) and [anomaly-detection.md](../engines/anomaly-detection.md) for result types.
+
 ## Exceptions
 
 ### Exception Hierarchy

@@ -78,9 +78,21 @@ print(f"Profile support: {caps.supports_profile}")
 print(f"Learn support: {caps.supports_learn}")
 print(f"Async support: {caps.supports_async}")
 print(f"Streaming support: {caps.supports_streaming}")
+print(f"Drift support: {caps.supports_drift}")
+print(f"Anomaly support: {caps.supports_anomaly}")
 print(f"Data types: {caps.supported_data_types}")
 print(f"Rule types: {caps.supported_rule_types}")
 ```
+
+## Extended Protocols
+
+Optional protocols for advanced engine capabilities:
+
+| Protocol | Description | Documentation |
+|----------|-------------|---------------|
+| `DriftDetectionEngine` | Data drift detection (14 methods) | [drift-detection.md](drift-detection.md) |
+| `AnomalyDetectionEngine` | ML anomaly detection (4 detectors) | [anomaly-detection.md](anomaly-detection.md) |
+| `StreamingEngine` | Streaming validation | [streaming.md](streaming.md) |
 
 ## Advanced Features
 
@@ -98,3 +110,6 @@ Advanced features for engine management:
 - [GreatExpectationsAdapter](great-expectations.md) - GE adapter
 - [PanderaAdapter](pandera.md) - Pandera adapter
 - [Lifecycle Management](lifecycle.md) - Engine lifecycle
+- [Drift Detection](drift-detection.md) - Data drift detection
+- [Anomaly Detection](anomaly-detection.md) - ML anomaly detection
+- [Streaming Validation](streaming.md) - Streaming validation
