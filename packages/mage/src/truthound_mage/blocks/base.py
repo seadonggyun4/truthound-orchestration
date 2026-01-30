@@ -12,7 +12,9 @@ Architecture:
     BlockConfig (frozen dataclass)
         ├── CheckBlockConfig
         ├── ProfileBlockConfig
-        └── LearnBlockConfig
+        ├── LearnBlockConfig
+        ├── DriftBlockConfig
+        └── AnomalyBlockConfig
 
 Example:
     >>> config = CheckBlockConfig(
@@ -750,3 +752,321 @@ LENIENT_BLOCK_CONFIG = BlockConfig(
     timeout_seconds=600,
 )
 """Lenient block configuration that tolerates failures."""
+
+
+# =============================================================================
+# Drift Block Configuration
+# =============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class DriftBlockConfig(BlockConfig):
+    """Configuration specific to drift detection operations.
+
+    Attributes:
+        method: Drift detection method (e.g., "ks", "psi", "auto").
+        columns: Columns to check for drift (None=all).
+        threshold: Detection threshold (None=engine default).
+        fail_on_drift: Whether to raise exception when drift is detected.
+        baseline_output_key: Key for storing baseline data in block outputs.
+        current_output_key: Key for storing current data in block outputs.
+
+    Example:
+        >>> config = DriftBlockConfig(
+        ...     method="ks",
+        ...     threshold=0.05,
+        ...     fail_on_drift=True,
+        ... )
+    """
+
+    method: str = "auto"
+    columns: tuple[str, ...] | None = None
+    threshold: float | None = None
+    fail_on_drift: bool = True
+    baseline_output_key: str = "drift_baseline"
+    current_output_key: str = "drift_current"
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        BlockConfig.__post_init__(self)
+        if self.threshold is not None and self.threshold <= 0:
+            msg = "threshold must be positive"
+            raise ValueError(msg)
+
+    def with_method(self, method: str) -> DriftBlockConfig:
+        """Return new config with updated method."""
+        return DriftBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            method=method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_output_key=self.baseline_output_key,
+            current_output_key=self.current_output_key,
+        )
+
+    def with_columns(
+        self,
+        columns: Sequence[str] | tuple[str, ...] | None,
+    ) -> DriftBlockConfig:
+        """Return new config with updated columns."""
+        cols = tuple(columns) if columns else None
+        return DriftBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            method=self.method,
+            columns=cols,
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_output_key=self.baseline_output_key,
+            current_output_key=self.current_output_key,
+        )
+
+    def with_threshold(self, threshold: float | None) -> DriftBlockConfig:
+        """Return new config with updated threshold."""
+        return DriftBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            method=self.method,
+            columns=self.columns,
+            threshold=threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_output_key=self.baseline_output_key,
+            current_output_key=self.current_output_key,
+        )
+
+    def with_fail_on_drift(self, fail_on_drift: bool) -> DriftBlockConfig:
+        """Return new config with updated fail_on_drift."""
+        return DriftBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            method=self.method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=fail_on_drift,
+            baseline_output_key=self.baseline_output_key,
+            current_output_key=self.current_output_key,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert configuration to dictionary."""
+        base = BlockConfig.to_dict(self)
+        base.update({
+            "method": self.method,
+            "columns": list(self.columns) if self.columns else None,
+            "threshold": self.threshold,
+            "fail_on_drift": self.fail_on_drift,
+            "baseline_output_key": self.baseline_output_key,
+            "current_output_key": self.current_output_key,
+        })
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DriftBlockConfig:
+        """Create configuration from dictionary."""
+        columns = data.get("columns")
+        return cls(
+            engine_name=data.get("engine_name"),
+            fail_on_error=data.get("fail_on_error", True),
+            timeout_seconds=data.get("timeout_seconds", 300),
+            output_key=data.get("output_key", "data_quality_result"),
+            log_results=data.get("log_results", True),
+            tags=frozenset(data.get("tags", [])),
+            extra=data.get("extra", {}),
+            method=data.get("method", "auto"),
+            columns=tuple(columns) if columns else None,
+            threshold=data.get("threshold"),
+            fail_on_drift=data.get("fail_on_drift", True),
+            baseline_output_key=data.get("baseline_output_key", "drift_baseline"),
+            current_output_key=data.get("current_output_key", "drift_current"),
+        )
+
+
+DEFAULT_DRIFT_BLOCK_CONFIG = DriftBlockConfig()
+"""Default drift detection block configuration."""
+
+STRICT_DRIFT_BLOCK_CONFIG = DriftBlockConfig(
+    fail_on_drift=True,
+    threshold=0.01,
+    timeout_seconds=120,
+)
+"""Strict drift detection configuration with low threshold."""
+
+LENIENT_DRIFT_BLOCK_CONFIG = DriftBlockConfig(
+    fail_on_drift=False,
+    threshold=0.1,
+    timeout_seconds=600,
+)
+"""Lenient drift detection configuration that tolerates moderate drift."""
+
+
+# =============================================================================
+# Anomaly Block Configuration
+# =============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyBlockConfig(BlockConfig):
+    """Configuration specific to anomaly detection operations.
+
+    Attributes:
+        detector: Anomaly detection algorithm (e.g., "isolation_forest").
+        columns: Columns to check for anomalies (None=all).
+        contamination: Expected proportion of anomalies (0.0-1.0).
+        fail_on_anomaly: Whether to raise exception when anomalies are detected.
+
+    Example:
+        >>> config = AnomalyBlockConfig(
+        ...     detector="isolation_forest",
+        ...     contamination=0.05,
+        ...     fail_on_anomaly=True,
+        ... )
+    """
+
+    detector: str = "isolation_forest"
+    columns: tuple[str, ...] | None = None
+    contamination: float = 0.05
+    fail_on_anomaly: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        BlockConfig.__post_init__(self)
+        if not 0 < self.contamination < 1:
+            msg = "contamination must be between 0 and 1 (exclusive)"
+            raise ValueError(msg)
+
+    def with_detector(self, detector: str) -> AnomalyBlockConfig:
+        """Return new config with updated detector."""
+        return AnomalyBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            detector=detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_columns(
+        self,
+        columns: Sequence[str] | tuple[str, ...] | None,
+    ) -> AnomalyBlockConfig:
+        """Return new config with updated columns."""
+        cols = tuple(columns) if columns else None
+        return AnomalyBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            detector=self.detector,
+            columns=cols,
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_contamination(self, contamination: float) -> AnomalyBlockConfig:
+        """Return new config with updated contamination."""
+        return AnomalyBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_fail_on_anomaly(self, fail_on_anomaly: bool) -> AnomalyBlockConfig:
+        """Return new config with updated fail_on_anomaly."""
+        return AnomalyBlockConfig(
+            engine_name=self.engine_name,
+            fail_on_error=self.fail_on_error,
+            timeout_seconds=self.timeout_seconds,
+            output_key=self.output_key,
+            log_results=self.log_results,
+            tags=self.tags,
+            extra=self.extra,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=fail_on_anomaly,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert configuration to dictionary."""
+        base = BlockConfig.to_dict(self)
+        base.update({
+            "detector": self.detector,
+            "columns": list(self.columns) if self.columns else None,
+            "contamination": self.contamination,
+            "fail_on_anomaly": self.fail_on_anomaly,
+        })
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnomalyBlockConfig:
+        """Create configuration from dictionary."""
+        columns = data.get("columns")
+        return cls(
+            engine_name=data.get("engine_name"),
+            fail_on_error=data.get("fail_on_error", True),
+            timeout_seconds=data.get("timeout_seconds", 300),
+            output_key=data.get("output_key", "data_quality_result"),
+            log_results=data.get("log_results", True),
+            tags=frozenset(data.get("tags", [])),
+            extra=data.get("extra", {}),
+            detector=data.get("detector", "isolation_forest"),
+            columns=tuple(columns) if columns else None,
+            contamination=data.get("contamination", 0.05),
+            fail_on_anomaly=data.get("fail_on_anomaly", True),
+        )
+
+
+DEFAULT_ANOMALY_BLOCK_CONFIG = AnomalyBlockConfig()
+"""Default anomaly detection block configuration."""
+
+STRICT_ANOMALY_BLOCK_CONFIG = AnomalyBlockConfig(
+    fail_on_anomaly=True,
+    contamination=0.01,
+    timeout_seconds=120,
+)
+"""Strict anomaly detection configuration with low contamination threshold."""
+
+LENIENT_ANOMALY_BLOCK_CONFIG = AnomalyBlockConfig(
+    fail_on_anomaly=False,
+    contamination=0.1,
+    timeout_seconds=600,
+)
+"""Lenient anomaly detection configuration that tolerates more anomalies."""
