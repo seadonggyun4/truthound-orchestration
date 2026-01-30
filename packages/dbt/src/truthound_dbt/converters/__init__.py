@@ -24,6 +24,8 @@ Supported Rule Types:
     - Temporal: not_future, not_past, date_format
     - Referential: referential_integrity, foreign_key
     - Custom: expression, row_count_range
+    - Drift: drift_mean, drift_stddev, drift_null_rate, drift_distinct_count, drift_row_count
+    - Anomaly: anomaly_zscore, anomaly_iqr, anomaly_range
 
 Usage:
     >>> from truthound_dbt.converters import get_converter
@@ -87,6 +89,30 @@ from truthound_dbt.converters.rules import (
     register_handler,
     list_handlers,
 )
+from truthound_dbt.converters.drift import (
+    # Drift Handlers
+    DriftMeanHandler,
+    DriftStddevHandler,
+    DriftNullRateHandler,
+    DriftDistinctCountHandler,
+    DriftRowCountHandler,
+    # Anomaly Handlers
+    AnomalyZScoreHandler,
+    AnomalyIQRHandler,
+    AnomalyRangeHandler,
+    # Handler Collections
+    DRIFT_HANDLERS,
+    ANOMALY_HANDLERS,
+    ALL_HANDLERS,
+    # Registration
+    register_drift_anomaly_handlers,
+    # Factory Functions
+    get_drift_handler,
+    get_anomaly_handler,
+)
+
+# Register drift and anomaly handlers with the global handler registry
+register_drift_anomaly_handlers()
 
 __all__ = [
     # Protocol
@@ -119,6 +145,25 @@ __all__ = [
     "DateFormatHandler",
     "ReferentialIntegrityHandler",
     "ExpressionHandler",
+    # Drift Handlers
+    "DriftMeanHandler",
+    "DriftStddevHandler",
+    "DriftNullRateHandler",
+    "DriftDistinctCountHandler",
+    "DriftRowCountHandler",
+    # Anomaly Handlers
+    "AnomalyZScoreHandler",
+    "AnomalyIQRHandler",
+    "AnomalyRangeHandler",
+    # Handler Collections
+    "DRIFT_HANDLERS",
+    "ANOMALY_HANDLERS",
+    "ALL_HANDLERS",
+    # Registration
+    "register_drift_anomaly_handlers",
+    # Factory Functions
+    "get_drift_handler",
+    "get_anomaly_handler",
     # Handler Registry
     "RuleHandlerRegistry",
     "get_handler",
