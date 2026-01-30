@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self
 
@@ -35,9 +36,16 @@ if TYPE_CHECKING:
     from common.engines.lifecycle import EngineStateSnapshot
 
 from common.base import (
+    AnomalyResult,
+    AnomalyScore,
+    AnomalyStatus,
     CheckResult,
     CheckStatus,
+    ColumnDrift,
     ColumnProfile,
+    DriftMethod,
+    DriftResult,
+    DriftStatus,
     LearnedRule,
     LearnResult,
     LearnStatus,
@@ -115,6 +123,10 @@ class TruthoundEngineConfig(EngineConfig):
     cache_schemas: bool = True
     infer_constraints: bool = True
     categorical_threshold: int = 20
+    default_drift_method: str = "auto"
+    default_drift_threshold: float | None = None
+    default_anomaly_detector: str = "isolation_forest"
+    default_contamination: float = 0.05
 
     def __post_init__(self) -> None:
         """Validate Truthound-specific configuration."""
@@ -130,6 +142,23 @@ class TruthoundEngineConfig(EngineConfig):
                 )
         if self.categorical_threshold < 1:
             raise ValueError("categorical_threshold must be at least 1")
+        valid_drift_methods = {m.value for m in DriftMethod}
+        if self.default_drift_method not in valid_drift_methods:
+            raise ValueError(
+                f"default_drift_method must be one of {valid_drift_methods}, "
+                f"got '{self.default_drift_method}'"
+            )
+        valid_detectors = {"isolation_forest", "z_score", "lof", "ensemble"}
+        if self.default_anomaly_detector not in valid_detectors:
+            raise ValueError(
+                f"default_anomaly_detector must be one of {valid_detectors}, "
+                f"got '{self.default_anomaly_detector}'"
+            )
+        if not (0.0 < self.default_contamination < 0.5):
+            raise ValueError(
+                f"default_contamination must be between 0 and 0.5, "
+                f"got {self.default_contamination}"
+            )
 
     def with_parallel(
         self,
@@ -193,6 +222,44 @@ class TruthoundEngineConfig(EngineConfig):
             New configuration with threshold setting.
         """
         return self._copy_with(categorical_threshold=threshold)
+
+    def with_drift_defaults(
+        self,
+        method: str = "auto",
+        threshold: float | None = None,
+    ) -> Self:
+        """Create config with drift detection defaults.
+
+        Args:
+            method: Default drift method (e.g., "ks", "psi", "auto").
+            threshold: Default drift threshold.
+
+        Returns:
+            New configuration with drift defaults.
+        """
+        return self._copy_with(
+            default_drift_method=method,
+            default_drift_threshold=threshold,
+        )
+
+    def with_anomaly_defaults(
+        self,
+        detector: str = "isolation_forest",
+        contamination: float = 0.05,
+    ) -> Self:
+        """Create config with anomaly detection defaults.
+
+        Args:
+            detector: Default anomaly detector.
+            contamination: Default contamination rate.
+
+        Returns:
+            New configuration with anomaly defaults.
+        """
+        return self._copy_with(
+            default_anomaly_detector=detector,
+            default_contamination=contamination,
+        )
 
 
 # Default Truthound configurations
@@ -305,6 +372,8 @@ class TruthoundEngine(EngineInfoMixin):
             supports_learn=True,
             supports_async=False,
             supports_streaming=True,
+            supports_drift=True,
+            supports_anomaly=True,
             supported_data_types=("polars", "pandas", "csv", "parquet", "sql"),
             supported_rule_types=(
                 "null",
@@ -314,6 +383,13 @@ class TruthoundEngine(EngineInfoMixin):
                 "range",
                 "pattern",
                 "schema",
+            ),
+            supported_drift_methods=tuple(m.value for m in DriftMethod),
+            supported_anomaly_detectors=(
+                "isolation_forest",
+                "z_score",
+                "lof",
+                "ensemble",
             ),
         )
 
@@ -1008,3 +1084,424 @@ class TruthoundEngine(EngineInfoMixin):
         """
         truthound = self._ensure_truthound()
         return truthound.learn(data, **kwargs)
+
+    # =========================================================================
+    # Drift Detection (DriftDetectionEngine Protocol)
+    # =========================================================================
+
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str | None = None,
+        columns: Sequence[str] | None = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Detect data drift between baseline and current datasets.
+
+        Uses Truthound's ``compare()`` API to compute statistical drift
+        across columns using one of 14 supported methods.
+
+        Args:
+            baseline: Baseline dataset (DataFrame or file path).
+            current: Current dataset to compare against baseline.
+            method: Statistical method (e.g., "ks", "psi", "auto").
+                Falls back to config default if None.
+            columns: Specific columns to check (None = all).
+            threshold: Drift threshold (None = method default).
+                Falls back to config default if None.
+            **kwargs: Additional Truthound-specific parameters.
+
+        Returns:
+            DriftResult with per-column drift outcomes.
+
+        Raises:
+            ValidationExecutionError: If drift detection fails.
+        """
+        start_time = time.perf_counter()
+        resolved_method = method or self._config.default_drift_method
+        resolved_threshold = threshold or self._config.default_drift_threshold
+
+        try:
+            truthound = self._ensure_truthound()
+
+            compare_kwargs: dict[str, Any] = {"method": resolved_method}
+            if columns is not None:
+                compare_kwargs["columns"] = list(columns)
+            if resolved_threshold is not None:
+                compare_kwargs["threshold"] = resolved_threshold
+            compare_kwargs.update(kwargs)
+
+            drift_report = truthound.compare(baseline, current, **compare_kwargs)
+            return self._convert_drift_result(drift_report, start_time, resolved_method)
+
+        except ValidationExecutionError:
+            raise
+        except Exception as e:
+            raise ValidationExecutionError(
+                f"Truthound drift detection failed: {e}",
+                cause=e,
+            ) from e
+
+    def _convert_drift_result(
+        self,
+        drift_report: Any,
+        start_time: float,
+        method: str,
+    ) -> DriftResult:
+        """Convert Truthound drift report to DriftResult.
+
+        Args:
+            drift_report: Report from Truthound compare().
+            start_time: Start time for execution timing.
+            method: Method string used.
+
+        Returns:
+            DriftResult instance.
+        """
+        report_dict = drift_report.to_dict()
+        column_results = report_dict.get("columns", [])
+
+        try:
+            drift_method = DriftMethod(method)
+        except ValueError:
+            drift_method = DriftMethod.AUTO
+
+        drifted_columns: list[ColumnDrift] = []
+        drifted_count = 0
+
+        for col_data in column_results:
+            is_drifted = col_data.get("is_drifted", False)
+            if is_drifted:
+                drifted_count += 1
+
+            col_method_str = col_data.get("method", method)
+            try:
+                col_method = DriftMethod(col_method_str)
+            except ValueError:
+                col_method = drift_method
+
+            severity_str = col_data.get("severity", "info")
+            severity = SEVERITY_MAPPING.get(severity_str, Severity.INFO)
+
+            drifted_columns.append(
+                ColumnDrift(
+                    column=col_data.get("column", "unknown"),
+                    method=col_method,
+                    statistic=col_data.get("statistic", 0.0),
+                    p_value=col_data.get("p_value"),
+                    threshold=col_data.get("threshold", 0.0),
+                    is_drifted=is_drifted,
+                    severity=severity,
+                    baseline_stats=col_data.get("baseline_stats", {}),
+                    current_stats=col_data.get("current_stats", {}),
+                    metadata=col_data.get("metadata", {}),
+                )
+            )
+
+        total_columns = len(column_results)
+        if drifted_count > 0:
+            status = DriftStatus.DRIFT_DETECTED
+        else:
+            status = DriftStatus.NO_DRIFT
+
+        execution_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return DriftResult(
+            status=status,
+            drifted_columns=tuple(drifted_columns),
+            total_columns=total_columns,
+            drifted_count=drifted_count,
+            method=drift_method,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "engine": self.engine_name,
+                "method": method,
+            },
+        )
+
+    # =========================================================================
+    # Anomaly Detection (AnomalyDetectionEngine Protocol)
+    # =========================================================================
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str | None = None,
+        columns: Sequence[str] | None = None,
+        contamination: float | None = None,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Detect anomalies in the data using ML-based detectors.
+
+        Uses Truthound's ``ml`` module to run anomaly detection with
+        Isolation Forest, Z-Score, LOF, or Ensemble detectors.
+
+        Args:
+            data: Data to analyze (DataFrame or file path).
+            detector: Anomaly detector name. Falls back to config default.
+            columns: Specific columns to check (None = all).
+            contamination: Expected anomaly proportion. Falls back to config default.
+            **kwargs: Additional Truthound-specific parameters.
+
+        Returns:
+            AnomalyResult with per-column anomaly scores.
+
+        Raises:
+            ValidationExecutionError: If anomaly detection fails.
+        """
+        start_time = time.perf_counter()
+        resolved_detector = detector or self._config.default_anomaly_detector
+        resolved_contamination = contamination or self._config.default_contamination
+
+        try:
+            truthound = self._ensure_truthound()
+
+            detector_cls = self._get_detector_class(truthound, resolved_detector)
+            det_instance = detector_cls(contamination=resolved_contamination, **kwargs)
+
+            if columns is not None:
+                det_instance.fit(data, columns=list(columns))
+            else:
+                det_instance.fit(data)
+
+            anomaly_report = det_instance.predict(data)
+            return self._convert_anomaly_result(
+                anomaly_report, start_time, resolved_detector, data
+            )
+
+        except ValidationExecutionError:
+            raise
+        except Exception as e:
+            raise ValidationExecutionError(
+                f"Truthound anomaly detection failed: {e}",
+                cause=e,
+            ) from e
+
+    @staticmethod
+    def _get_detector_class(truthound: Any, detector: str) -> Any:
+        """Resolve detector name to Truthound ML detector class.
+
+        Args:
+            truthound: Truthound module.
+            detector: Detector name string.
+
+        Returns:
+            Truthound detector class.
+
+        Raises:
+            ValidationExecutionError: If detector is not supported.
+        """
+        detector_map = {
+            "isolation_forest": "IsolationForestDetector",
+            "z_score": "ZScoreDetector",
+            "lof": "LocalOutlierFactor",
+            "ensemble": "EnsembleDetector",
+        }
+        class_name = detector_map.get(detector)
+        if class_name is None:
+            raise ValidationExecutionError(
+                f"Unsupported anomaly detector: '{detector}'. "
+                f"Supported: {list(detector_map.keys())}"
+            )
+        ml_module = getattr(truthound, "ml", None)
+        if ml_module is None:
+            raise ValidationExecutionError(
+                "Truthound ml module not available. "
+                "Ensure Truthound is installed with ML support."
+            )
+        detector_cls = getattr(ml_module, class_name, None)
+        if detector_cls is None:
+            raise ValidationExecutionError(
+                f"Detector class '{class_name}' not found in truthound.ml"
+            )
+        return detector_cls
+
+    def _convert_anomaly_result(
+        self,
+        anomaly_report: Any,
+        start_time: float,
+        detector: str,
+        data: Any,
+    ) -> AnomalyResult:
+        """Convert Truthound anomaly report to AnomalyResult.
+
+        Args:
+            anomaly_report: Report from Truthound detector.predict().
+            start_time: Start time for execution timing.
+            detector: Detector name used.
+            data: Original data for row count.
+
+        Returns:
+            AnomalyResult instance.
+        """
+        report_dict = anomaly_report.to_dict()
+        column_scores = report_dict.get("columns", [])
+
+        anomalies: list[AnomalyScore] = []
+        for col_data in column_scores:
+            anomalies.append(
+                AnomalyScore(
+                    column=col_data.get("column", "unknown"),
+                    score=col_data.get("score", 0.0),
+                    threshold=col_data.get("threshold", 0.0),
+                    is_anomaly=col_data.get("is_anomaly", False),
+                    detector=detector,
+                    metadata=col_data.get("metadata", {}),
+                )
+            )
+
+        anomalous_row_count = report_dict.get("anomalous_row_count", 0)
+        total_row_count = report_dict.get("total_row_count", 0)
+
+        if not total_row_count:
+            total_row_count = len(data) if hasattr(data, "__len__") else 0
+
+        if anomalous_row_count > 0:
+            status = AnomalyStatus.ANOMALY_DETECTED
+        else:
+            status = AnomalyStatus.NORMAL
+
+        execution_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return AnomalyResult(
+            status=status,
+            anomalies=tuple(anomalies),
+            anomalous_row_count=anomalous_row_count,
+            total_row_count=total_row_count,
+            detector=detector,
+            execution_time_ms=execution_time_ms,
+            metadata={
+                "engine": self.engine_name,
+                "detector": detector,
+            },
+        )
+
+    # =========================================================================
+    # Streaming Support (StreamingEngine Protocol)
+    # =========================================================================
+
+    def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        schema: Any | None = None,
+        auto_schema: bool = False,
+        **kwargs: Any,
+    ) -> Iterator[CheckResult]:
+        """Validate streaming data in batches.
+
+        Processes an iterable stream in ``batch_size`` chunks, yielding
+        an independent ``CheckResult`` for each batch. The generator
+        pattern ensures memory-efficient processing of arbitrarily large
+        streams.
+
+        Args:
+            stream: Iterable data stream (Iterator, Generator, Kafka adapter, etc.).
+            batch_size: Number of records per batch.
+            schema: Schema to validate against.
+            auto_schema: Whether to auto-generate schema from first batch.
+            **kwargs: Additional Truthound-specific parameters.
+
+        Yields:
+            CheckResult for each processed batch.
+
+        Raises:
+            ValidationExecutionError: If stream processing fails.
+        """
+        try:
+            import polars as pl
+        except ImportError:
+            pass
+
+        truthound = self._ensure_truthound()
+        batch: list[Any] = []
+        batch_index = 0
+        resolved_schema = schema
+
+        for record in stream:
+            batch.append(record)
+
+            if len(batch) >= batch_size:
+                batch_df = self._to_dataframe(batch)
+
+                if auto_schema and resolved_schema is None:
+                    resolved_schema = truthound.learn(batch_df)
+
+                check_kwargs: dict[str, Any] = {}
+                if resolved_schema is not None:
+                    check_kwargs["schema"] = resolved_schema
+                check_kwargs.update(kwargs)
+
+                start_time = time.perf_counter()
+                try:
+                    report = truthound.check(batch_df, **check_kwargs)
+                    result = self._convert_check_result(report, start_time)
+                except Exception as e:
+                    result = CheckResult(
+                        status=CheckStatus.ERROR,
+                        execution_time_ms=(time.perf_counter() - start_time) * 1000,
+                        metadata={
+                            "engine": self.engine_name,
+                            "batch_index": batch_index,
+                            "error": str(e),
+                        },
+                    )
+
+                yield result
+                batch = []
+                batch_index += 1
+
+        # Process remaining records
+        if batch:
+            batch_df = self._to_dataframe(batch)
+
+            if auto_schema and resolved_schema is None:
+                resolved_schema = truthound.learn(batch_df)
+
+            check_kwargs = {}
+            if resolved_schema is not None:
+                check_kwargs["schema"] = resolved_schema
+            check_kwargs.update(kwargs)
+
+            start_time = time.perf_counter()
+            try:
+                report = truthound.check(batch_df, **check_kwargs)
+                result = self._convert_check_result(report, start_time)
+            except Exception as e:
+                result = CheckResult(
+                    status=CheckStatus.ERROR,
+                    execution_time_ms=(time.perf_counter() - start_time) * 1000,
+                    metadata={
+                        "engine": self.engine_name,
+                        "batch_index": batch_index,
+                        "error": str(e),
+                    },
+                )
+
+            yield result
+
+    @staticmethod
+    def _to_dataframe(records: list[Any]) -> Any:
+        """Convert a list of records to a Polars DataFrame.
+
+        Handles dicts and existing DataFrames.
+
+        Args:
+            records: List of records.
+
+        Returns:
+            Polars DataFrame.
+        """
+        try:
+            import polars as pl
+
+            if records and isinstance(records[0], dict):
+                return pl.DataFrame(records)
+            return pl.DataFrame(records)
+        except ImportError:
+            return records

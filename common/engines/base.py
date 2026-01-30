@@ -35,9 +35,15 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import AsyncIterator, Iterator, Mapping, Sequence
 
-    from common.base import CheckResult, LearnResult, ProfileResult
+    from common.base import (
+        AnomalyResult,
+        CheckResult,
+        DriftResult,
+        LearnResult,
+        ProfileResult,
+    )
 
 
 # =============================================================================
@@ -78,8 +84,12 @@ class EngineCapabilities:
     supports_learn: bool = True
     supports_async: bool = False
     supports_streaming: bool = False
+    supports_drift: bool = False
+    supports_anomaly: bool = False
     supported_data_types: tuple[str, ...] = ("polars",)
     supported_rule_types: tuple[str, ...] = ()
+    supported_drift_methods: tuple[str, ...] = ()
+    supported_anomaly_detectors: tuple[str, ...] = ()
     extra: dict[str, Any] = field(default_factory=dict)
 
     def supports_data_type(self, data_type: str) -> bool:
@@ -147,8 +157,12 @@ class EngineInfo:
                 "supports_learn": self.capabilities.supports_learn,
                 "supports_async": self.capabilities.supports_async,
                 "supports_streaming": self.capabilities.supports_streaming,
+                "supports_drift": self.capabilities.supports_drift,
+                "supports_anomaly": self.capabilities.supports_anomaly,
                 "supported_data_types": list(self.capabilities.supported_data_types),
                 "supported_rule_types": list(self.capabilities.supported_rule_types),
+                "supported_drift_methods": list(self.capabilities.supported_drift_methods),
+                "supported_anomaly_detectors": list(self.capabilities.supported_anomaly_detectors),
             },
             "extra": self.extra,
         }
@@ -436,3 +450,188 @@ class EngineInfoMixin:
             homepage=self._get_homepage(),
             capabilities=self._get_capabilities(),
         )
+
+
+# =============================================================================
+# Extension Protocols (Opt-in)
+# =============================================================================
+
+
+@runtime_checkable
+class DriftDetectionEngine(Protocol):
+    """Protocol for engines that support data drift detection.
+
+    This is an opt-in extension protocol. Engines can implement this
+    alongside DataQualityEngine to provide drift detection capabilities.
+
+    Example:
+        >>> if isinstance(engine, DriftDetectionEngine):
+        ...     result = engine.detect_drift(baseline, current, method="ks")
+    """
+
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str = "auto",
+        columns: Sequence[str] | None = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Detect data drift between baseline and current datasets.
+
+        Args:
+            baseline: Baseline dataset.
+            current: Current dataset to compare against baseline.
+            method: Statistical method to use (e.g., "ks", "psi", "auto").
+            columns: Specific columns to check (None = all).
+            threshold: Drift detection threshold (None = method default).
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            DriftResult with drift detection outcomes.
+        """
+        ...
+
+
+@runtime_checkable
+class AnomalyDetectionEngine(Protocol):
+    """Protocol for engines that support anomaly detection.
+
+    This is an opt-in extension protocol. Engines can implement this
+    alongside DataQualityEngine to provide anomaly detection capabilities.
+
+    Example:
+        >>> if isinstance(engine, AnomalyDetectionEngine):
+        ...     result = engine.detect_anomalies(data, detector="isolation_forest")
+    """
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str = "isolation_forest",
+        columns: Sequence[str] | None = None,
+        contamination: float = 0.05,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Detect anomalies in the data.
+
+        Args:
+            data: Data to analyze.
+            detector: Anomaly detector to use.
+            columns: Specific columns to check (None = all).
+            contamination: Expected proportion of anomalies.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            AnomalyResult with anomaly detection outcomes.
+        """
+        ...
+
+
+@runtime_checkable
+class StreamingEngine(Protocol):
+    """Protocol for engines that support streaming data validation.
+
+    This is an opt-in extension protocol for processing data streams
+    in batches, yielding results incrementally.
+
+    Example:
+        >>> if isinstance(engine, StreamingEngine):
+        ...     for result in engine.check_stream(data_stream, batch_size=500):
+        ...         process(result)
+    """
+
+    def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> Iterator[CheckResult]:
+        """Validate streaming data in batches.
+
+        Args:
+            stream: Iterable data stream.
+            batch_size: Number of records per batch.
+            **kwargs: Engine-specific parameters.
+
+        Yields:
+            CheckResult for each processed batch.
+        """
+        ...
+
+
+@runtime_checkable
+class AsyncStreamingEngine(Protocol):
+    """Protocol for engines that support async streaming data validation.
+
+    Async version of StreamingEngine for use with async frameworks.
+
+    Example:
+        >>> if isinstance(engine, AsyncStreamingEngine):
+        ...     async for result in engine.check_stream(stream):
+        ...         await process(result)
+    """
+
+    async def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> AsyncIterator[CheckResult]:
+        """Validate streaming data asynchronously in batches.
+
+        Args:
+            stream: Async iterable data stream.
+            batch_size: Number of records per batch.
+            **kwargs: Engine-specific parameters.
+
+        Returns:
+            AsyncIterator yielding CheckResult for each batch.
+        """
+        ...
+
+
+# =============================================================================
+# Feature Detection Utilities
+# =============================================================================
+
+
+def supports_drift(engine: DataQualityEngine) -> bool:
+    """Check if an engine supports drift detection.
+
+    Args:
+        engine: Data quality engine instance.
+
+    Returns:
+        True if the engine implements DriftDetectionEngine.
+    """
+    return isinstance(engine, DriftDetectionEngine)
+
+
+def supports_anomaly(engine: DataQualityEngine) -> bool:
+    """Check if an engine supports anomaly detection.
+
+    Args:
+        engine: Data quality engine instance.
+
+    Returns:
+        True if the engine implements AnomalyDetectionEngine.
+    """
+    return isinstance(engine, AnomalyDetectionEngine)
+
+
+def supports_streaming(engine: DataQualityEngine) -> bool:
+    """Check if an engine supports streaming validation.
+
+    Args:
+        engine: Data quality engine instance.
+
+    Returns:
+        True if the engine implements StreamingEngine.
+    """
+    return isinstance(engine, StreamingEngine)

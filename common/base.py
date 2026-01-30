@@ -139,6 +139,82 @@ class Severity(Enum):
         return self.weight >= other.weight
 
 
+class DriftStatus(Enum):
+    """Status of a drift detection operation.
+
+    Attributes:
+        NO_DRIFT: No drift detected.
+        DRIFT_DETECTED: Drift detected in one or more columns.
+        WARNING: Drift detected but below threshold.
+        ERROR: An error occurred during drift detection.
+    """
+
+    NO_DRIFT = auto()
+    DRIFT_DETECTED = auto()
+    WARNING = auto()
+    ERROR = auto()
+
+    def is_drifted(self) -> bool:
+        """Check if drift was detected."""
+        return self in (DriftStatus.DRIFT_DETECTED, DriftStatus.WARNING)
+
+
+class AnomalyStatus(Enum):
+    """Status of an anomaly detection operation.
+
+    Attributes:
+        NORMAL: No anomalies detected.
+        ANOMALY_DETECTED: Anomalies detected.
+        WARNING: Potential anomalies detected but below threshold.
+        ERROR: An error occurred during anomaly detection.
+    """
+
+    NORMAL = auto()
+    ANOMALY_DETECTED = auto()
+    WARNING = auto()
+    ERROR = auto()
+
+    def has_anomalies(self) -> bool:
+        """Check if anomalies were detected."""
+        return self in (AnomalyStatus.ANOMALY_DETECTED, AnomalyStatus.WARNING)
+
+
+class DriftMethod(Enum):
+    """Statistical method for drift detection.
+
+    Attributes:
+        KS: Kolmogorov-Smirnov test.
+        PSI: Population Stability Index.
+        CHI2: Chi-squared test.
+        KL: Kullback-Leibler divergence.
+        JS: Jensen-Shannon divergence.
+        WASSERSTEIN: Wasserstein distance.
+        HELLINGER: Hellinger distance.
+        BHATTACHARYYA: Bhattacharyya distance.
+        TV: Total Variation distance.
+        ENERGY: Energy distance.
+        MMD: Maximum Mean Discrepancy.
+        CVM: Cramér-von Mises test.
+        ANDERSON_DARLING: Anderson-Darling test.
+        AUTO: Automatically select the best method.
+    """
+
+    KS = "ks"
+    PSI = "psi"
+    CHI2 = "chi2"
+    KL = "kl"
+    JS = "js"
+    WASSERSTEIN = "wasserstein"
+    HELLINGER = "hellinger"
+    BHATTACHARYYA = "bhattacharyya"
+    TV = "tv"
+    ENERGY = "energy"
+    MMD = "mmd"
+    CVM = "cvm"
+    ANDERSON_DARLING = "anderson_darling"
+    AUTO = "auto"
+
+
 class ProfileStatus(Enum):
     """Status of a profiling operation.
 
@@ -1040,6 +1116,535 @@ class LearnResult:
 
 
 # =============================================================================
+# Drift & Anomaly Result Types
+# =============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnDrift:
+    """Drift detection result for a single column.
+
+    Attributes:
+        column: Column name.
+        method: Statistical method used.
+        statistic: Test statistic value.
+        p_value: p-value (None if not applicable).
+        threshold: Threshold used for drift detection.
+        is_drifted: Whether drift was detected.
+        severity: Severity of the drift.
+        baseline_stats: Summary statistics from the baseline dataset.
+        current_stats: Summary statistics from the current dataset.
+        metadata: Additional metadata.
+    """
+
+    column: str
+    method: DriftMethod
+    statistic: float
+    p_value: float | None
+    threshold: float
+    is_drifted: bool
+    severity: Severity = Severity.INFO
+    baseline_stats: dict[str, Any] = field(default_factory=dict)
+    current_stats: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "column": self.column,
+            "method": self.method.value,
+            "statistic": self.statistic,
+            "p_value": self.p_value,
+            "threshold": self.threshold,
+            "is_drifted": self.is_drifted,
+            "severity": self.severity.name,
+            "baseline_stats": self.baseline_stats,
+            "current_stats": self.current_stats,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create a ColumnDrift from a dictionary."""
+        return cls(
+            column=data["column"],
+            method=DriftMethod(data["method"]),
+            statistic=data["statistic"],
+            p_value=data.get("p_value"),
+            threshold=data["threshold"],
+            is_drifted=data["is_drifted"],
+            severity=Severity[data.get("severity", "INFO")],
+            baseline_stats=data.get("baseline_stats", {}),
+            current_stats=data.get("current_stats", {}),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class DriftResult:
+    """Result of a drift detection operation.
+
+    Attributes:
+        status: Overall drift status.
+        drifted_columns: Tuple of per-column drift results.
+        total_columns: Total number of columns analyzed.
+        drifted_count: Number of columns with drift detected.
+        method: Primary method used for drift detection.
+        execution_time_ms: Execution time in milliseconds.
+        timestamp: ISO format timestamp.
+        metadata: Additional result metadata.
+    """
+
+    status: DriftStatus
+    drifted_columns: tuple[ColumnDrift, ...] = ()
+    total_columns: int = 0
+    drifted_count: int = 0
+    method: DriftMethod = DriftMethod.AUTO
+    execution_time_ms: float = 0.0
+    timestamp: str = field(default_factory=_utc_now_iso)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def is_drifted(self) -> bool:
+        """Check if drift was detected in any column."""
+        return self.status.is_drifted()
+
+    @property
+    def drift_rate(self) -> float:
+        """Calculate drift rate as a percentage."""
+        if self.total_columns == 0:
+            return 0.0
+        return (self.drifted_count / self.total_columns) * 100
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "status": self.status.name,
+            "drifted_columns": [c.to_dict() for c in self.drifted_columns],
+            "total_columns": self.total_columns,
+            "drifted_count": self.drifted_count,
+            "method": self.method.value,
+            "execution_time_ms": self.execution_time_ms,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
+            "is_drifted": self.is_drifted,
+            "drift_rate": self.drift_rate,
+        }
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict(), default=str)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create a DriftResult from a dictionary."""
+        drifted_columns = tuple(
+            ColumnDrift.from_dict(c) for c in data.get("drifted_columns", [])
+        )
+        return cls(
+            status=DriftStatus[data["status"]],
+            drifted_columns=drifted_columns,
+            total_columns=data.get("total_columns", 0),
+            drifted_count=data.get("drifted_count", 0),
+            method=DriftMethod(data.get("method", "auto")),
+            execution_time_ms=data.get("execution_time_ms", 0.0),
+            timestamp=data.get("timestamp", _utc_now_iso()),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyScore:
+    """Anomaly detection score for a single column.
+
+    Attributes:
+        column: Column name.
+        score: Anomaly score value.
+        threshold: Threshold used for anomaly detection.
+        is_anomaly: Whether an anomaly was detected.
+        detector: Name of the detector used.
+        metadata: Additional metadata.
+    """
+
+    column: str
+    score: float
+    threshold: float
+    is_anomaly: bool
+    detector: str = "isolation_forest"
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "column": self.column,
+            "score": self.score,
+            "threshold": self.threshold,
+            "is_anomaly": self.is_anomaly,
+            "detector": self.detector,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create an AnomalyScore from a dictionary."""
+        return cls(
+            column=data["column"],
+            score=data["score"],
+            threshold=data["threshold"],
+            is_anomaly=data["is_anomaly"],
+            detector=data.get("detector", "isolation_forest"),
+            metadata=data.get("metadata", {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyResult:
+    """Result of an anomaly detection operation.
+
+    Attributes:
+        status: Overall anomaly status.
+        anomalies: Tuple of per-column anomaly scores.
+        anomalous_row_count: Number of rows with anomalies.
+        total_row_count: Total number of rows analyzed.
+        detector: Name of the detector used.
+        execution_time_ms: Execution time in milliseconds.
+        timestamp: ISO format timestamp.
+        metadata: Additional result metadata.
+    """
+
+    status: AnomalyStatus
+    anomalies: tuple[AnomalyScore, ...] = ()
+    anomalous_row_count: int = 0
+    total_row_count: int = 0
+    detector: str = "isolation_forest"
+    execution_time_ms: float = 0.0
+    timestamp: str = field(default_factory=_utc_now_iso)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def has_anomalies(self) -> bool:
+        """Check if any anomalies were detected."""
+        return self.status.has_anomalies()
+
+    @property
+    def anomaly_rate(self) -> float:
+        """Calculate anomaly rate as a percentage."""
+        if self.total_row_count == 0:
+            return 0.0
+        return (self.anomalous_row_count / self.total_row_count) * 100
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "status": self.status.name,
+            "anomalies": [a.to_dict() for a in self.anomalies],
+            "anomalous_row_count": self.anomalous_row_count,
+            "total_row_count": self.total_row_count,
+            "detector": self.detector,
+            "execution_time_ms": self.execution_time_ms,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
+            "has_anomalies": self.has_anomalies,
+            "anomaly_rate": self.anomaly_rate,
+        }
+
+    def to_json(self) -> str:
+        """Convert to JSON string."""
+        return json.dumps(self.to_dict(), default=str)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create an AnomalyResult from a dictionary."""
+        anomalies = tuple(
+            AnomalyScore.from_dict(a) for a in data.get("anomalies", [])
+        )
+        return cls(
+            status=AnomalyStatus[data["status"]],
+            anomalies=anomalies,
+            anomalous_row_count=data.get("anomalous_row_count", 0),
+            total_row_count=data.get("total_row_count", 0),
+            detector=data.get("detector", "isolation_forest"),
+            execution_time_ms=data.get("execution_time_ms", 0.0),
+            timestamp=data.get("timestamp", _utc_now_iso()),
+            metadata=data.get("metadata", {}),
+        )
+
+
+# =============================================================================
+# Drift & Anomaly Configuration Types
+# =============================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class DriftConfig:
+    """Configuration for drift detection.
+
+    Immutable configuration object for running drift detection.
+    Use builder methods to create modified copies.
+
+    Attributes:
+        method: Statistical method to use (default: "auto").
+        columns: Specific columns to check (None = all).
+        threshold: Drift detection threshold (None = method default).
+        min_severity: Minimum severity to report.
+        timeout_seconds: Execution timeout in seconds.
+        extra: Engine-specific extra configuration.
+    """
+
+    method: str = "auto"
+    columns: tuple[str, ...] | None = None
+    threshold: float | None = None
+    min_severity: str | None = None
+    timeout_seconds: int | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    def with_method(self, method: str) -> DriftConfig:
+        """Create a new config with the specified method."""
+        return DriftConfig(
+            method=method,
+            columns=self.columns,
+            threshold=self.threshold,
+            min_severity=self.min_severity,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_columns(self, *columns: str) -> DriftConfig:
+        """Create a new config with the specified columns."""
+        return DriftConfig(
+            method=self.method,
+            columns=columns,
+            threshold=self.threshold,
+            min_severity=self.min_severity,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_threshold(self, threshold: float) -> DriftConfig:
+        """Create a new config with the specified threshold."""
+        return DriftConfig(
+            method=self.method,
+            columns=self.columns,
+            threshold=threshold,
+            min_severity=self.min_severity,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_extra(self, **kwargs: Any) -> DriftConfig:
+        """Create a new config with additional extra parameters."""
+        return DriftConfig(
+            method=self.method,
+            columns=self.columns,
+            threshold=self.threshold,
+            min_severity=self.min_severity,
+            timeout_seconds=self.timeout_seconds,
+            extra={**self.extra, **kwargs},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "method": self.method,
+            "columns": list(self.columns) if self.columns else None,
+            "threshold": self.threshold,
+            "min_severity": self.min_severity,
+            "timeout_seconds": self.timeout_seconds,
+            "extra": self.extra,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create a DriftConfig from a dictionary."""
+        columns = data.get("columns")
+        return cls(
+            method=data.get("method", "auto"),
+            columns=tuple(columns) if columns else None,
+            threshold=data.get("threshold"),
+            min_severity=data.get("min_severity"),
+            timeout_seconds=data.get("timeout_seconds"),
+            extra=data.get("extra", {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyConfig:
+    """Configuration for anomaly detection.
+
+    Immutable configuration object for running anomaly detection.
+    Use builder methods to create modified copies.
+
+    Attributes:
+        detector: Anomaly detector to use (default: "isolation_forest").
+        columns: Specific columns to check (None = all).
+        contamination: Expected proportion of anomalies (0 < x < 0.5).
+        threshold: Anomaly score threshold (None = detector default).
+        timeout_seconds: Execution timeout in seconds.
+        extra: Engine-specific extra configuration.
+    """
+
+    detector: str = "isolation_forest"
+    columns: tuple[str, ...] | None = None
+    contamination: float = 0.05
+    threshold: float | None = None
+    timeout_seconds: int | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if not (0.0 < self.contamination < 0.5):
+            msg = f"contamination must be between 0 and 0.5, got {self.contamination}"
+            raise ValueError(msg)
+
+    def with_detector(self, detector: str) -> AnomalyConfig:
+        """Create a new config with the specified detector."""
+        return AnomalyConfig(
+            detector=detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            threshold=self.threshold,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_columns(self, *columns: str) -> AnomalyConfig:
+        """Create a new config with the specified columns."""
+        return AnomalyConfig(
+            detector=self.detector,
+            columns=columns,
+            contamination=self.contamination,
+            threshold=self.threshold,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_contamination(self, contamination: float) -> AnomalyConfig:
+        """Create a new config with the specified contamination."""
+        return AnomalyConfig(
+            detector=self.detector,
+            columns=self.columns,
+            contamination=contamination,
+            threshold=self.threshold,
+            timeout_seconds=self.timeout_seconds,
+            extra=self.extra,
+        )
+
+    def with_extra(self, **kwargs: Any) -> AnomalyConfig:
+        """Create a new config with additional extra parameters."""
+        return AnomalyConfig(
+            detector=self.detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            threshold=self.threshold,
+            timeout_seconds=self.timeout_seconds,
+            extra={**self.extra, **kwargs},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "detector": self.detector,
+            "columns": list(self.columns) if self.columns else None,
+            "contamination": self.contamination,
+            "threshold": self.threshold,
+            "timeout_seconds": self.timeout_seconds,
+            "extra": self.extra,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create an AnomalyConfig from a dictionary."""
+        columns = data.get("columns")
+        return cls(
+            detector=data.get("detector", "isolation_forest"),
+            columns=tuple(columns) if columns else None,
+            contamination=data.get("contamination", 0.05),
+            threshold=data.get("threshold"),
+            timeout_seconds=data.get("timeout_seconds"),
+            extra=data.get("extra", {}),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class StreamConfig:
+    """Configuration for streaming validation.
+
+    Immutable configuration object for streaming data quality checks.
+    Use builder methods to create modified copies.
+
+    Attributes:
+        batch_size: Number of records per batch.
+        max_batches: Maximum number of batches to process (None = unlimited).
+        timeout_per_batch_seconds: Timeout per batch in seconds.
+        fail_fast: Whether to stop on the first failed batch.
+        extra: Engine-specific extra configuration.
+    """
+
+    batch_size: int = 1000
+    max_batches: int | None = None
+    timeout_per_batch_seconds: float | None = None
+    fail_fast: bool = False
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if self.batch_size <= 0:
+            msg = f"batch_size must be positive, got {self.batch_size}"
+            raise ValueError(msg)
+
+    def with_batch_size(self, batch_size: int) -> StreamConfig:
+        """Create a new config with the specified batch size."""
+        return StreamConfig(
+            batch_size=batch_size,
+            max_batches=self.max_batches,
+            timeout_per_batch_seconds=self.timeout_per_batch_seconds,
+            fail_fast=self.fail_fast,
+            extra=self.extra,
+        )
+
+    def with_fail_fast(self, fail_fast: bool = True) -> StreamConfig:
+        """Create a new config with the specified fail_fast setting."""
+        return StreamConfig(
+            batch_size=self.batch_size,
+            max_batches=self.max_batches,
+            timeout_per_batch_seconds=self.timeout_per_batch_seconds,
+            fail_fast=fail_fast,
+            extra=self.extra,
+        )
+
+    def with_extra(self, **kwargs: Any) -> StreamConfig:
+        """Create a new config with additional extra parameters."""
+        return StreamConfig(
+            batch_size=self.batch_size,
+            max_batches=self.max_batches,
+            timeout_per_batch_seconds=self.timeout_per_batch_seconds,
+            fail_fast=self.fail_fast,
+            extra={**self.extra, **kwargs},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "batch_size": self.batch_size,
+            "max_batches": self.max_batches,
+            "timeout_per_batch_seconds": self.timeout_per_batch_seconds,
+            "fail_fast": self.fail_fast,
+            "extra": self.extra,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create a StreamConfig from a dictionary."""
+        return cls(
+            batch_size=data.get("batch_size", 1000),
+            max_batches=data.get("max_batches"),
+            timeout_per_batch_seconds=data.get("timeout_per_batch_seconds"),
+            fail_fast=data.get("fail_fast", False),
+            extra=data.get("extra", {}),
+        )
+
+
+# =============================================================================
 # Protocols
 # =============================================================================
 
@@ -1184,6 +1789,62 @@ class AsyncWorkflowIntegration(Protocol):
 
         Returns:
             LearnResult with learned rules.
+        """
+        ...
+
+
+@runtime_checkable
+class ExtendedWorkflowIntegration(Protocol):
+    """Protocol for workflow integrations with drift and anomaly detection.
+
+    Extends the basic workflow integration with drift detection and anomaly
+    detection capabilities. Platforms can implement this separately from
+    WorkflowIntegration, allowing gradual adoption of new features.
+
+    Example:
+        >>> if isinstance(integration, ExtendedWorkflowIntegration):
+        ...     drift_result = integration.detect_drift(baseline, current, config)
+    """
+
+    @property
+    @abstractmethod
+    def platform_name(self) -> str:
+        """Return the name of the platform."""
+        ...
+
+    @abstractmethod
+    def detect_drift(
+        self,
+        baseline: pl.DataFrame,
+        current: pl.DataFrame,
+        config: DriftConfig,
+    ) -> DriftResult:
+        """Detect data drift between baseline and current datasets.
+
+        Args:
+            baseline: Baseline Polars DataFrame.
+            current: Current Polars DataFrame to compare.
+            config: Configuration for drift detection.
+
+        Returns:
+            DriftResult with drift detection outcomes.
+        """
+        ...
+
+    @abstractmethod
+    def detect_anomalies(
+        self,
+        data: pl.DataFrame,
+        config: AnomalyConfig,
+    ) -> AnomalyResult:
+        """Detect anomalies in the data.
+
+        Args:
+            data: Polars DataFrame to analyze.
+            config: Configuration for anomaly detection.
+
+        Returns:
+            AnomalyResult with anomaly detection outcomes.
         """
         ...
 

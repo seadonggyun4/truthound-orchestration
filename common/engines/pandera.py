@@ -276,6 +276,8 @@ class PanderaAdapter(EngineInfoMixin):
             supports_learn=True,
             supports_async=False,
             supports_streaming=False,
+            supports_drift=False,
+            supports_anomaly=False,
             supported_data_types=("pandas", "polars"),
             supported_rule_types=(
                 "not_null",

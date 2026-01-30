@@ -18,16 +18,24 @@ Example:
 from __future__ import annotations
 
 import random
+from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 from common.base import (
+    AnomalyResult,
+    AnomalyScore,
+    AnomalyStatus,
     CheckConfig,
     CheckResult,
     CheckStatus,
+    ColumnDrift,
     ColumnProfile,
+    DriftMethod,
+    DriftResult,
+    DriftStatus,
     FailureAction,
     LearnedRule,
     LearnResult,
@@ -2411,3 +2419,1043 @@ def create_async_mock_lifecycle_hook() -> AsyncMockLifecycleHook:
         >>> assert hook.start_count == 1
     """
     return AsyncMockLifecycleHook()
+
+
+# =============================================================================
+# Mock Drift Detection Engine
+# =============================================================================
+
+
+@dataclass
+class MockDriftConfig:
+    """Configuration for mock drift detection behavior.
+
+    Attributes:
+        should_detect_drift: Whether drift should be detected.
+        drift_result: Custom DriftResult to return.
+        execution_time_ms: Simulated execution time.
+        raise_error: Exception to raise (if any).
+    """
+
+    should_detect_drift: bool = False
+    drift_result: DriftResult | None = None
+    execution_time_ms: float = 50.0
+    raise_error: Exception | None = None
+
+
+@dataclass
+class MockAnomalyDetConfig:
+    """Configuration for mock anomaly detection behavior.
+
+    Attributes:
+        should_detect_anomaly: Whether anomalies should be detected.
+        anomaly_result: Custom AnomalyResult to return.
+        execution_time_ms: Simulated execution time.
+        raise_error: Exception to raise (if any).
+    """
+
+    should_detect_anomaly: bool = False
+    anomaly_result: AnomalyResult | None = None
+    execution_time_ms: float = 50.0
+    raise_error: Exception | None = None
+
+
+@dataclass
+class MockStreamConfig:
+    """Configuration for mock streaming engine behavior.
+
+    Attributes:
+        batch_results: Sequence of CheckResults to yield.
+        raise_error: Exception to raise (if any).
+    """
+
+    batch_results: tuple[CheckResult, ...] = ()
+    raise_error: Exception | None = None
+
+
+class MockDriftDetectionEngine:
+    """Mock implementation of DriftDetectionEngine for testing.
+
+    Provides configurable mock responses for drift detection.
+    Implements the DriftDetectionEngine protocol.
+
+    Example:
+        >>> engine = MockDriftDetectionEngine(should_detect_drift=True)
+        >>> result = engine.detect_drift(baseline, current)
+        >>> assert result.is_drifted
+    """
+
+    def __init__(
+        self,
+        *,
+        should_detect_drift: bool = False,
+        drift_result: DriftResult | None = None,
+    ) -> None:
+        self._config = MockDriftConfig(
+            should_detect_drift=should_detect_drift,
+            drift_result=drift_result,
+        )
+        self._calls: list[tuple[Any, Any, dict[str, Any]]] = []
+
+    @property
+    def call_count(self) -> int:
+        """Return the number of detect_drift calls."""
+        return len(self._calls)
+
+    def get_calls(self) -> list[tuple[Any, Any, dict[str, Any]]]:
+        """Get all detect_drift call arguments."""
+        return list(self._calls)
+
+    def configure(
+        self,
+        *,
+        should_detect_drift: bool | None = None,
+        drift_result: DriftResult | None = None,
+        execution_time_ms: float | None = None,
+        raise_error: Exception | None = None,
+    ) -> None:
+        """Configure mock drift detection behavior."""
+        if should_detect_drift is not None:
+            self._config.should_detect_drift = should_detect_drift
+        if drift_result is not None:
+            self._config.drift_result = drift_result
+        if execution_time_ms is not None:
+            self._config.execution_time_ms = execution_time_ms
+        if raise_error is not None:
+            self._config.raise_error = raise_error
+
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str = "auto",
+        columns: Any = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute mock drift detection."""
+        self._calls.append((baseline, current, {"method": method, "columns": columns, "threshold": threshold, **kwargs}))
+
+        if self._config.raise_error:
+            raise self._config.raise_error
+
+        if self._config.drift_result is not None:
+            return self._config.drift_result
+
+        return _build_default_drift_result(
+            is_drifted=self._config.should_detect_drift,
+            method=method,
+            execution_time_ms=self._config.execution_time_ms,
+        )
+
+    def reset(self) -> None:
+        """Reset all call history and configuration."""
+        self._calls.clear()
+        self._config = MockDriftConfig()
+
+
+class MockAnomalyDetectionEngine:
+    """Mock implementation of AnomalyDetectionEngine for testing.
+
+    Provides configurable mock responses for anomaly detection.
+    Implements the AnomalyDetectionEngine protocol.
+
+    Example:
+        >>> engine = MockAnomalyDetectionEngine(should_detect_anomaly=True)
+        >>> result = engine.detect_anomalies(data)
+        >>> assert result.has_anomalies
+    """
+
+    def __init__(
+        self,
+        *,
+        should_detect_anomaly: bool = False,
+        anomaly_result: AnomalyResult | None = None,
+    ) -> None:
+        self._config = MockAnomalyDetConfig(
+            should_detect_anomaly=should_detect_anomaly,
+            anomaly_result=anomaly_result,
+        )
+        self._calls: list[tuple[Any, dict[str, Any]]] = []
+
+    @property
+    def call_count(self) -> int:
+        """Return the number of detect_anomalies calls."""
+        return len(self._calls)
+
+    def get_calls(self) -> list[tuple[Any, dict[str, Any]]]:
+        """Get all detect_anomalies call arguments."""
+        return list(self._calls)
+
+    def configure(
+        self,
+        *,
+        should_detect_anomaly: bool | None = None,
+        anomaly_result: AnomalyResult | None = None,
+        execution_time_ms: float | None = None,
+        raise_error: Exception | None = None,
+    ) -> None:
+        """Configure mock anomaly detection behavior."""
+        if should_detect_anomaly is not None:
+            self._config.should_detect_anomaly = should_detect_anomaly
+        if anomaly_result is not None:
+            self._config.anomaly_result = anomaly_result
+        if execution_time_ms is not None:
+            self._config.execution_time_ms = execution_time_ms
+        if raise_error is not None:
+            self._config.raise_error = raise_error
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str = "isolation_forest",
+        columns: Any = None,
+        contamination: float = 0.05,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute mock anomaly detection."""
+        self._calls.append((data, {"detector": detector, "columns": columns, "contamination": contamination, **kwargs}))
+
+        if self._config.raise_error:
+            raise self._config.raise_error
+
+        if self._config.anomaly_result is not None:
+            return self._config.anomaly_result
+
+        return _build_default_anomaly_result(
+            has_anomalies=self._config.should_detect_anomaly,
+            detector=detector,
+            execution_time_ms=self._config.execution_time_ms,
+        )
+
+    def reset(self) -> None:
+        """Reset all call history and configuration."""
+        self._calls.clear()
+        self._config = MockAnomalyDetConfig()
+
+
+class MockStreamingEngine:
+    """Mock implementation of StreamingEngine for testing.
+
+    Provides configurable mock responses for streaming validation.
+    Implements the StreamingEngine protocol.
+
+    Example:
+        >>> results = [create_mock_check_result(success=True)]
+        >>> engine = MockStreamingEngine(batch_results=results)
+        >>> for r in engine.check_stream(stream):
+        ...     assert r.is_success
+    """
+
+    def __init__(
+        self,
+        *,
+        batch_results: list[CheckResult] | tuple[CheckResult, ...] | None = None,
+    ) -> None:
+        self._config = MockStreamConfig(
+            batch_results=tuple(batch_results or ()),
+        )
+        self._calls: list[tuple[Any, dict[str, Any]]] = []
+
+    @property
+    def call_count(self) -> int:
+        """Return the number of check_stream calls."""
+        return len(self._calls)
+
+    def get_calls(self) -> list[tuple[Any, dict[str, Any]]]:
+        """Get all check_stream call arguments."""
+        return list(self._calls)
+
+    def configure(
+        self,
+        *,
+        batch_results: list[CheckResult] | tuple[CheckResult, ...] | None = None,
+        raise_error: Exception | None = None,
+    ) -> None:
+        """Configure mock streaming behavior."""
+        if batch_results is not None:
+            self._config.batch_results = tuple(batch_results)
+        if raise_error is not None:
+            self._config.raise_error = raise_error
+
+    def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> Iterator[CheckResult]:
+        """Execute mock streaming validation."""
+        self._calls.append((stream, {"batch_size": batch_size, **kwargs}))
+
+        if self._config.raise_error:
+            raise self._config.raise_error
+
+        yield from self._config.batch_results
+
+    def reset(self) -> None:
+        """Reset all call history and configuration."""
+        self._calls.clear()
+        self._config = MockStreamConfig()
+
+
+class MockFullEngine(
+    MockDataQualityEngine,
+):
+    """Mock engine implementing all Protocols: DataQualityEngine + Drift + Anomaly + Streaming.
+
+    Combines all mock engine capabilities into a single class for testing
+    scenarios that require a fully-featured engine.
+
+    Example:
+        >>> engine = MockFullEngine()
+        >>> engine.configure_check(success=True)
+        >>> engine.configure_drift(should_detect_drift=False)
+        >>> check_result = engine.check(data, rules=[])
+        >>> drift_result = engine.detect_drift(baseline, current)
+    """
+
+    def __init__(
+        self,
+        name: str = "mock_full",
+        version: str = "1.0.0",
+    ) -> None:
+        super().__init__(name=name, version=version)
+        self._drift_engine = MockDriftDetectionEngine()
+        self._anomaly_engine = MockAnomalyDetectionEngine()
+        self._streaming_engine = MockStreamingEngine()
+
+    def configure_drift(self, **kwargs: Any) -> None:
+        """Configure mock drift detection behavior."""
+        self._drift_engine.configure(**kwargs)
+
+    def configure_anomaly(self, **kwargs: Any) -> None:
+        """Configure mock anomaly detection behavior."""
+        self._anomaly_engine.configure(**kwargs)
+
+    def configure_streaming(self, **kwargs: Any) -> None:
+        """Configure mock streaming behavior."""
+        self._streaming_engine.configure(**kwargs)
+
+    def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str = "auto",
+        columns: Any = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute mock drift detection."""
+        return self._drift_engine.detect_drift(
+            baseline, current, method=method, columns=columns, threshold=threshold, **kwargs,
+        )
+
+    def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str = "isolation_forest",
+        columns: Any = None,
+        contamination: float = 0.05,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute mock anomaly detection."""
+        return self._anomaly_engine.detect_anomalies(
+            data, detector=detector, columns=columns, contamination=contamination, **kwargs,
+        )
+
+    def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> Iterator[CheckResult]:
+        """Execute mock streaming validation."""
+        yield from self._streaming_engine.check_stream(stream, batch_size=batch_size, **kwargs)
+
+    @property
+    def drift_call_count(self) -> int:
+        """Return the number of detect_drift calls."""
+        return self._drift_engine.call_count
+
+    @property
+    def anomaly_call_count(self) -> int:
+        """Return the number of detect_anomalies calls."""
+        return self._anomaly_engine.call_count
+
+    @property
+    def stream_call_count(self) -> int:
+        """Return the number of check_stream calls."""
+        return self._streaming_engine.call_count
+
+    def reset(self) -> None:
+        """Reset all call history and configurations."""
+        super().reset()
+        self._drift_engine.reset()
+        self._anomaly_engine.reset()
+        self._streaming_engine.reset()
+
+
+# =============================================================================
+# Async Mock Drift / Anomaly / Streaming Engines
+# =============================================================================
+
+
+class AsyncMockDriftDetectionEngine:
+    """Async mock implementation of DriftDetectionEngine for testing.
+
+    Example:
+        >>> engine = AsyncMockDriftDetectionEngine(should_detect_drift=True)
+        >>> result = await engine.detect_drift(baseline, current)
+        >>> assert result.is_drifted
+    """
+
+    def __init__(
+        self,
+        *,
+        should_detect_drift: bool = False,
+        drift_result: DriftResult | None = None,
+        delay_seconds: float = 0.0,
+    ) -> None:
+        self._sync = MockDriftDetectionEngine(
+            should_detect_drift=should_detect_drift,
+            drift_result=drift_result,
+        )
+        self._delay_seconds = delay_seconds
+
+    @property
+    def call_count(self) -> int:
+        return self._sync.call_count
+
+    def get_calls(self) -> list[tuple[Any, Any, dict[str, Any]]]:
+        return self._sync.get_calls()
+
+    def configure(self, *, delay_seconds: float | None = None, **kwargs: Any) -> None:
+        """Configure mock drift detection behavior."""
+        if delay_seconds is not None:
+            self._delay_seconds = delay_seconds
+        self._sync.configure(**kwargs)
+
+    async def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str = "auto",
+        columns: Any = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        """Execute async mock drift detection."""
+        import asyncio
+
+        if self._delay_seconds > 0:
+            await asyncio.sleep(self._delay_seconds)
+        return self._sync.detect_drift(
+            baseline, current, method=method, columns=columns, threshold=threshold, **kwargs,
+        )
+
+    def reset(self) -> None:
+        self._sync.reset()
+        self._delay_seconds = 0.0
+
+
+class AsyncMockAnomalyDetectionEngine:
+    """Async mock implementation of AnomalyDetectionEngine for testing.
+
+    Example:
+        >>> engine = AsyncMockAnomalyDetectionEngine(should_detect_anomaly=True)
+        >>> result = await engine.detect_anomalies(data)
+        >>> assert result.has_anomalies
+    """
+
+    def __init__(
+        self,
+        *,
+        should_detect_anomaly: bool = False,
+        anomaly_result: AnomalyResult | None = None,
+        delay_seconds: float = 0.0,
+    ) -> None:
+        self._sync = MockAnomalyDetectionEngine(
+            should_detect_anomaly=should_detect_anomaly,
+            anomaly_result=anomaly_result,
+        )
+        self._delay_seconds = delay_seconds
+
+    @property
+    def call_count(self) -> int:
+        return self._sync.call_count
+
+    def get_calls(self) -> list[tuple[Any, dict[str, Any]]]:
+        return self._sync.get_calls()
+
+    def configure(self, *, delay_seconds: float | None = None, **kwargs: Any) -> None:
+        """Configure mock anomaly detection behavior."""
+        if delay_seconds is not None:
+            self._delay_seconds = delay_seconds
+        self._sync.configure(**kwargs)
+
+    async def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str = "isolation_forest",
+        columns: Any = None,
+        contamination: float = 0.05,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        """Execute async mock anomaly detection."""
+        import asyncio
+
+        if self._delay_seconds > 0:
+            await asyncio.sleep(self._delay_seconds)
+        return self._sync.detect_anomalies(
+            data, detector=detector, columns=columns, contamination=contamination, **kwargs,
+        )
+
+    def reset(self) -> None:
+        self._sync.reset()
+        self._delay_seconds = 0.0
+
+
+class AsyncMockStreamingEngine:
+    """Async mock implementation of AsyncStreamingEngine for testing.
+
+    Example:
+        >>> engine = AsyncMockStreamingEngine(batch_results=[result1, result2])
+        >>> async for r in await engine.check_stream(stream):
+        ...     process(r)
+    """
+
+    def __init__(
+        self,
+        *,
+        batch_results: list[CheckResult] | tuple[CheckResult, ...] | None = None,
+        delay_per_batch_seconds: float = 0.0,
+    ) -> None:
+        self._sync = MockStreamingEngine(batch_results=batch_results)
+        self._delay_per_batch_seconds = delay_per_batch_seconds
+
+    @property
+    def call_count(self) -> int:
+        return self._sync.call_count
+
+    def get_calls(self) -> list[tuple[Any, dict[str, Any]]]:
+        return self._sync.get_calls()
+
+    def configure(
+        self,
+        *,
+        batch_results: list[CheckResult] | tuple[CheckResult, ...] | None = None,
+        delay_per_batch_seconds: float | None = None,
+        raise_error: Exception | None = None,
+    ) -> None:
+        """Configure mock streaming behavior."""
+        if delay_per_batch_seconds is not None:
+            self._delay_per_batch_seconds = delay_per_batch_seconds
+        self._sync.configure(batch_results=batch_results, raise_error=raise_error)
+
+    async def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> AsyncIterator[CheckResult]:
+        """Execute async mock streaming validation."""
+        import asyncio
+
+        # Record the call via sync engine
+        self._sync._calls.append((stream, {"batch_size": batch_size, **kwargs}))
+
+        if self._sync._config.raise_error:
+            raise self._sync._config.raise_error
+
+        async def _gen() -> AsyncIterator[CheckResult]:
+            for result in self._sync._config.batch_results:
+                if self._delay_per_batch_seconds > 0:
+                    await asyncio.sleep(self._delay_per_batch_seconds)
+                yield result
+
+        return _gen()
+
+    def reset(self) -> None:
+        self._sync.reset()
+        self._delay_per_batch_seconds = 0.0
+
+
+class AsyncMockFullEngine(AsyncMockDataQualityEngine):
+    """Async mock engine implementing all Protocols.
+
+    Combines async DataQualityEngine + Drift + Anomaly + Streaming.
+
+    Example:
+        >>> engine = AsyncMockFullEngine()
+        >>> result = await engine.check(data, rules=[])
+        >>> drift = await engine.detect_drift(baseline, current)
+    """
+
+    def __init__(
+        self,
+        name: str = "async_mock_full",
+        version: str = "1.0.0",
+    ) -> None:
+        super().__init__(name=name, version=version)
+        self._drift_engine = AsyncMockDriftDetectionEngine()
+        self._anomaly_engine = AsyncMockAnomalyDetectionEngine()
+        self._streaming_engine = AsyncMockStreamingEngine()
+
+    def configure_drift(self, **kwargs: Any) -> None:
+        """Configure mock drift detection behavior."""
+        self._drift_engine.configure(**kwargs)
+
+    def configure_anomaly(self, **kwargs: Any) -> None:
+        """Configure mock anomaly detection behavior."""
+        self._anomaly_engine.configure(**kwargs)
+
+    def configure_streaming(self, **kwargs: Any) -> None:
+        """Configure mock streaming behavior."""
+        self._streaming_engine.configure(**kwargs)
+
+    async def detect_drift(
+        self,
+        baseline: Any,
+        current: Any,
+        *,
+        method: str = "auto",
+        columns: Any = None,
+        threshold: float | None = None,
+        **kwargs: Any,
+    ) -> DriftResult:
+        return await self._drift_engine.detect_drift(
+            baseline, current, method=method, columns=columns, threshold=threshold, **kwargs,
+        )
+
+    async def detect_anomalies(
+        self,
+        data: Any,
+        *,
+        detector: str = "isolation_forest",
+        columns: Any = None,
+        contamination: float = 0.05,
+        **kwargs: Any,
+    ) -> AnomalyResult:
+        return await self._anomaly_engine.detect_anomalies(
+            data, detector=detector, columns=columns, contamination=contamination, **kwargs,
+        )
+
+    async def check_stream(
+        self,
+        stream: Any,
+        *,
+        batch_size: int = 1000,
+        **kwargs: Any,
+    ) -> AsyncIterator[CheckResult]:
+        return await self._streaming_engine.check_stream(stream, batch_size=batch_size, **kwargs)
+
+    @property
+    def drift_call_count(self) -> int:
+        return self._drift_engine.call_count
+
+    @property
+    def anomaly_call_count(self) -> int:
+        return self._anomaly_engine.call_count
+
+    @property
+    def stream_call_count(self) -> int:
+        return self._streaming_engine.call_count
+
+    def reset(self) -> None:
+        super().reset()
+        self._drift_engine.reset()
+        self._anomaly_engine.reset()
+        self._streaming_engine.reset()
+
+
+# =============================================================================
+# Drift / Anomaly Result Factory Functions
+# =============================================================================
+
+
+def create_mock_drift_result(
+    *,
+    is_drifted: bool = False,
+    method: str = "auto",
+    drifted_columns: list[ColumnDrift] | None = None,
+    total_columns: int = 5,
+    execution_time_ms: float = 50.0,
+    metadata: dict[str, Any] | None = None,
+) -> DriftResult:
+    """Create a mock DriftResult with customizable parameters.
+
+    Args:
+        is_drifted: Whether drift should be indicated.
+        method: Drift detection method.
+        drifted_columns: Custom per-column drift results.
+        total_columns: Total columns analyzed.
+        execution_time_ms: Execution time.
+        metadata: Additional metadata.
+
+    Returns:
+        DriftResult instance.
+    """
+    if drifted_columns is not None:
+        cols = tuple(drifted_columns)
+        drifted_count = sum(1 for c in cols if c.is_drifted)
+    elif is_drifted:
+        cols = (
+            ColumnDrift(
+                column="mock_col",
+                method=DriftMethod.AUTO,
+                statistic=0.85,
+                p_value=0.01,
+                threshold=0.05,
+                is_drifted=True,
+                severity=Severity.ERROR,
+            ),
+        )
+        drifted_count = 1
+    else:
+        cols = ()
+        drifted_count = 0
+
+    status = DriftStatus.DRIFT_DETECTED if is_drifted else DriftStatus.NO_DRIFT
+
+    return DriftResult(
+        status=status,
+        drifted_columns=cols,
+        total_columns=total_columns,
+        drifted_count=drifted_count,
+        method=DriftMethod(method),
+        execution_time_ms=execution_time_ms,
+        metadata=metadata or {},
+    )
+
+
+def create_mock_anomaly_result(
+    *,
+    has_anomalies: bool = False,
+    detector: str = "isolation_forest",
+    anomalies: list[AnomalyScore] | None = None,
+    anomalous_row_count: int = 0,
+    total_row_count: int = 1000,
+    execution_time_ms: float = 50.0,
+    metadata: dict[str, Any] | None = None,
+) -> AnomalyResult:
+    """Create a mock AnomalyResult with customizable parameters.
+
+    Args:
+        has_anomalies: Whether anomalies should be indicated.
+        detector: Anomaly detector name.
+        anomalies: Custom per-column anomaly scores.
+        anomalous_row_count: Number of anomalous rows.
+        total_row_count: Total rows analyzed.
+        execution_time_ms: Execution time.
+        metadata: Additional metadata.
+
+    Returns:
+        AnomalyResult instance.
+    """
+    if anomalies is not None:
+        scores = tuple(anomalies)
+    elif has_anomalies:
+        scores = (
+            AnomalyScore(
+                column="mock_col",
+                score=0.95,
+                threshold=0.5,
+                is_anomaly=True,
+                detector=detector,
+            ),
+        )
+        anomalous_row_count = anomalous_row_count or 50
+    else:
+        scores = ()
+
+    status = AnomalyStatus.ANOMALY_DETECTED if has_anomalies else AnomalyStatus.NORMAL
+
+    return AnomalyResult(
+        status=status,
+        anomalies=scores,
+        anomalous_row_count=anomalous_row_count,
+        total_row_count=total_row_count,
+        detector=detector,
+        execution_time_ms=execution_time_ms,
+        metadata=metadata or {},
+    )
+
+
+def create_mock_column_drift(
+    *,
+    column: str = "test_column",
+    method: DriftMethod = DriftMethod.KS,
+    statistic: float = 0.5,
+    p_value: float | None = 0.01,
+    threshold: float = 0.05,
+    is_drifted: bool = True,
+    severity: Severity = Severity.ERROR,
+) -> ColumnDrift:
+    """Create a mock ColumnDrift for testing.
+
+    Args:
+        column: Column name.
+        method: Drift detection method.
+        statistic: Test statistic value.
+        p_value: p-value.
+        threshold: Detection threshold.
+        is_drifted: Whether drift was detected.
+        severity: Severity level.
+
+    Returns:
+        ColumnDrift instance.
+    """
+    return ColumnDrift(
+        column=column,
+        method=method,
+        statistic=statistic,
+        p_value=p_value,
+        threshold=threshold,
+        is_drifted=is_drifted,
+        severity=severity,
+    )
+
+
+def create_mock_anomaly_score(
+    *,
+    column: str = "test_column",
+    score: float = 0.95,
+    threshold: float = 0.5,
+    is_anomaly: bool = True,
+    detector: str = "isolation_forest",
+) -> AnomalyScore:
+    """Create a mock AnomalyScore for testing.
+
+    Args:
+        column: Column name.
+        score: Anomaly score.
+        threshold: Detection threshold.
+        is_anomaly: Whether anomaly was detected.
+        detector: Detector name.
+
+    Returns:
+        AnomalyScore instance.
+    """
+    return AnomalyScore(
+        column=column,
+        score=score,
+        threshold=threshold,
+        is_anomaly=is_anomaly,
+        detector=detector,
+    )
+
+
+def create_mock_full_engine(
+    *,
+    name: str = "mock_full",
+    version: str = "1.0.0",
+    check_success: bool = True,
+    should_detect_drift: bool = False,
+    should_detect_anomaly: bool = False,
+    batch_results: list[CheckResult] | None = None,
+) -> MockFullEngine:
+    """Create a configured MockFullEngine.
+
+    Args:
+        name: Engine name.
+        version: Engine version.
+        check_success: Whether check should succeed.
+        should_detect_drift: Whether drift should be detected.
+        should_detect_anomaly: Whether anomalies should be detected.
+        batch_results: Streaming batch results.
+
+    Returns:
+        Configured MockFullEngine.
+    """
+    engine = MockFullEngine(name=name, version=version)
+    engine.configure_check(success=check_success)
+    engine.configure_drift(should_detect_drift=should_detect_drift)
+    engine.configure_anomaly(should_detect_anomaly=should_detect_anomaly)
+    if batch_results:
+        engine.configure_streaming(batch_results=batch_results)
+    return engine
+
+
+def create_async_mock_full_engine(
+    *,
+    name: str = "async_mock_full",
+    version: str = "1.0.0",
+    check_success: bool = True,
+    should_detect_drift: bool = False,
+    should_detect_anomaly: bool = False,
+) -> AsyncMockFullEngine:
+    """Create a configured AsyncMockFullEngine.
+
+    Args:
+        name: Engine name.
+        version: Engine version.
+        check_success: Whether check should succeed.
+        should_detect_drift: Whether drift should be detected.
+        should_detect_anomaly: Whether anomalies should be detected.
+
+    Returns:
+        Configured AsyncMockFullEngine.
+    """
+    engine = AsyncMockFullEngine(name=name, version=version)
+    engine.configure_check(success=check_success)
+    engine.configure_drift(should_detect_drift=should_detect_drift)
+    engine.configure_anomaly(should_detect_anomaly=should_detect_anomaly)
+    return engine
+
+
+# =============================================================================
+# Assertion Helpers for Drift / Anomaly
+# =============================================================================
+
+
+def assert_drift_result(
+    result: DriftResult,
+    *,
+    expected_drifted: bool | None = None,
+    expected_status: DriftStatus | None = None,
+    max_drift_rate: float | None = None,
+    min_drift_rate: float | None = None,
+) -> None:
+    """Assert DriftResult matches expectations.
+
+    Args:
+        result: DriftResult to check.
+        expected_drifted: Expected drift detection state.
+        expected_status: Expected status enum.
+        max_drift_rate: Maximum acceptable drift rate.
+        min_drift_rate: Minimum expected drift rate.
+
+    Raises:
+        AssertionError: If expectations not met.
+    """
+    if expected_drifted is not None:
+        assert result.is_drifted == expected_drifted, (
+            f"Expected is_drifted={expected_drifted}, got {result.is_drifted}"
+        )
+    if expected_status is not None:
+        assert result.status == expected_status, (
+            f"Expected status={expected_status}, got {result.status}"
+        )
+    if max_drift_rate is not None:
+        assert result.drift_rate <= max_drift_rate, (
+            f"Expected drift_rate <= {max_drift_rate}, got {result.drift_rate}"
+        )
+    if min_drift_rate is not None:
+        assert result.drift_rate >= min_drift_rate, (
+            f"Expected drift_rate >= {min_drift_rate}, got {result.drift_rate}"
+        )
+
+
+def assert_anomaly_result(
+    result: AnomalyResult,
+    *,
+    expected_anomalies: bool | None = None,
+    expected_status: AnomalyStatus | None = None,
+    max_anomaly_rate: float | None = None,
+) -> None:
+    """Assert AnomalyResult matches expectations.
+
+    Args:
+        result: AnomalyResult to check.
+        expected_anomalies: Expected anomaly detection state.
+        expected_status: Expected status enum.
+        max_anomaly_rate: Maximum acceptable anomaly rate.
+
+    Raises:
+        AssertionError: If expectations not met.
+    """
+    if expected_anomalies is not None:
+        assert result.has_anomalies == expected_anomalies, (
+            f"Expected has_anomalies={expected_anomalies}, got {result.has_anomalies}"
+        )
+    if expected_status is not None:
+        assert result.status == expected_status, (
+            f"Expected status={expected_status}, got {result.status}"
+        )
+    if max_anomaly_rate is not None:
+        assert result.anomaly_rate <= max_anomaly_rate, (
+            f"Expected anomaly_rate <= {max_anomaly_rate}, got {result.anomaly_rate}"
+        )
+
+
+# =============================================================================
+# Internal Helpers
+# =============================================================================
+
+
+def _build_default_drift_result(
+    *,
+    is_drifted: bool,
+    method: str,
+    execution_time_ms: float,
+) -> DriftResult:
+    """Build a default DriftResult for mock engines."""
+    if is_drifted:
+        cols = (
+            ColumnDrift(
+                column="col_0",
+                method=DriftMethod(method),
+                statistic=0.75,
+                p_value=0.02,
+                threshold=0.05,
+                is_drifted=True,
+                severity=Severity.ERROR,
+            ),
+        )
+        return DriftResult(
+            status=DriftStatus.DRIFT_DETECTED,
+            drifted_columns=cols,
+            total_columns=5,
+            drifted_count=1,
+            method=DriftMethod(method),
+            execution_time_ms=execution_time_ms,
+        )
+    return DriftResult(
+        status=DriftStatus.NO_DRIFT,
+        total_columns=5,
+        drifted_count=0,
+        method=DriftMethod(method),
+        execution_time_ms=execution_time_ms,
+    )
+
+
+def _build_default_anomaly_result(
+    *,
+    has_anomalies: bool,
+    detector: str,
+    execution_time_ms: float,
+) -> AnomalyResult:
+    """Build a default AnomalyResult for mock engines."""
+    if has_anomalies:
+        scores = (
+            AnomalyScore(
+                column="col_0",
+                score=0.92,
+                threshold=0.5,
+                is_anomaly=True,
+                detector=detector,
+            ),
+        )
+        return AnomalyResult(
+            status=AnomalyStatus.ANOMALY_DETECTED,
+            anomalies=scores,
+            anomalous_row_count=50,
+            total_row_count=1000,
+            detector=detector,
+            execution_time_ms=execution_time_ms,
+        )
+    return AnomalyResult(
+        status=AnomalyStatus.NORMAL,
+        total_row_count=1000,
+        detector=detector,
+        execution_time_ms=execution_time_ms,
+    )

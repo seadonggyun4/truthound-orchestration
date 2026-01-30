@@ -288,6 +288,8 @@ class GreatExpectationsAdapter(EngineInfoMixin):
             supports_learn=True,
             supports_async=False,
             supports_streaming=False,
+            supports_drift=False,
+            supports_anomaly=False,
             supported_data_types=("pandas", "polars", "spark"),
             supported_rule_types=tuple(RULE_TYPE_MAPPING.keys()),
         )
