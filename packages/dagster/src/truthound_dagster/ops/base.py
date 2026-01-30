@@ -13,7 +13,7 @@ Example:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,4 +307,194 @@ DEFAULT_LEARN_CONFIG = LearnOpConfig()
 
 HIGH_CONFIDENCE_LEARN_CONFIG = LearnOpConfig(
     min_confidence=0.95,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class DriftOpConfig(BaseOpConfig):
+    """Configuration for drift detection ops.
+
+    Attributes:
+        method: Drift detection method (e.g., "auto", "ks", "psi").
+        columns: Columns to check for drift. None means all columns.
+        threshold: Drift threshold. None uses engine default.
+        fail_on_drift: Whether to raise on drift detection.
+
+    Example:
+        >>> config = DriftOpConfig(
+        ...     method="ks",
+        ...     threshold=0.05,
+        ...     fail_on_drift=True,
+        ... )
+    """
+
+    method: str = "auto"
+    columns: "tuple[str, ...] | None" = None
+    threshold: Optional[float] = None
+    fail_on_drift: bool = True
+
+    def with_method(self, method: str) -> "DriftOpConfig":
+        """Return new config with updated method."""
+        return DriftOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            method=method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+        )
+
+    def with_columns(self, columns: Sequence[str]) -> "DriftOpConfig":
+        """Return new config with updated columns."""
+        return DriftOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            method=self.method,
+            columns=tuple(columns),
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+        )
+
+    def with_threshold(self, threshold: float) -> "DriftOpConfig":
+        """Return new config with updated threshold."""
+        return DriftOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            method=self.method,
+            columns=self.columns,
+            threshold=threshold,
+            fail_on_drift=self.fail_on_drift,
+        )
+
+    def with_fail_on_drift(self, fail_on_drift: bool) -> "DriftOpConfig":
+        """Return new config with updated fail_on_drift."""
+        return DriftOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            method=self.method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=fail_on_drift,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        base_dict = BaseOpConfig.to_dict(self)
+        return {
+            **base_dict,
+            "method": self.method,
+            "columns": list(self.columns) if self.columns else None,
+            "threshold": self.threshold,
+            "fail_on_drift": self.fail_on_drift,
+        }
+
+
+DEFAULT_DRIFT_CONFIG = DriftOpConfig()
+
+STRICT_DRIFT_CONFIG = DriftOpConfig(
+    threshold=0.01,
+    fail_on_drift=True,
+)
+
+LENIENT_DRIFT_CONFIG = DriftOpConfig(
+    threshold=0.1,
+    fail_on_drift=False,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyOpConfig(BaseOpConfig):
+    """Configuration for anomaly detection ops.
+
+    Attributes:
+        detector: Anomaly detection algorithm (e.g., "isolation_forest").
+        columns: Columns to check for anomalies. None means all columns.
+        contamination: Expected proportion of anomalies.
+        fail_on_anomaly: Whether to raise on anomaly detection.
+
+    Example:
+        >>> config = AnomalyOpConfig(
+        ...     detector="isolation_forest",
+        ...     contamination=0.05,
+        ...     fail_on_anomaly=True,
+        ... )
+    """
+
+    detector: str = "isolation_forest"
+    columns: "tuple[str, ...] | None" = None
+    contamination: float = 0.05
+    fail_on_anomaly: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration."""
+        if not 0 < self.contamination < 1:
+            msg = "contamination must be between 0 and 1 (exclusive)"
+            raise ValueError(msg)
+
+    def with_detector(self, detector: str) -> "AnomalyOpConfig":
+        """Return new config with updated detector."""
+        return AnomalyOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            detector=detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_columns(self, columns: Sequence[str]) -> "AnomalyOpConfig":
+        """Return new config with updated columns."""
+        return AnomalyOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            detector=self.detector,
+            columns=tuple(columns),
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_contamination(self, contamination: float) -> "AnomalyOpConfig":
+        """Return new config with updated contamination."""
+        return AnomalyOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+        )
+
+    def with_fail_on_anomaly(self, fail_on_anomaly: bool) -> "AnomalyOpConfig":
+        """Return new config with updated fail_on_anomaly."""
+        return AnomalyOpConfig(
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=fail_on_anomaly,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        base_dict = BaseOpConfig.to_dict(self)
+        return {
+            **base_dict,
+            "detector": self.detector,
+            "columns": list(self.columns) if self.columns else None,
+            "contamination": self.contamination,
+            "fail_on_anomaly": self.fail_on_anomaly,
+        }
+
+
+DEFAULT_ANOMALY_CONFIG = AnomalyOpConfig()
+
+STRICT_ANOMALY_CONFIG = AnomalyOpConfig(
+    contamination=0.01,
+    fail_on_anomaly=True,
+)
+
+LENIENT_ANOMALY_CONFIG = AnomalyOpConfig(
+    contamination=0.1,
+    fail_on_anomaly=False,
 )

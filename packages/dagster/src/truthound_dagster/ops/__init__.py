@@ -38,6 +38,8 @@ from truthound_dagster.ops.base import (
     CheckOpConfig,
     LearnOpConfig,
     ProfileOpConfig,
+    DriftOpConfig,
+    AnomalyOpConfig,
     # Presets
     DEFAULT_CHECK_CONFIG,
     STRICT_CHECK_CONFIG,
@@ -47,6 +49,12 @@ from truthound_dagster.ops.base import (
     MINIMAL_PROFILE_CONFIG,
     DEFAULT_LEARN_CONFIG,
     HIGH_CONFIDENCE_LEARN_CONFIG,
+    DEFAULT_DRIFT_CONFIG,
+    STRICT_DRIFT_CONFIG,
+    LENIENT_DRIFT_CONFIG,
+    DEFAULT_ANOMALY_CONFIG,
+    STRICT_ANOMALY_CONFIG,
+    LENIENT_ANOMALY_CONFIG,
 )
 from truthound_dagster.ops.check import (
     create_check_op,
@@ -60,6 +68,14 @@ from truthound_dagster.ops.learn import (
     create_learn_op,
     data_quality_learn_op,
 )
+from truthound_dagster.ops.drift import (
+    create_drift_op,
+    data_quality_drift_op,
+)
+from truthound_dagster.ops.anomaly import (
+    create_anomaly_op,
+    data_quality_anomaly_op,
+)
 
 __all__ = [
     # Configuration
@@ -67,6 +83,8 @@ __all__ = [
     "CheckOpConfig",
     "ProfileOpConfig",
     "LearnOpConfig",
+    "DriftOpConfig",
+    "AnomalyOpConfig",
     # Check presets
     "DEFAULT_CHECK_CONFIG",
     "STRICT_CHECK_CONFIG",
@@ -78,6 +96,14 @@ __all__ = [
     # Learn presets
     "DEFAULT_LEARN_CONFIG",
     "HIGH_CONFIDENCE_LEARN_CONFIG",
+    # Drift presets
+    "DEFAULT_DRIFT_CONFIG",
+    "STRICT_DRIFT_CONFIG",
+    "LENIENT_DRIFT_CONFIG",
+    # Anomaly presets
+    "DEFAULT_ANOMALY_CONFIG",
+    "STRICT_ANOMALY_CONFIG",
+    "LENIENT_ANOMALY_CONFIG",
     # Check ops
     "data_quality_check_op",
     "create_check_op",
@@ -87,4 +113,10 @@ __all__ = [
     # Learn ops
     "data_quality_learn_op",
     "create_learn_op",
+    # Drift ops
+    "data_quality_drift_op",
+    "create_drift_op",
+    # Anomaly ops
+    "data_quality_anomaly_op",
+    "create_anomaly_op",
 ]
