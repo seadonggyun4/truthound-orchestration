@@ -7,7 +7,7 @@ following the frozen dataclass pattern with builder methods.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,6 +340,102 @@ STRICT_LEARN_CONFIG = LearnTaskConfig(
 )
 
 
+@dataclass(frozen=True, slots=True)
+class DriftTaskConfig(BaseTaskConfig):
+    """Configuration for drift detection tasks.
+
+    Attributes:
+        method: Statistical method for drift detection.
+        columns: Columns to check. None means all.
+        threshold: Drift detection threshold.
+        fail_on_drift: Raise exception on drift detection.
+    """
+
+    method: str = "auto"
+    columns: tuple[str, ...] | None = None
+    threshold: float | None = None
+    fail_on_drift: bool = True
+
+    def with_method(self, method: str) -> DriftTaskConfig:
+        """Return a new config with method changed."""
+        return DriftTaskConfig(**{**self.__dict__, "method": method})
+
+    def with_columns(self, columns: Sequence[str]) -> DriftTaskConfig:
+        """Return a new config with columns changed."""
+        return DriftTaskConfig(**{**self.__dict__, "columns": tuple(columns)})
+
+    def with_threshold(self, threshold: float) -> DriftTaskConfig:
+        """Return a new config with threshold changed."""
+        return DriftTaskConfig(**{**self.__dict__, "threshold": threshold})
+
+    def with_fail_on_drift(self, fail_on_drift: bool) -> DriftTaskConfig:
+        """Return a new config with fail_on_drift changed."""
+        return DriftTaskConfig(**{**self.__dict__, "fail_on_drift": fail_on_drift})
+
+
+DEFAULT_DRIFT_TASK_CONFIG = DriftTaskConfig()
+
+STRICT_DRIFT_TASK_CONFIG = DriftTaskConfig(
+    threshold=0.01,
+    fail_on_drift=True,
+    tags=frozenset({"strict"}),
+)
+
+LENIENT_DRIFT_TASK_CONFIG = DriftTaskConfig(
+    threshold=0.1,
+    fail_on_drift=False,
+    tags=frozenset({"lenient"}),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyTaskConfig(BaseTaskConfig):
+    """Configuration for anomaly detection tasks.
+
+    Attributes:
+        detector: Anomaly detection algorithm.
+        columns: Columns to check. None means all.
+        contamination: Expected proportion of anomalies.
+        fail_on_anomaly: Raise exception on anomaly detection.
+    """
+
+    detector: str = "isolation_forest"
+    columns: tuple[str, ...] | None = None
+    contamination: float = 0.05
+    fail_on_anomaly: bool = True
+
+    def with_detector(self, detector: str) -> AnomalyTaskConfig:
+        """Return a new config with detector changed."""
+        return AnomalyTaskConfig(**{**self.__dict__, "detector": detector})
+
+    def with_columns(self, columns: Sequence[str]) -> AnomalyTaskConfig:
+        """Return a new config with columns changed."""
+        return AnomalyTaskConfig(**{**self.__dict__, "columns": tuple(columns)})
+
+    def with_contamination(self, contamination: float) -> AnomalyTaskConfig:
+        """Return a new config with contamination changed."""
+        return AnomalyTaskConfig(**{**self.__dict__, "contamination": contamination})
+
+    def with_fail_on_anomaly(self, fail_on_anomaly: bool) -> AnomalyTaskConfig:
+        """Return a new config with fail_on_anomaly changed."""
+        return AnomalyTaskConfig(**{**self.__dict__, "fail_on_anomaly": fail_on_anomaly})
+
+
+DEFAULT_ANOMALY_TASK_CONFIG = AnomalyTaskConfig()
+
+STRICT_ANOMALY_TASK_CONFIG = AnomalyTaskConfig(
+    contamination=0.01,
+    fail_on_anomaly=True,
+    tags=frozenset({"strict"}),
+)
+
+LENIENT_ANOMALY_TASK_CONFIG = AnomalyTaskConfig(
+    contamination=0.1,
+    fail_on_anomaly=False,
+    tags=frozenset({"lenient"}),
+)
+
+
 __all__ = [
     # Base
     "BaseTaskConfig",
@@ -358,4 +454,14 @@ __all__ = [
     "LearnTaskConfig",
     "DEFAULT_LEARN_CONFIG",
     "STRICT_LEARN_CONFIG",
+    # Drift
+    "DriftTaskConfig",
+    "DEFAULT_DRIFT_TASK_CONFIG",
+    "STRICT_DRIFT_TASK_CONFIG",
+    "LENIENT_DRIFT_TASK_CONFIG",
+    # Anomaly
+    "AnomalyTaskConfig",
+    "DEFAULT_ANOMALY_TASK_CONFIG",
+    "STRICT_ANOMALY_TASK_CONFIG",
+    "LENIENT_ANOMALY_TASK_CONFIG",
 ]
