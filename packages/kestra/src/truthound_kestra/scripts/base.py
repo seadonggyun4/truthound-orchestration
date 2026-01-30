@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, runtime_checkable
 
 from truthound_kestra.utils.exceptions import ConfigurationError
@@ -42,11 +43,19 @@ __all__ = [
     "CheckScriptConfig",
     "ProfileScriptConfig",
     "LearnScriptConfig",
+    "DriftScriptConfig",
+    "AnomalyScriptConfig",
     # Presets
     "DEFAULT_SCRIPT_CONFIG",
     "STRICT_SCRIPT_CONFIG",
     "LENIENT_SCRIPT_CONFIG",
     "PRODUCTION_SCRIPT_CONFIG",
+    "DEFAULT_DRIFT_SCRIPT_CONFIG",
+    "STRICT_DRIFT_SCRIPT_CONFIG",
+    "LENIENT_DRIFT_SCRIPT_CONFIG",
+    "DEFAULT_ANOMALY_SCRIPT_CONFIG",
+    "STRICT_ANOMALY_SCRIPT_CONFIG",
+    "LENIENT_ANOMALY_SCRIPT_CONFIG",
     # Utility
     "get_engine",
     "create_script_config",
@@ -625,6 +634,312 @@ class LearnScriptConfig(ScriptConfig):
         )
 
 
+@dataclass(frozen=True, slots=True)
+class DriftScriptConfig(ScriptConfig):
+    """Configuration for drift detection scripts.
+
+    This configuration class extends ScriptConfig with settings
+    specific to data drift detection operations.
+
+    Attributes:
+        method: Statistical method for drift detection.
+        columns: Columns to check for drift. None means all.
+        threshold: Detection threshold. None uses engine default.
+        fail_on_drift: Whether to raise exception on drift detection.
+        baseline_data_path: Path to baseline data file.
+        current_data_path: Path to current data file.
+        baseline_sql: SQL query for baseline data.
+        current_sql: SQL query for current data.
+
+    Example:
+        >>> config = DriftScriptConfig(
+        ...     engine_name="truthound",
+        ...     method="ks",
+        ...     threshold=0.05,
+        ...     fail_on_drift=True,
+        ... )
+    """
+
+    method: str = "auto"
+    columns: tuple[str, ...] | None = None
+    threshold: float | None = None
+    fail_on_drift: bool = True
+    baseline_data_path: str | None = None
+    current_data_path: str | None = None
+    baseline_sql: str | None = None
+    current_sql: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        ScriptConfig.__post_init__(self)
+
+        if self.threshold is not None and self.threshold < 0:
+            msg = "threshold must be non-negative"
+            raise ConfigurationError(
+                message=msg,
+                field="threshold",
+                value=self.threshold,
+                reason=msg,
+            )
+
+    def with_method(self, method: str) -> DriftScriptConfig:
+        """Return new config with updated method."""
+        return DriftScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            method=method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_data_path=self.baseline_data_path,
+            current_data_path=self.current_data_path,
+            baseline_sql=self.baseline_sql,
+            current_sql=self.current_sql,
+        )
+
+    def with_columns(self, columns: Sequence[str]) -> DriftScriptConfig:
+        """Return new config with updated columns."""
+        return DriftScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            method=self.method,
+            columns=tuple(columns),
+            threshold=self.threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_data_path=self.baseline_data_path,
+            current_data_path=self.current_data_path,
+            baseline_sql=self.baseline_sql,
+            current_sql=self.current_sql,
+        )
+
+    def with_threshold(self, threshold: float) -> DriftScriptConfig:
+        """Return new config with updated threshold."""
+        return DriftScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            method=self.method,
+            columns=self.columns,
+            threshold=threshold,
+            fail_on_drift=self.fail_on_drift,
+            baseline_data_path=self.baseline_data_path,
+            current_data_path=self.current_data_path,
+            baseline_sql=self.baseline_sql,
+            current_sql=self.current_sql,
+        )
+
+    def with_fail_on_drift(self, fail_on_drift: bool) -> DriftScriptConfig:
+        """Return new config with updated fail_on_drift."""
+        return DriftScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            method=self.method,
+            columns=self.columns,
+            threshold=self.threshold,
+            fail_on_drift=fail_on_drift,
+            baseline_data_path=self.baseline_data_path,
+            current_data_path=self.current_data_path,
+            baseline_sql=self.baseline_sql,
+            current_sql=self.current_sql,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        base = super().to_dict()
+        base.update({
+            "method": self.method,
+            "columns": list(self.columns) if self.columns else None,
+            "threshold": self.threshold,
+            "fail_on_drift": self.fail_on_drift,
+            "baseline_data_path": self.baseline_data_path,
+            "current_data_path": self.current_data_path,
+            "baseline_sql": self.baseline_sql,
+            "current_sql": self.current_sql,
+        })
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DriftScriptConfig:
+        """Create from dictionary."""
+        columns = data.get("columns")
+        return cls(
+            engine_name=data.get("engine_name", "truthound"),
+            enabled=data.get("enabled", True),
+            timeout_seconds=data.get("timeout_seconds", 300.0),
+            tags=frozenset(data.get("tags", [])),
+            description=data.get("description", ""),
+            metadata=data.get("metadata", {}),
+            method=data.get("method", "auto"),
+            columns=tuple(columns) if columns else None,
+            threshold=data.get("threshold"),
+            fail_on_drift=data.get("fail_on_drift", True),
+            baseline_data_path=data.get("baseline_data_path"),
+            current_data_path=data.get("current_data_path"),
+            baseline_sql=data.get("baseline_sql"),
+            current_sql=data.get("current_sql"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnomalyScriptConfig(ScriptConfig):
+    """Configuration for anomaly detection scripts.
+
+    This configuration class extends ScriptConfig with settings
+    specific to anomaly detection operations.
+
+    Attributes:
+        detector: Anomaly detection algorithm name.
+        columns: Columns to check for anomalies. None means all.
+        contamination: Expected proportion of anomalies (0.0 to 1.0).
+        fail_on_anomaly: Whether to raise exception on anomaly detection.
+        data_path: Path to data file.
+        data_sql: SQL query for data.
+
+    Example:
+        >>> config = AnomalyScriptConfig(
+        ...     engine_name="truthound",
+        ...     detector="isolation_forest",
+        ...     contamination=0.05,
+        ...     fail_on_anomaly=True,
+        ... )
+    """
+
+    detector: str = "isolation_forest"
+    columns: tuple[str, ...] | None = None
+    contamination: float = 0.05
+    fail_on_anomaly: bool = True
+    data_path: str | None = None
+    data_sql: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        ScriptConfig.__post_init__(self)
+
+        if not 0.0 < self.contamination < 1.0:
+            msg = "contamination must be between 0.0 and 1.0 (exclusive)"
+            raise ConfigurationError(
+                message=msg,
+                field="contamination",
+                value=self.contamination,
+                reason=msg,
+            )
+
+    def with_detector(self, detector: str) -> AnomalyScriptConfig:
+        """Return new config with updated detector."""
+        return AnomalyScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            detector=detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+            data_path=self.data_path,
+            data_sql=self.data_sql,
+        )
+
+    def with_columns(self, columns: Sequence[str]) -> AnomalyScriptConfig:
+        """Return new config with updated columns."""
+        return AnomalyScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            detector=self.detector,
+            columns=tuple(columns),
+            contamination=self.contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+            data_path=self.data_path,
+            data_sql=self.data_sql,
+        )
+
+    def with_contamination(self, contamination: float) -> AnomalyScriptConfig:
+        """Return new config with updated contamination."""
+        return AnomalyScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=contamination,
+            fail_on_anomaly=self.fail_on_anomaly,
+            data_path=self.data_path,
+            data_sql=self.data_sql,
+        )
+
+    def with_fail_on_anomaly(self, fail_on_anomaly: bool) -> AnomalyScriptConfig:
+        """Return new config with updated fail_on_anomaly."""
+        return AnomalyScriptConfig(
+            engine_name=self.engine_name,
+            enabled=self.enabled,
+            timeout_seconds=self.timeout_seconds,
+            tags=self.tags,
+            description=self.description,
+            metadata=self.metadata,
+            detector=self.detector,
+            columns=self.columns,
+            contamination=self.contamination,
+            fail_on_anomaly=fail_on_anomaly,
+            data_path=self.data_path,
+            data_sql=self.data_sql,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        base = super().to_dict()
+        base.update({
+            "detector": self.detector,
+            "columns": list(self.columns) if self.columns else None,
+            "contamination": self.contamination,
+            "fail_on_anomaly": self.fail_on_anomaly,
+            "data_path": self.data_path,
+            "data_sql": self.data_sql,
+        })
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> AnomalyScriptConfig:
+        """Create from dictionary."""
+        columns = data.get("columns")
+        return cls(
+            engine_name=data.get("engine_name", "truthound"),
+            enabled=data.get("enabled", True),
+            timeout_seconds=data.get("timeout_seconds", 300.0),
+            tags=frozenset(data.get("tags", [])),
+            description=data.get("description", ""),
+            metadata=data.get("metadata", {}),
+            detector=data.get("detector", "isolation_forest"),
+            columns=tuple(columns) if columns else None,
+            contamination=data.get("contamination", 0.05),
+            fail_on_anomaly=data.get("fail_on_anomaly", True),
+            data_path=data.get("data_path"),
+            data_sql=data.get("data_sql"),
+        )
+
+
 # =============================================================================
 # Preset Configurations
 # =============================================================================
@@ -655,6 +970,42 @@ PRODUCTION_SCRIPT_CONFIG = CheckScriptConfig(
     timeout_seconds=600.0,
 )
 """Production configuration with balanced settings."""
+
+DEFAULT_DRIFT_SCRIPT_CONFIG = DriftScriptConfig()
+"""Default drift detection configuration."""
+
+STRICT_DRIFT_SCRIPT_CONFIG = DriftScriptConfig(
+    method="ks",
+    threshold=0.01,
+    fail_on_drift=True,
+    timeout_seconds=600.0,
+)
+"""Strict drift detection configuration with low threshold."""
+
+LENIENT_DRIFT_SCRIPT_CONFIG = DriftScriptConfig(
+    method="auto",
+    threshold=0.1,
+    fail_on_drift=False,
+)
+"""Lenient drift detection configuration with high threshold."""
+
+DEFAULT_ANOMALY_SCRIPT_CONFIG = AnomalyScriptConfig()
+"""Default anomaly detection configuration."""
+
+STRICT_ANOMALY_SCRIPT_CONFIG = AnomalyScriptConfig(
+    detector="isolation_forest",
+    contamination=0.01,
+    fail_on_anomaly=True,
+    timeout_seconds=600.0,
+)
+"""Strict anomaly detection configuration with low contamination."""
+
+LENIENT_ANOMALY_SCRIPT_CONFIG = AnomalyScriptConfig(
+    detector="isolation_forest",
+    contamination=0.1,
+    fail_on_anomaly=False,
+)
+"""Lenient anomaly detection configuration with high contamination."""
 
 
 # =============================================================================
