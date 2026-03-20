@@ -1,7 +1,5 @@
 <img width="500" alt="Truthound_icon" src="https://github.com/user-attachments/assets/90d9e806-8895-45ec-97dc-f8300da4d997" />
 
-> **Alpha Stage** — This project is currently in **alpha**. APIs may change without notice. Not recommended for production use yet.
-
 # Truthound Orchestration
 
 [![PyPI version](https://img.shields.io/pypi/v/truthound-orchestration.svg)](https://pypi.org/project/truthound-orchestration/)
