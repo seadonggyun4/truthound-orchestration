@@ -12,10 +12,12 @@ from common.testing import MockDataQualityEngine
 from truthound_kestra.scripts import (
     # Entry points
     check_quality_script,
+    stream_quality_script,
     profile_data_script,
     learn_schema_script,
     # Executors
     CheckScriptExecutor,
+    StreamScriptExecutor,
     ProfileScriptExecutor,
     LearnScriptExecutor,
     # Results
@@ -278,6 +280,20 @@ class TestCreateScriptConfig:
         assert config.auto_schema is True
 
 
+def test_stream_quality_script(mock_engine: MockDataQualityEngine) -> None:
+    """Streaming Kestra script should emit shared summary and batches."""
+    with patch("truthound_kestra.scripts.stream.get_engine", return_value=mock_engine):
+        result = stream_quality_script(
+            stream=iter([{"id": 1}, {"id": 2}, {"id": 3}]),
+            rules=[],
+            batch_size=2,
+            output_to_kestra=False,
+        )
+
+    assert result["result"]["summary"]["total_batches"] == 2
+    assert len(result["result"]["batches"]) == 2
+
+
 class TestCheckScriptExecutor:
     """Tests for CheckScriptExecutor."""
 
@@ -489,4 +505,7 @@ class TestGetEngine:
             engine = get_engine("truthound")
 
         assert engine == mock_engine
-        create_engine.assert_called_once_with("truthound")
+        create_engine.assert_called_once()
+        request = create_engine.call_args.args[0]
+        assert request.engine_name == "truthound"
+        assert request.runtime_context.platform == "kestra"

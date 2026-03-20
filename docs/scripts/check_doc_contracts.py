@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
 
 
@@ -43,8 +44,24 @@ def main() -> int:
         _require(ROOT / "docs/index.md", "official first-party orchestration compatibility line"),
         _require(ROOT / "docs/zero-config.md", "safe_auto"),
         _require(ROOT / "docs/compatibility.md", "supports `Truthound 3.x` only"),
+        _require(ROOT / "docs/compatibility.md", "BEGIN GENERATED SUPPORT MATRIX"),
     ]
     errors.extend(error for error in checks if error is not None)
+
+    support_matrix = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/ci/export_support_matrix.py"),
+            "sync-docs",
+            "--path",
+            str(ROOT / "docs/compatibility.md"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if support_matrix.returncode != 0:
+        errors.append(support_matrix.stdout.strip() or support_matrix.stderr.strip())
 
     if errors:
         print("\n".join(errors))

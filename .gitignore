@@ -80,9 +80,10 @@ pythonenv*
 # =============================================================================
 # UV / pip-tools
 # =============================================================================
-# UV lock file is committed, but local UV cache is not
+# Local UV cache and validation lockfiles
 .uv_cache/
 .uv/
+uv.lock
 
 # =============================================================================
 # IDEs and Editors
@@ -242,6 +243,7 @@ logs/
 .user.yml
 profiles.yml
 !profiles.yml.example
+packages/dbt/integration_tests/package-lock.yml
 
 # =============================================================================
 # Build and Compilation

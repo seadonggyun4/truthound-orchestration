@@ -37,8 +37,11 @@ from typing import TYPE_CHECKING, Any
 from truthound_kestra.scripts.base import (
     DataQualityEngineProtocol,
     ProfileScriptConfig,
+    build_runtime_context,
+    extract_observability_config,
     get_engine,
 )
+from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import EngineError, ScriptError
 from truthound_kestra.utils.helpers import (
     Timer,
@@ -139,7 +142,15 @@ class ProfileScriptExecutor:
     def __post_init__(self) -> None:
         """Initialize engine if not provided."""
         if self.engine is None:
-            self.engine = get_engine(self.config.engine_name)
+            self.engine = get_engine(
+                self.config.engine_name,
+                observability=extract_observability_config(self.config.metadata),
+                runtime_context=build_runtime_context(
+                    "engine_create",
+                    script_name=type(self).__name__,
+                    metadata=self.config.metadata,
+                ),
+            )
 
     def execute(
         self,
@@ -185,7 +196,7 @@ class ProfileScriptExecutor:
         # Execute profile with timing
         with Timer("profile") as timer:
             try:
-                raw_result = self._execute_profile(data, **kwargs)
+                raw_result = self._execute_profile(data, context=context, **kwargs)
             except Exception as e:
                 return self._handle_engine_error(e, context, timer.elapsed_ms)
 
@@ -210,10 +221,28 @@ class ProfileScriptExecutor:
 
         return result
 
-    def _execute_profile(self, data: Any, **kwargs: Any) -> Any:
+    def _execute_profile(
+        self,
+        data: Any,
+        *,
+        context: ExecutionContext | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Execute the engine profile operation."""
         assert self.engine is not None
-        return self.engine.profile(data, **kwargs)
+        return execute_operation(
+            "profile",
+            self.engine,
+            data=data,
+            runtime_context=build_runtime_context(
+                "profile",
+                context=context,
+                script_name=type(self).__name__,
+                metadata=self.config.metadata,
+            ),
+            observability=extract_observability_config(self.config.metadata),
+            **kwargs,
+        )
 
     def _convert_result(
         self,

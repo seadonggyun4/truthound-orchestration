@@ -1,0 +1,85 @@
+name: CI Main
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-main-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation:
+    uses: ./.github/workflows/ci-foundation.yml
+    with:
+      lane: main
+
+  shared-runtime:
+    needs: foundation
+    uses: ./.github/workflows/shared-runtime.yml
+    with:
+      lane: main
+
+  airflow:
+    needs: foundation
+    uses: ./.github/workflows/airflow.yml
+    with:
+      lane: main
+
+  prefect:
+    needs: foundation
+    uses: ./.github/workflows/prefect.yml
+    with:
+      lane: main
+
+  dagster:
+    needs: foundation
+    uses: ./.github/workflows/dagster.yml
+    with:
+      lane: main
+
+  mage-kestra:
+    needs: foundation
+    uses: ./.github/workflows/mage-kestra.yml
+    with:
+      lane: main
+
+  dbt:
+    needs: foundation
+    uses: ./.github/workflows/dbt.yml
+    with:
+      lane: main
+
+  summary:
+    if: always()
+    needs:
+      - foundation
+      - shared-runtime
+      - airflow
+      - prefect
+      - dagster
+      - mage-kestra
+      - dbt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate main CI results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"CI Main failed: {failures}")
+          print("CI Main summary passed")
+          PY

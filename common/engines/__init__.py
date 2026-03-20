@@ -219,9 +219,12 @@ from common.runtime import (
     CompatibilityCheck,
     CompatibilityReport,
     DataSourceKind,
+    ObservabilityBackend,
+    ObservabilityConfig,
     PlatformRuntimeContext,
     PreflightReport,
     ResolvedDataSource,
+    normalize_observability_config,
     normalize_runtime_context,
     resolve_data_source,
 )

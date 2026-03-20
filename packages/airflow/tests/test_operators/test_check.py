@@ -82,12 +82,67 @@ class TestDataQualityCheckOperator:
 
         assert "rules" in op.template_fields
 
+    def test_initialization_allows_zero_config_truthound_rules(self) -> None:
+        """Truthound-first path should allow omitted rules."""
+        from truthound_airflow.operators.check import DataQualityCheckOperator
+
+        op = DataQualityCheckOperator(
+            task_id="test_check",
+            rules=None,
+            data_path="/data/test.parquet",
+        )
+
+        assert op.rules is None
+
     def test_ui_color(self) -> None:
         """Test UI color is correctly defined."""
         from truthound_airflow.operators.check import DataQualityCheckOperator
 
         assert hasattr(DataQualityCheckOperator, "ui_color")
         assert DataQualityCheckOperator.ui_color.startswith("#")
+
+    @patch("truthound_airflow.hooks.base.DataQualityHook")
+    def test_execute_emits_openlineage_host_execution(
+        self,
+        mock_hook_class: MagicMock,
+        sample_rules: list[dict[str, Any]],
+        sample_dataframe: Any,
+        mock_success_result: Any,
+        airflow_context: dict[str, Any],
+        openlineage_collector: Any,
+    ) -> None:
+        """Airflow operator should emit shared host execution metadata."""
+        from truthound_airflow.operators.check import DataQualityCheckOperator
+
+        mock_hook = MagicMock()
+        mock_hook.load_data.return_value = sample_dataframe
+        mock_hook_class.return_value = mock_hook
+
+        with patch("common.engines.create_engine") as mock_get_engine:
+            mock_engine = MagicMock()
+            mock_engine.engine_name = "truthound"
+            mock_engine.engine_version = "3.1.0"
+            mock_engine.check.return_value = mock_success_result
+            mock_get_engine.return_value = mock_engine
+
+            op = DataQualityCheckOperator(
+                task_id="test_check",
+                rules=sample_rules,
+                data_path="/data/test.parquet",
+                observability={
+                    "backend": "openlineage",
+                    "endpoint": openlineage_collector.endpoint,
+                    "namespace": "truthound",
+                    "job_name": "airflow-check",
+                },
+            )
+            op.execute(airflow_context)
+
+        assert len(openlineage_collector.received) == 2
+        facet = openlineage_collector.received[-1]["run"]["facets"]["truthound"]
+        assert facet["host_execution"]["dag_id"] == "test_dag"
+        assert facet["host_execution"]["task_id"] == "test_task"
+        assert facet["host_execution"]["run_id"] == "test_run_123"
 
     @patch("truthound_airflow.hooks.base.DataQualityHook")
     def test_execute_success(

@@ -9,6 +9,7 @@ from typing import Any, Sequence
 from unittest.mock import MagicMock
 
 import pytest
+from common.pytest_fixtures import openlineage_collector
 
 
 # Mock CheckStatus enum
@@ -20,6 +21,9 @@ class MockCheckStatus(Enum):
     WARNING = "warning"
     SKIPPED = "skipped"
     ERROR = "error"
+
+
+__all__ = ["openlineage_collector"]
 
 
 # Mock Severity enum

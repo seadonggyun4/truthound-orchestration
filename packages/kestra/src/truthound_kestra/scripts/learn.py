@@ -37,8 +37,11 @@ from typing import TYPE_CHECKING, Any
 from truthound_kestra.scripts.base import (
     DataQualityEngineProtocol,
     LearnScriptConfig,
+    build_runtime_context,
+    extract_observability_config,
     get_engine,
 )
+from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import ScriptError
 from truthound_kestra.utils.helpers import (
     Timer,
@@ -147,7 +150,15 @@ class LearnScriptExecutor:
     def __post_init__(self) -> None:
         """Initialize engine if not provided."""
         if self.engine is None:
-            self.engine = get_engine(self.config.engine_name)
+            self.engine = get_engine(
+                self.config.engine_name,
+                observability=extract_observability_config(self.config.metadata),
+                runtime_context=build_runtime_context(
+                    "engine_create",
+                    script_name=type(self).__name__,
+                    metadata=self.config.metadata,
+                ),
+            )
 
     def execute(
         self,
@@ -193,7 +204,7 @@ class LearnScriptExecutor:
         # Execute learn with timing
         with Timer("learn") as timer:
             try:
-                raw_result = self._execute_learn(data, **kwargs)
+                raw_result = self._execute_learn(data, context=context, **kwargs)
             except Exception as e:
                 return self._handle_engine_error(e, context, timer.elapsed_ms)
 
@@ -218,7 +229,13 @@ class LearnScriptExecutor:
 
         return result
 
-    def _execute_learn(self, data: Any, **kwargs: Any) -> Any:
+    def _execute_learn(
+        self,
+        data: Any,
+        *,
+        context: ExecutionContext | None = None,
+        **kwargs: Any,
+    ) -> Any:
         """Execute the engine learn operation."""
         assert self.engine is not None
 
@@ -234,7 +251,19 @@ class LearnScriptExecutor:
 
         engine_kwargs.update(kwargs)
 
-        return self.engine.learn(data, **engine_kwargs)
+        return execute_operation(
+            "learn",
+            self.engine,
+            data=data,
+            runtime_context=build_runtime_context(
+                "learn",
+                context=context,
+                script_name=type(self).__name__,
+                metadata=self.config.metadata,
+            ),
+            observability=extract_observability_config(self.config.metadata),
+            **engine_kwargs,
+        )
 
     def _convert_result(
         self,

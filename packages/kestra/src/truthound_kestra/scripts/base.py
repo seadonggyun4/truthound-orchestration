@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, runtime_check
 
 from truthound_kestra.utils.exceptions import ConfigurationError
 from truthound_kestra.utils.types import (
+    ExecutionContext,
     OperationType,
     RuleDict,
     Severity,
@@ -58,6 +59,8 @@ __all__ = [
     "LENIENT_ANOMALY_SCRIPT_CONFIG",
     # Utility
     "get_engine",
+    "build_runtime_context",
+    "extract_observability_config",
     "create_script_config",
 ]
 
@@ -1013,39 +1016,28 @@ LENIENT_ANOMALY_SCRIPT_CONFIG = AnomalyScriptConfig(
 # =============================================================================
 
 
-def get_engine(name: str = "truthound") -> DataQualityEngineProtocol:
-    """Get a data quality engine by name.
+def get_engine(
+    name: str = "truthound",
+    *,
+    observability: dict[str, Any] | None = None,
+    runtime_context: Any | None = None,
+) -> DataQualityEngineProtocol:
+    """Get a data quality engine by name."""
 
-    This function provides a unified way to obtain engine instances
-    from the truthound-orchestration common package.
-
-    Args:
-        name: Name of the engine to get.
-
-    Returns:
-        Engine instance implementing DataQualityEngineProtocol.
-
-    Raises:
-        ConfigurationError: If the engine is not found.
-
-    Example:
-        >>> engine = get_engine("truthound")
-        >>> result = engine.check(data, auto_schema=True)
-    """
     try:
         from common.engines import (
             EngineCreationRequest,
             create_engine as _create_engine,
-            normalize_runtime_context,
             run_preflight,
         )
 
-        runtime_context = normalize_runtime_context(
-            platform="kestra",
-            host_metadata={"script_api": "truthound_kestra"},
+        effective_runtime_context = runtime_context or build_runtime_context("engine_resolve")
+        request = EngineCreationRequest(
+            engine_name=name,
+            runtime_context=effective_runtime_context,
+            observability=observability,
         )
-        request = EngineCreationRequest(engine_name=name, runtime_context=runtime_context)
-        preflight = run_preflight(request)
+        preflight = run_preflight(request, observability=observability)
         if not preflight.compatible:
             failures = "; ".join(check.message for check in preflight.compatibility.failures)
             raise ConfigurationError(
@@ -1070,6 +1062,54 @@ def get_engine(name: str = "truthound") -> DataQualityEngineProtocol:
             value=name,
             reason=str(e),
         ) from e
+
+
+def extract_observability_config(metadata: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """Extract shared observability config from script metadata."""
+
+    if metadata is None:
+        return None
+    observability = metadata.get("observability")
+    if isinstance(observability, dict):
+        return dict(observability)
+    return None
+
+
+def build_runtime_context(
+    operation: str,
+    *,
+    context: ExecutionContext | None = None,
+    script_name: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> Any:
+    """Build a shared runtime context for Kestra scripts."""
+
+    from common.engines import normalize_runtime_context
+
+    host_execution: dict[str, Any] = {}
+    if context is not None:
+        host_execution = {
+            "execution_id": context.execution_id,
+            "flow_id": context.flow_id,
+            "namespace": context.namespace,
+            "task_id": context.task_id,
+            "attempt": context.attempt,
+        }
+
+    host_metadata: dict[str, Any] = {
+        "script_api": "truthound_kestra",
+        "operation": operation,
+    }
+    if script_name is not None:
+        host_metadata["script"] = script_name
+    if metadata:
+        host_metadata["config_metadata_keys"] = sorted(metadata.keys())
+
+    return normalize_runtime_context(
+        platform="kestra",
+        host_metadata=host_metadata,
+        host_execution=host_execution,
+    )
 
 
 def create_script_config(

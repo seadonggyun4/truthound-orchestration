@@ -18,7 +18,7 @@ from __future__ import annotations
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 
-from dagster import AssetExecutionContext, Output, asset
+from dagster import AssetCheckResult, AssetExecutionContext, Output, asset
 
 from truthound_dagster.assets.config import (
     ProfileAssetConfig,
@@ -196,12 +196,15 @@ def quality_checked_asset(
             from truthound_dagster.utils.exceptions import DataQualityError
 
             try:
+                check_name = f"{name or fn.__name__}_quality"
                 result = dq_resource.check(
                     data=data,
                     rules=list(config.rules),
                     auto_schema=config.auto_schema,
                     fail_on_error=False,  # Handle failure ourselves
                     timeout=config.timeout_seconds,
+                    dagster_context=context,
+                    check_name=check_name,
                 )
             except Exception as e:
                 context.log.error(f"Quality check failed with error: {e}")
@@ -226,6 +229,17 @@ def quality_checked_asset(
             metadata: dict[str, Any] = {}
             if config.store_result:
                 metadata[config.result_metadata_key] = _serialize_check_result(result)
+
+            check_metadata = _serialize_check_result(result)
+            context.log_event(
+                AssetCheckResult(
+                    passed=result.is_success,
+                    asset_key=context.asset_key,
+                    check_name=check_name,
+                    metadata=check_metadata,
+                    description=f"Truthound quality check status: {result.status.name}",
+                )
+            )
 
             # Handle failure
             if not result.is_success:

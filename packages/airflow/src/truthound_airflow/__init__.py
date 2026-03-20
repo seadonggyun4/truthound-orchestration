@@ -49,6 +49,8 @@ from truthound_airflow.operators import (
     # Learn
     DataQualityLearnOperator,
     TruthoundLearnOperator,
+    # Stream
+    DataQualityStreamOperator,
 )
 
 # =============================================================================
@@ -57,6 +59,7 @@ from truthound_airflow.operators import (
 
 from truthound_airflow.sensors import (
     DataQualitySensor,
+    DeferrableDataQualitySensor,
     SensorConfig,
     TruthoundSensor,
 )
@@ -148,8 +151,10 @@ __all__ = [
     # Operators - Learn
     "DataQualityLearnOperator",
     "TruthoundLearnOperator",
+    "DataQualityStreamOperator",
     # Sensors
     "DataQualitySensor",
+    "DeferrableDataQualitySensor",
     "SensorConfig",
     "TruthoundSensor",
     # Hooks

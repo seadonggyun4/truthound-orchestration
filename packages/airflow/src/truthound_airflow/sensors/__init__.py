@@ -22,6 +22,7 @@ Example:
 
 from truthound_airflow.sensors.quality import (
     DataQualitySensor,
+    DeferrableDataQualitySensor,
     SensorConfig,
     TruthoundSensor,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "SensorConfig",
     # Engine-agnostic sensor
     "DataQualitySensor",
+    "DeferrableDataQualitySensor",
     # Legacy alias
     "TruthoundSensor",
 ]

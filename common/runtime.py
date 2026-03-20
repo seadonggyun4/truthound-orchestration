@@ -22,6 +22,34 @@ class AutoConfigPolicy(str, Enum):
     AGGRESSIVE_AUTO = "aggressive_auto"
 
 
+def _make_json_safe(value: Any) -> Any:
+    """Normalize nested runtime metadata into JSON-serializable values."""
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _make_json_safe(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_make_json_safe(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_make_json_safe(item) for item in sorted(value, key=str)]
+    if hasattr(value, "to_dict"):
+        try:
+            return _make_json_safe(value.to_dict())
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+class ObservabilityBackend(str, Enum):
+    """Supported shared observability backends."""
+
+    NONE = "none"
+    OPENLINEAGE = "openlineage"
+
+
 class DataSourceKind(str, Enum):
     """Canonical source kinds understood by the shared runtime."""
 
@@ -29,6 +57,8 @@ class DataSourceKind(str, Enum):
     LOCAL_PATH = "local_path"
     REMOTE_URI = "remote_uri"
     SQL = "sql"
+    SYNC_STREAM = "sync_stream"
+    ASYNC_STREAM = "async_stream"
     CALLABLE = "callable"
     OBJECT = "object"
 
@@ -39,6 +69,55 @@ class CheckStatus(str, Enum):
     PASSED = "passed"
     WARNING = "warning"
     FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class ObservabilityConfig:
+    """Typed shared observability configuration.
+
+    Platform packages should pass this contract into common runtime helpers
+    instead of constructing backend-specific emitters themselves.
+    """
+
+    backend: ObservabilityBackend = ObservabilityBackend.NONE
+    endpoint: str | None = None
+    namespace: str = "truthound"
+    job_name: str = "truthound-orchestration"
+    producer: str = "https://github.com/seadonggyun4/truthound-orchestration"
+    timeout_seconds: float = 5.0
+    retry_count: int = 0
+    retry_backoff_seconds: float = 0.25
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "backend": self.backend.value,
+            "endpoint": self.endpoint,
+            "namespace": self.namespace,
+            "job_name": self.job_name,
+            "producer": self.producer,
+            "timeout_seconds": self.timeout_seconds,
+            "retry_count": self.retry_count,
+            "retry_backoff_seconds": self.retry_backoff_seconds,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ObservabilityConfig:
+        return cls(
+            backend=normalize_observability_backend(data.get("backend")),
+            endpoint=data.get("endpoint"),
+            namespace=data.get("namespace", "truthound"),
+            job_name=data.get("job_name", "truthound-orchestration"),
+            producer=data.get(
+                "producer",
+                "https://github.com/seadonggyun4/truthound-orchestration",
+            ),
+            timeout_seconds=float(data.get("timeout_seconds", 5.0)),
+            retry_count=int(data.get("retry_count", 0)),
+            retry_backoff_seconds=float(data.get("retry_backoff_seconds", 0.25)),
+            metadata=dict(data.get("metadata", {})),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +153,7 @@ class PlatformRuntimeContext:
     source_name: str | None = None
     project_root: str | None = None
     host_metadata: dict[str, Any] = field(default_factory=dict)
+    host_execution: dict[str, Any] = field(default_factory=dict)
     source_descriptors: tuple[ResolvedDataSource, ...] = ()
     extras: dict[str, Any] = field(default_factory=dict)
 
@@ -89,6 +169,7 @@ class PlatformRuntimeContext:
             source_name=self.source_name,
             project_root=self.project_root,
             host_metadata=dict(self.host_metadata),
+            host_execution=dict(self.host_execution),
             source_descriptors=(*self.source_descriptors, source),
             extras=dict(self.extras),
         )
@@ -102,9 +183,10 @@ class PlatformRuntimeContext:
             "profile_name": self.profile_name,
             "source_name": self.source_name,
             "project_root": self.project_root,
-            "host_metadata": self.host_metadata,
+            "host_metadata": _make_json_safe(self.host_metadata),
+            "host_execution": _make_json_safe(self.host_execution),
             "source_descriptors": [source.to_dict() for source in self.source_descriptors],
-            "extras": self.extras,
+            "extras": _make_json_safe(self.extras),
         }
 
 
@@ -192,6 +274,30 @@ def normalize_auto_config_policy(policy: AutoConfigPolicy | str | None) -> AutoC
     return AutoConfigPolicy(str(policy).lower())
 
 
+def normalize_observability_backend(
+    backend: ObservabilityBackend | str | None,
+) -> ObservabilityBackend:
+    """Normalize an observability backend value."""
+
+    if backend is None:
+        return ObservabilityBackend.NONE
+    if isinstance(backend, ObservabilityBackend):
+        return backend
+    return ObservabilityBackend(str(backend).lower())
+
+
+def normalize_observability_config(
+    config: ObservabilityConfig | dict[str, Any] | None,
+) -> ObservabilityConfig:
+    """Normalize an observability config payload into the shared contract."""
+
+    if config is None:
+        return ObservabilityConfig()
+    if isinstance(config, ObservabilityConfig):
+        return config
+    return ObservabilityConfig.from_dict(config)
+
+
 def normalize_runtime_context(
     context: PlatformRuntimeContext | None = None,
     *,
@@ -203,6 +309,7 @@ def normalize_runtime_context(
     source_name: str | None = None,
     project_root: str | Path | None = None,
     host_metadata: dict[str, Any] | None = None,
+    host_execution: dict[str, Any] | None = None,
     source_descriptors: tuple[ResolvedDataSource, ...] | None = None,
     extras: dict[str, Any] | None = None,
 ) -> PlatformRuntimeContext:
@@ -212,6 +319,7 @@ def normalize_runtime_context(
         if platform is None:
             platform = context.platform
         host_metadata = {**context.host_metadata, **(host_metadata or {})}
+        host_execution = {**context.host_execution, **(host_execution or {})}
         extras = {**context.extras, **(extras or {})}
         source_descriptors = source_descriptors or context.source_descriptors
         auto_config_policy = normalize_auto_config_policy(
@@ -233,9 +341,10 @@ def normalize_runtime_context(
         profile_name=profile_name,
         source_name=source_name,
         project_root=str(project_root) if project_root is not None else None,
-        host_metadata=host_metadata or {},
+        host_metadata=_make_json_safe(host_metadata or {}),
+        host_execution=_make_json_safe(host_execution or {}),
         source_descriptors=source_descriptors or (),
-        extras=extras or {},
+        extras=_make_json_safe(extras or {}),
     )
 
 
@@ -300,12 +409,26 @@ def resolve_data_source(
             reference=getattr(candidate, "__name__", type(candidate).__name__),
         )
 
+    if hasattr(candidate, "__aiter__"):
+        return ResolvedDataSource(
+            kind=DataSourceKind.ASYNC_STREAM,
+            value=candidate,
+            reference=type(candidate).__name__,
+        )
+
     if _looks_like_dataframe(candidate):
         return ResolvedDataSource(
             kind=DataSourceKind.DATAFRAME,
             value=candidate,
             reference=type(candidate).__name__,
             metadata=_frame_metadata(candidate),
+        )
+
+    if _looks_like_stream(candidate):
+        return ResolvedDataSource(
+            kind=DataSourceKind.SYNC_STREAM,
+            value=candidate,
+            reference=type(candidate).__name__,
         )
 
     return ResolvedDataSource(
@@ -360,6 +483,14 @@ def _looks_like_dataframe(value: Any) -> bool:
     if hasattr(value, "schema") and hasattr(value, "columns"):
         return True
     return hasattr(value, "__dataframe__")
+
+
+def _looks_like_stream(value: Any) -> bool:
+    if isinstance(value, (str, bytes, bytearray, dict)):
+        return False
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return False
+    return hasattr(value, "__iter__")
 
 
 def _frame_metadata(value: Any) -> dict[str, Any]:

@@ -2,6 +2,10 @@
 
 import pytest
 
+from truthound_dagster.assets import (
+    create_asset_check,
+    quality_asset_check,
+)
 from truthound_dagster.assets.config import (
     ProfileAssetConfig,
     QualityAssetConfig,
@@ -152,3 +156,22 @@ class TestConfigRoundtrip:
         assert data["include_samples"] is True
         assert data["sample_size"] == 1000
         assert data["store_result"] is False
+
+
+class TestAssetCheckBuilders:
+    """Tests for first-class asset check builders."""
+
+    def test_quality_asset_check_returns_dagster_definition(self) -> None:
+        @quality_asset_check(asset="users")
+        def users_quality(context):
+            return [{"id": 1}]
+
+        assert hasattr(users_quality, "check_specs")
+        assert users_quality.check_specs is not None
+
+    def test_create_asset_check_uses_requested_name(self) -> None:
+        @create_asset_check(asset="users", name="users_contract")
+        def users_contract(context):
+            return [{"id": 1}]
+
+        assert any(spec.name == "users_contract" for spec in users_contract.check_specs)

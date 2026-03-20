@@ -50,10 +50,12 @@ from truthound_kestra.version import (
 from truthound_kestra.scripts import (
     # Main entry points
     check_quality_script,
+    stream_quality_script,
     profile_data_script,
     learn_schema_script,
     # Executors
     CheckScriptExecutor,
+    StreamScriptExecutor,
     ProfileScriptExecutor,
     LearnScriptExecutor,
     # Results
@@ -225,10 +227,12 @@ __all__ = [
     # ========================================================================
     # Main entry points
     "check_quality_script",
+    "stream_quality_script",
     "profile_data_script",
     "learn_schema_script",
     # Executors
     "CheckScriptExecutor",
+    "StreamScriptExecutor",
     "ProfileScriptExecutor",
     "LearnScriptExecutor",
     # Results

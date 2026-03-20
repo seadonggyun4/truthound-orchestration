@@ -1,0 +1,48 @@
+name: Publish
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        required: false
+        type: string
+        default: truthound-foundation
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: Artifact containing built distributions
+        required: true
+        default: truthound-foundation
+        type: string
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name || github.event.inputs.artifact_name || 'truthound-foundation' }}
+          path: dist-artifact
+      - name: Install publishing dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install twine
+      - name: Re-check distributions
+        run: python -m twine check dist-artifact/dist/*
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist-artifact/dist/*

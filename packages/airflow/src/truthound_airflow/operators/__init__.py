@@ -48,6 +48,7 @@ from truthound_airflow.operators.profile import (
     DataQualityProfileOperator,
     TruthoundProfileOperator,
 )
+from truthound_airflow.operators.stream import DataQualityStreamOperator
 
 __all__ = [
     # Base classes
@@ -62,6 +63,7 @@ __all__ = [
     "DataQualityCheckOperator",
     "DataQualityProfileOperator",
     "DataQualityLearnOperator",
+    "DataQualityStreamOperator",
     # Legacy aliases (backwards compatibility)
     "TruthoundCheckOperator",
     "TruthoundProfileOperator",

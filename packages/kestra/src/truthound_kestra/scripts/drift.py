@@ -44,8 +44,11 @@ from typing import TYPE_CHECKING, Any
 from truthound_kestra.scripts.base import (
     DataQualityEngineProtocol,
     DriftScriptConfig,
+    build_runtime_context,
+    extract_observability_config,
     get_engine,
 )
+from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import (
     DataQualityError,
     EngineError,
@@ -54,12 +57,14 @@ from truthound_kestra.utils.exceptions import (
 from truthound_kestra.utils.helpers import (
     Timer,
     create_kestra_output,
+    get_execution_context,
     get_logger,
     kestra_outputs,
     load_data,
     log_operation,
 )
 from truthound_kestra.utils.serialization import serialize_result
+from truthound_kestra.utils.types import ExecutionContext
 
 if TYPE_CHECKING:
     from common.base import DriftResult
@@ -152,7 +157,15 @@ class DriftScriptExecutor:
     def __post_init__(self) -> None:
         """Initialize engine if not provided."""
         if self.engine is None:
-            self.engine = get_engine(self.config.engine_name)
+            self.engine = get_engine(
+                self.config.engine_name,
+                observability=extract_observability_config(self.config.metadata),
+                runtime_context=build_runtime_context(
+                    "engine_create",
+                    script_name=type(self).__name__,
+                    metadata=self.config.metadata,
+                ),
+            )
 
     def execute(
         self,
@@ -160,6 +173,7 @@ class DriftScriptExecutor:
         current_data_path: str | None = None,
         baseline_sql: str | None = None,
         current_sql: str | None = None,
+        context: Any | None = None,
         **kwargs: Any,
     ) -> DriftScriptResult:
         """Execute drift detection.
@@ -181,6 +195,16 @@ class DriftScriptExecutor:
         """
         if not self.config.enabled:
             return self._create_skipped_result()
+
+        if context is None:
+            try:
+                context = get_execution_context()
+            except Exception:
+                context = ExecutionContext(
+                    execution_id="local",
+                    flow_id="script",
+                    namespace="default",
+                )
 
         # Resolve data paths from config or parameters
         baseline_path = baseline_data_path or self.config.baseline_data_path
@@ -233,8 +257,19 @@ class DriftScriptExecutor:
         # Execute detection with timing
         with Timer("detect_drift") as timer:
             try:
-                raw_result: DriftResult = self.engine.detect_drift(
-                    baseline, current, **detect_kwargs
+                raw_result: DriftResult = execute_operation(
+                    "drift",
+                    self.engine,
+                    baseline=baseline,
+                    current=current,
+                    runtime_context=build_runtime_context(
+                        "drift",
+                        context=context,
+                        script_name=type(self).__name__,
+                        metadata=self.config.metadata,
+                    ),
+                    observability=extract_observability_config(self.config.metadata),
+                    **detect_kwargs,
                 )
             except Exception as e:
                 return self._handle_engine_error(e, timer.elapsed_ms)

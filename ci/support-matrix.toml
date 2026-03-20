@@ -1,0 +1,94 @@
+[python]
+min = "3.11"
+primary = "3.12"
+canary = "3.13"
+
+[truthound]
+range = ">=3.0,<4.0"
+
+[platforms.airflow]
+required = true
+extra = "airflow"
+min = "2.6.0"
+primary = "3.1.8"
+
+[platforms.prefect]
+required = true
+extra = "prefect"
+min = "2.14.0"
+primary = "3.6.22"
+
+[platforms.dagster]
+required = true
+extra = "dagster"
+min = "1.5.0"
+primary = "1.12.18"
+
+[platforms.mage]
+required = true
+extra = "mage"
+runtime_expectation = "Inside a Mage runtime that already provides mage-ai"
+
+[platforms.kestra]
+required = true
+extra = "kestra"
+runtime_expectation = "Kestra runtime with generated scripts and templates"
+
+[platforms.dbt]
+required = true
+extra = "dbt"
+execution_target = "postgres"
+coverage_threshold = 0.8
+
+[dbt.compile_adapters]
+postgres = "dbt-postgres>=1.8.0,<2.0.0"
+snowflake = "dbt-snowflake>=1.8.0,<2.0.0"
+bigquery = "dbt-bigquery>=1.8.0,<2.0.0"
+redshift = "dbt-redshift>=1.8.0,<2.0.0"
+databricks = "dbt-databricks>=1.8.0,<2.0.0"
+
+[wheel_smoke]
+extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
+
+[advanced_tier]
+engines = ["great_expectations", "pandera"]
+
+[lanes.pr]
+foundation_python = ["primary"]
+shared_runtime_python = ["primary"]
+airflow_versions = ["primary"]
+prefect_versions = ["primary"]
+dagster_versions = ["primary"]
+mage_kestra_python = ["primary"]
+dbt_compile_targets = ["postgres"]
+dbt_execution = false
+
+[lanes.main]
+foundation_python = ["primary"]
+shared_runtime_python = ["primary"]
+airflow_versions = ["min", "primary"]
+prefect_versions = ["min", "primary"]
+dagster_versions = ["min", "primary"]
+mage_kestra_python = ["primary"]
+dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
+dbt_execution = true
+
+[lanes.release]
+foundation_python = ["primary"]
+shared_runtime_python = ["primary"]
+airflow_versions = ["min", "primary"]
+prefect_versions = ["min", "primary"]
+dagster_versions = ["min", "primary"]
+mage_kestra_python = ["primary"]
+dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
+dbt_execution = true
+
+[lanes.nightly]
+foundation_python = ["primary"]
+shared_runtime_python = ["min", "primary", "canary"]
+airflow_versions = ["primary"]
+prefect_versions = ["primary"]
+dagster_versions = ["primary"]
+mage_kestra_python = ["primary"]
+dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
+dbt_execution = true

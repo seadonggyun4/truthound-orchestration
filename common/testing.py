@@ -219,7 +219,7 @@ class MockDataQualityEngine:
     def check(
         self,
         data: Any,
-        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> CheckResult:
         """Execute mock validation check.
@@ -235,7 +235,7 @@ class MockDataQualityEngine:
         Raises:
             Exception: If configured to raise an error.
         """
-        self._check_calls.append((data, tuple(rules)))
+        self._check_calls.append((data, tuple(rules or ())))
 
         if self._check_config.raise_error:
             raise self._check_config.raise_error
@@ -1770,7 +1770,7 @@ class AsyncMockDataQualityEngine:
     async def check(
         self,
         data: Any,
-        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> CheckResult:
         """Execute async mock validation check.
@@ -1788,7 +1788,7 @@ class AsyncMockDataQualityEngine:
         """
         import asyncio
 
-        self._check_calls.append((data, tuple(rules)))
+        self._check_calls.append((data, tuple(rules or ())))
 
         if self._check_config.delay_seconds > 0:
             await asyncio.sleep(self._check_config.delay_seconds)
@@ -2075,7 +2075,7 @@ class AsyncMockManagedEngine:
     async def check(
         self,
         data: Any,
-        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        rules: tuple[dict[str, Any], ...] | list[dict[str, Any]] | None = None,
         **kwargs: Any,
     ) -> CheckResult:
         """Execute async mock validation check."""

@@ -252,6 +252,7 @@ class BaseDataQualityOperator(BaseOperator, ABC):
     # UI customization
     ui_color: str = "#4A90D9"
     ui_fgcolor: str = "#FFFFFF"
+    required_operations: tuple[str, ...] = ()
 
     def __init__(
         self,
@@ -261,6 +262,7 @@ class BaseDataQualityOperator(BaseOperator, ABC):
         connection_id: str = "truthound_default",
         engine: DataQualityEngine | None = None,
         engine_name: str | None = None,
+        observability: dict[str, Any] | None = None,
         fail_on_error: bool = True,
         timeout_seconds: int = 300,
         xcom_push_key: str = "data_quality_result",
@@ -304,6 +306,7 @@ class BaseDataQualityOperator(BaseOperator, ABC):
         self._engine = engine
         self._engine_name = engine_name
         self._runtime_context: Any | None = None
+        self._observability = observability
 
     @property
     def engine(self) -> DataQualityEngine:
@@ -323,6 +326,7 @@ class BaseDataQualityOperator(BaseOperator, ABC):
                 EngineCreationRequest(
                     engine_name=self._engine_name or "truthound",
                     runtime_context=self._runtime_context,
+                    observability=self._observability,
                 )
             )
         return self._engine
@@ -471,7 +475,18 @@ class BaseDataQualityOperator(BaseOperator, ABC):
         from common.engines import normalize_runtime_context
 
         dag = context.get("dag") if context else None
-        dag_id = getattr(dag, "dag_id", None)
+        task_instance = (context or {}).get("ti") if context else None
+        task = (context or {}).get("task") if context else None
+        dag_run = (context or {}).get("dag_run") if context else None
+        task_id = (
+            getattr(task_instance, "task_id", None)
+            or getattr(task, "task_id", None)
+            or self.task_id
+        )
+        dag_id = (
+            getattr(task_instance, "dag_id", None)
+            or getattr(dag, "dag_id", None)
+        )
         source = self._resolve_source_descriptor()
         connection_id = self.connection_id if self.sql or (source and source.requires_connection) else None
 
@@ -480,9 +495,18 @@ class BaseDataQualityOperator(BaseOperator, ABC):
             connection_id=connection_id,
             source_name=self.data_path or self.sql,
             host_metadata={
-                "task_id": self.task_id,
+                "task_id": task_id,
                 "dag_id": dag_id,
                 "operator": type(self).__name__,
+            },
+            host_execution={
+                "dag_id": dag_id,
+                "task_id": task_id,
+                "run_id": (
+                    getattr(task_instance, "run_id", None)
+                    or getattr(dag_run, "run_id", None)
+                ),
+                "try_number": getattr(task_instance, "try_number", None),
             },
         )
         if source is not None:
@@ -505,9 +529,12 @@ class BaseDataQualityOperator(BaseOperator, ABC):
             EngineCreationRequest(
                 engine_name=self._engine_name or "truthound",
                 runtime_context=self._runtime_context,
+                required_operations=self.required_operations,
+                observability=self._observability,
             ),
             data_path=self.data_path,
             sql=self.sql,
+            observability=self._observability,
         )
 
 

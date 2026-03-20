@@ -1,0 +1,121 @@
+name: Airflow
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: airflow-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+      version_matrix: ${{ steps.export.outputs.version_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow airflow \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  airflow:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.version_matrix) }}
+    env:
+      AIRFLOW_HOME: ${{ github.workspace }}/.airflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install Airflow dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "apache-airflow==${{ matrix.version }}"
+          python -m pip install -e ".[dev,airflow,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run Airflow suites
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/airflow
+          python -m pytest -q \
+            packages/airflow/tests/test_hooks/test_base.py \
+            packages/airflow/tests/test_operators/test_base.py \
+            packages/airflow/tests/test_operators/test_check.py \
+            packages/airflow/tests/test_operators/test_stream.py \
+            packages/airflow/tests/test_sensors/test_quality.py \
+            packages/airflow/tests/test_utils/test_connection.py \
+            packages/airflow/tests/test_utils/test_serialization.py \
+            --junitxml="artifacts/airflow/junit-${{ matrix.version }}.xml" \
+            --cov=common \
+            --cov=packages/airflow/src/truthound_airflow \
+            --cov-report="xml:artifacts/airflow/coverage-${{ matrix.version }}.xml" | tee "artifacts/airflow/pytest-${{ matrix.version }}.log"
+      - name: Upload Airflow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-airflow-${{ matrix.version }}
+          path: artifacts/airflow/*
+
+  summary:
+    if: always()
+    needs:
+      - airflow
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate Airflow results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Airflow CI failed: {failures}")
+          print("Airflow summary passed")
+          PY

@@ -26,7 +26,6 @@ classifiers = [
 keywords = ["mage", "mage-ai", "data-quality", "truthound", "validation", "great-expectations", "pandera"]
 
 dependencies = [
-    "mage-ai>=0.9.0",
     "truthound-orchestration>=3.0.0,<4.0.0",
     "truthound>=3.0,<4.0",
     "polars>=0.20.0",

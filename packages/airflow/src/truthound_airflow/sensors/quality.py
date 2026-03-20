@@ -1,26 +1,16 @@
-"""Data Quality Sensor for Apache Airflow.
-
-This module provides the DataQualitySensor for waiting until data quality
-conditions are met before proceeding with downstream tasks.
-
-Example:
-    >>> from truthound_airflow import DataQualitySensor
-    >>>
-    >>> wait_for_quality = DataQualitySensor(
-    ...     task_id="wait_for_quality",
-    ...     rules=[{"column": "id", "type": "not_null"}],
-    ...     data_path="s3://bucket/incoming/data.parquet",
-    ...     min_pass_rate=0.99,
-    ...     poke_interval=300,
-    ... )
-"""
+"""Data quality sensors for Apache Airflow."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Sequence
 
+from airflow.exceptions import AirflowException
 from airflow.sensors.base import BaseSensorOperator
+
+from common.engines import EngineCreationRequest, create_engine, normalize_runtime_context, run_preflight
+from common.orchestration import QualityGateConfig, QualityGateDecision, evaluate_quality_gate
+from truthound_airflow.triggers.quality import DataQualityGateTrigger
 
 if TYPE_CHECKING:
     from airflow.utils.context import Context
@@ -28,28 +18,9 @@ if TYPE_CHECKING:
     from common.engines.base import DataQualityEngine
 
 
-# =============================================================================
-# Configuration
-# =============================================================================
-
-
 @dataclass(frozen=True, slots=True)
 class SensorConfig:
-    """Configuration for data quality sensor.
-
-    Attributes:
-        min_pass_rate: Minimum pass rate to consider condition met (0.0-1.0).
-        min_row_count: Minimum number of rows required.
-        max_failure_count: Maximum allowed failures.
-        check_data_exists: Whether to check for data existence first.
-        continue_on_error: Whether to continue if check fails (vs raise).
-
-    Example:
-        >>> config = SensorConfig(
-        ...     min_pass_rate=0.99,
-        ...     min_row_count=100,
-        ... )
-    """
+    """Configuration for a shared quality gate."""
 
     min_pass_rate: float = 1.0
     min_row_count: int | None = None
@@ -59,129 +30,28 @@ class SensorConfig:
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Validate configuration."""
         if not 0 <= self.min_pass_rate <= 1:
-            msg = "min_pass_rate must be between 0 and 1"
-            raise ValueError(msg)
+            raise ValueError("min_pass_rate must be between 0 and 1")
         if self.min_row_count is not None and self.min_row_count < 0:
-            msg = "min_row_count must be non-negative"
-            raise ValueError(msg)
-
-
-# =============================================================================
-# Sensor
-# =============================================================================
+            raise ValueError("min_row_count must be non-negative")
 
 
 class DataQualitySensor(BaseSensorOperator):
-    """Wait until data quality conditions are met.
+    """Classic Airflow quality gate backed by the shared gate contract."""
 
-    This sensor periodically checks data quality and returns True (pokes
-    successfully) when the quality conditions are satisfied. Use this to
-    gate downstream processing until data meets quality requirements.
-
-    The sensor is engine-agnostic and works with any DataQualityEngine.
-
-    Parameters
-    ----------
-    rules : list[dict[str, Any]]
-        Validation rules that must pass.
-
-    data_path : str | None
-        Path to data file. Mutually exclusive with `sql`.
-
-    sql : str | None
-        SQL query to fetch data. Mutually exclusive with `data_path`.
-
-    connection_id : str
-        Airflow Connection ID. Default: "truthound_default"
-
-    min_pass_rate : float
-        Minimum pass rate (0.0-1.0) to consider quality met.
-        Default: 1.0 (all rules must pass)
-
-    min_row_count : int | None
-        Minimum number of rows required.
-        If data has fewer rows, sensor continues waiting.
-
-    engine : DataQualityEngine | None
-        Custom engine instance. Default: Truthound.
-
-    poke_interval : float
-        Seconds between pokes. Default: 60
-
-    timeout : float
-        Total timeout in seconds. Default: 3600
-
-    mode : str
-        Sensor mode: "poke" or "reschedule".
-        "reschedule" is more resource-efficient for long waits.
-        Default: "poke"
-
-    soft_fail : bool
-        If True, sensor is skipped on failure instead of failing.
-        Default: False
-
-    Examples
-    --------
-    Basic quality gate:
-
-    >>> wait = DataQualitySensor(
-    ...     task_id="wait_for_quality",
-    ...     rules=[
-    ...         {"column": "id", "type": "not_null"},
-    ...         {"column": "amount", "type": "positive"},
-    ...     ],
-    ...     data_path="s3://bucket/incoming/{{ ds }}/data.parquet",
-    ...     min_pass_rate=0.99,
-    ... )
-
-    With reschedule mode (resource-efficient):
-
-    >>> wait = DataQualitySensor(
-    ...     task_id="wait_for_quality",
-    ...     rules=[...],
-    ...     data_path="...",
-    ...     poke_interval=300,  # 5 minutes
-    ...     timeout=7200,       # 2 hours
-    ...     mode="reschedule",
-    ... )
-
-    With minimum row count:
-
-    >>> wait = DataQualitySensor(
-    ...     task_id="wait_for_enough_data",
-    ...     rules=[{"column": "id", "type": "not_null"}],
-    ...     data_path="...",
-    ...     min_row_count=1000,
-    ...     min_pass_rate=0.95,
-    ... )
-
-    Notes
-    -----
-    - Sensor returns True when ALL conditions are met:
-      - Data exists (if check_data_exists=True)
-      - Row count >= min_row_count (if specified)
-      - Pass rate >= min_pass_rate
-    - Use "reschedule" mode for long waits to free up worker slots
-    - The sensor does NOT modify data or push results to XCom
-    """
-
-    template_fields: Sequence[str] = (
-        "rules",
-        "data_path",
-        "sql",
-        "connection_id",
-    )
+    template_fields: Sequence[str] = ("rules", "data_path", "sql", "connection_id")
     ui_color: str = "#E67E22"
+    deferrable: bool = False
 
     def __init__(
         self,
         *,
-        rules: list[dict[str, Any]],
+        rules: list[dict[str, Any]] | None = None,
         data_path: str | None = None,
         sql: str | None = None,
+        stream: Any | None = None,
         connection_id: str = "truthound_default",
+        observability: dict[str, Any] | None = None,
         min_pass_rate: float = 1.0,
         min_row_count: int | None = None,
         max_failure_count: int | None = None,
@@ -191,161 +61,188 @@ class DataQualitySensor(BaseSensorOperator):
         timeout_seconds: int = 300,
         **kwargs: Any,
     ) -> None:
-        """Initialize data quality sensor."""
-        # Validate data source
-        if data_path and sql:
-            msg = "Cannot specify both data_path and sql"
-            raise ValueError(msg)
-        if not data_path and not sql:
-            msg = "Must specify either data_path or sql"
-            raise ValueError(msg)
-
-        # Validate pass rate
+        selected_sources = sum(source is not None for source in (data_path, sql, stream))
+        if selected_sources > 1:
+            raise ValueError("Cannot specify more than one of data_path, sql, or stream")
+        if selected_sources == 0:
+            raise ValueError("Must specify one of data_path, sql, or stream")
         if not 0 <= min_pass_rate <= 1:
-            msg = "min_pass_rate must be between 0 and 1"
-            raise ValueError(msg)
+            raise ValueError("min_pass_rate must be between 0 and 1")
 
         super().__init__(**kwargs)
-
         self.rules = rules
         self.data_path = data_path
         self.sql = sql
+        self.stream = stream
         self.connection_id = connection_id
+        self.observability = observability
         self.min_pass_rate = min_pass_rate
         self.min_row_count = min_row_count
         self.max_failure_count = max_failure_count
         self.check_data_exists = check_data_exists
         self.timeout_seconds = timeout_seconds
-
-        # Engine configuration
         self._engine = engine
         self._engine_name = engine_name
         self._runtime_context: Any | None = None
 
     @property
     def engine(self) -> DataQualityEngine:
-        """Get the data quality engine instance."""
         if self._engine is None:
-            from common.engines import EngineCreationRequest, create_engine
-
             self._engine = create_engine(
                 EngineCreationRequest(
                     engine_name=self._engine_name or "truthound",
                     runtime_context=self._runtime_context,
+                    required_operations=("quality_gate",),
+                    observability=self.observability,
                 )
             )
         return self._engine
 
+    def execute(self, context: Context) -> bool:  # type: ignore[override]
+        self._runtime_context = self._build_runtime_context(context)
+        preflight = self._run_preflight()
+        if not preflight.compatible:
+            failures = "; ".join(check.message for check in preflight.compatibility.failures)
+            raise AirflowException(f"Truthound Airflow preflight failed: {failures}")
+        return super().execute(context)
+
     def poke(self, context: Context) -> bool:
-        """Check if quality conditions are met.
+        self._runtime_context = self._build_runtime_context(context)
+        decision = self._evaluate_decision()
+        self.log.info("Quality gate decision: %s", decision.reason)
+        return decision.satisfied
 
-        Args:
-            context: Airflow execution context.
+    def _evaluate_decision(self) -> QualityGateDecision:
+        if self.stream is not None:
+            data = self.stream
+        else:
+            from truthound_airflow.hooks.base import DataQualityHook
 
-        Returns:
-            bool: True if conditions are met, False to continue waiting.
-        """
-        from common.engines import EngineCreationRequest, normalize_runtime_context, run_preflight
-        from truthound_airflow.hooks.base import DataQualityHook
+            hook = DataQualityHook(connection_id=self.connection_id)
+            try:
+                data = hook.load_data(self.data_path) if self.data_path else hook.query(self.sql)
+            except FileNotFoundError:
+                if self.check_data_exists:
+                    return self._unsatisfied("data not found yet")
+                raise
+            except Exception as exc:
+                return self._unsatisfied(str(exc), error_type=type(exc).__name__)
 
-        self._runtime_context = normalize_runtime_context(
+        return evaluate_quality_gate(
+            self.engine,
+            data,
+            rules=self.rules,
+            config=QualityGateConfig(
+                min_pass_rate=self.min_pass_rate,
+                min_row_count=self.min_row_count,
+                max_failure_count=self.max_failure_count,
+                continue_on_error=True,
+                timeout_seconds=float(self.timeout_seconds),
+            ),
+            runtime_context=self._runtime_context,
+            observability=self.observability,
+        )
+
+    def _build_runtime_context(self, context: Context | None = None) -> Any:
+        dag = context.get("dag") if context else None
+        dag_run = context.get("dag_run") if context else None
+        task_instance = context.get("ti") if context else None
+        task = context.get("task") if context else None
+        task_id = (
+            getattr(task_instance, "task_id", None)
+            or getattr(task, "task_id", None)
+            or self.task_id
+        )
+        dag_id = (
+            getattr(task_instance, "dag_id", None)
+            or getattr(dag, "dag_id", None)
+        )
+        return normalize_runtime_context(
             platform="airflow",
             connection_id=self.connection_id if self.sql else None,
+            source_name=self.data_path or self.sql or "stream",
             host_metadata={
-                "task_id": self.task_id,
+                "task_id": task_id,
+                "dag_id": dag_id,
                 "sensor": type(self).__name__,
             },
+            host_execution={
+                "task_id": task_id,
+                "dag_id": dag_id,
+                "run_id": (
+                    getattr(task_instance, "run_id", None)
+                    or getattr(dag_run, "run_id", None)
+                ),
+                "try_number": getattr(task_instance, "try_number", None),
+            },
         )
-        preflight = run_preflight(
+
+    def _run_preflight(self) -> Any:
+        return run_preflight(
             EngineCreationRequest(
                 engine_name=self._engine_name or "truthound",
                 runtime_context=self._runtime_context,
+                required_operations=("quality_gate",),
+                observability=self.observability,
             ),
             data_path=self.data_path,
             sql=self.sql,
+            observability=self.observability,
         )
+
+    @staticmethod
+    def _unsatisfied(reason: str, **metadata: Any) -> QualityGateDecision:
+        return QualityGateDecision(
+            satisfied=False,
+            reason=reason,
+            pass_rate=0.0,
+            row_count=0,
+            metadata=metadata,
+        )
+
+
+class DeferrableDataQualitySensor(DataQualitySensor):
+    """Primary waiting surface for Airflow quality gates."""
+
+    deferrable: bool = True
+
+    def execute(self, context: Context) -> bool:  # type: ignore[override]
+        if self.stream is not None:
+            return super().execute(context)
+
+        self._runtime_context = self._build_runtime_context(context)
+        preflight = self._run_preflight()
         if not preflight.compatible:
-            self.log.warning(
-                "Preflight failed: %s",
-                "; ".join(check.message for check in preflight.compatibility.failures),
-            )
-            return False
+            failures = "; ".join(check.message for check in preflight.compatibility.failures)
+            raise AirflowException(f"Truthound Airflow preflight failed: {failures}")
 
-        self.log.info("Checking data quality conditions...")
-
-        hook = DataQualityHook(connection_id=self.connection_id)
-
-        # Try to load data
-        try:
-            if self.data_path:
-                data = hook.load_data(self.data_path)
-            else:
-                data = hook.query(self.sql)
-        except FileNotFoundError:
-            if self.check_data_exists:
-                self.log.info("Data not found yet, will retry...")
-                return False
-            raise
-        except Exception as e:
-            self.log.warning(f"Error loading data: {e}")
-            return False
-
-        # Check minimum row count
-        row_count = len(data) if hasattr(data, "__len__") else 0
-        if self.min_row_count is not None:
-            if row_count < self.min_row_count:
-                self.log.info(
-                    f"Row count {row_count} < minimum {self.min_row_count}, "
-                    "will retry..."
-                )
-                return False
-
-        # Execute quality check
-        self.log.info(f"Checking {len(self.rules)} rules on {row_count} rows")
-
-        result = self.engine.check(
-            data,
-            self.rules,
-            timeout=self.timeout_seconds,
-        )
-
-        # Calculate pass rate
-        total_rules = result.passed_count + result.failed_count
-        if total_rules == 0:
-            self.log.warning("No rules were evaluated")
-            return False
-
-        pass_rate = result.passed_count / total_rules
-
-        self.log.info(
-            f"Current pass rate: {pass_rate:.2%} "
-            f"(required: {self.min_pass_rate:.2%})"
-        )
-
-        # Check max failure count
-        if self.max_failure_count is not None:
-            if result.failed_count > self.max_failure_count:
-                self.log.info(
-                    f"Failure count {result.failed_count} > max {self.max_failure_count}, "
-                    "will retry..."
-                )
-                return False
-
-        # Check pass rate
-        if pass_rate >= self.min_pass_rate:
-            self.log.info(
-                f"Quality conditions MET: "
-                f"pass_rate={pass_rate:.2%} >= {self.min_pass_rate:.2%}"
-            )
-            return True
-
-        self.log.info(
-            f"Quality conditions NOT met: "
-            f"pass_rate={pass_rate:.2%} < {self.min_pass_rate:.2%}, "
-            "will retry..."
+        self.defer(
+            trigger=DataQualityGateTrigger(
+                data_path=self.data_path,
+                sql=self.sql,
+                connection_id=self.connection_id,
+                rules=self.rules,
+                engine_name=self._engine_name or "truthound",
+                observability=self.observability,
+                min_pass_rate=self.min_pass_rate,
+                min_row_count=self.min_row_count,
+                max_failure_count=self.max_failure_count,
+                timeout_seconds=self.timeout_seconds,
+                poke_interval=float(getattr(self, "poke_interval", 60.0)),
+                task_id=self.task_id,
+                dag_id=getattr(context.get("dag"), "dag_id", None),
+            ),
+            method_name="execute_complete",
         )
         return False
 
+    def execute_complete(self, context: Context, event: dict[str, Any] | None = None) -> bool:
+        del context
+        if not event:
+            raise AirflowException("Deferrable quality gate returned no event")
+        if event.get("status") == "error":
+            raise AirflowException(event.get("message", "Unknown trigger failure"))
+        return True
 
-# Alias for backwards compatibility
+
 TruthoundSensor = DataQualitySensor

@@ -17,12 +17,34 @@ title: Compatibility
 
 | Platform | Runtime Expectation |
 |----------|---------------------|
-| Airflow | `truthound-airflow 3.x` with `truthound-orchestration 3.x` and `Truthound 3.x` |
-| Dagster | `truthound-dagster 3.x` with the same shared line |
-| Prefect | `truthound-prefect 3.x` with the same shared line |
-| Mage | `truthound-mage 3.x` with the same shared line |
-| Kestra | `truthound-kestra 3.x` with the same shared line |
-| dbt | `packages/dbt` version `3.0.0` aligned to the Truthound 3.x line |
+| Airflow | `truthound-orchestration[airflow]` with `Truthound 3.x` |
+| Dagster | `truthound-orchestration[dagster]` with `Truthound 3.x` |
+| Prefect | `truthound-orchestration[prefect]` with `Truthound 3.x` |
+| Mage | `truthound-orchestration[mage]` inside a Mage runtime that already provides `mage-ai` |
+| Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
+| dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
+
+<!-- BEGIN GENERATED SUPPORT MATRIX -->
+## Generated CI Support Matrix
+
+Truthound release line: `>=3.0,<4.0`
+
+| Lane | Python | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |
+|------|--------|---------|---------|---------|----------------|-------------|-------------|
+| PR | `3.12` | `3.1.8` | `3.6.22` | `1.12.18` | Primary host smoke | `postgres` | No |
+| Main | `3.12` | `2.6.0`, `3.1.8` | `2.14.0`, `3.6.22` | `1.5.0`, `1.12.18` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Release | `3.12` | `2.6.0`, `3.1.8` | `2.14.0`, `3.6.22` | `1.5.0`, `1.12.18` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.11`, `3.12`, `3.13` | `3.1.8` | `3.6.22` | `1.12.18` | Primary host smoke + advanced-tier canary | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+
+## Supported Host Version Anchors
+
+| Platform | Minimum Supported | Primary Supported |
+|----------|-------------------|-------------------|
+| Airflow | `2.6.0` | `3.1.8` |
+| Prefect | `2.14.0` | `3.6.22` |
+| Dagster | `1.5.0` | `1.12.18` |
+| dbt | `postgres` execution baseline | `postgres` compile baseline + full adapter dispatch matrix |
+<!-- END GENERATED SUPPORT MATRIX -->
 
 ## Supported Scope
 

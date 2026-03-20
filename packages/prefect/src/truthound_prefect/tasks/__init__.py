@@ -89,6 +89,10 @@ from truthound_prefect.tasks.profile import (
     full_profile_task,
     minimal_profile_task,
 )
+from truthound_prefect.tasks.stream import (
+    create_stream_task,
+    data_quality_stream_task,
+)
 
 __all__ = [
     # Base configs
@@ -129,6 +133,9 @@ __all__ = [
     "create_profile_task",
     "minimal_profile_task",
     "full_profile_task",
+    # Stream tasks
+    "data_quality_stream_task",
+    "create_stream_task",
     # Learn tasks
     "data_quality_learn_task",
     "create_learn_task",

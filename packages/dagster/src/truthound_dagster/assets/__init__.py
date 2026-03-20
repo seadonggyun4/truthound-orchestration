@@ -35,6 +35,10 @@ from truthound_dagster.assets.decorators import (
     profiled_asset,
     quality_checked_asset,
 )
+from truthound_dagster.assets.asset_checks import (
+    create_asset_check,
+    quality_asset_check,
+)
 from truthound_dagster.assets.factories import (
     create_quality_asset,
     create_quality_check_asset,
@@ -49,9 +53,11 @@ __all__ = [
     # Decorators
     "quality_checked_asset",
     "profiled_asset",
+    "quality_asset_check",
     # Factories
     "create_quality_asset",
     "create_quality_check_asset",
+    "create_asset_check",
     # Configuration
     "QualityAssetConfig",
     "ProfileAssetConfig",

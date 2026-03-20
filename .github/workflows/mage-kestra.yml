@@ -1,0 +1,112 @@
+name: Mage Kestra
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: mage-kestra-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow mage-kestra \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  mage-kestra:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install Mage and Kestra dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,kestra,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run Mage and Kestra suites
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/mage-kestra
+          python -m pytest -q \
+            tests/mage/test_blocks_transformer.py \
+            tests/mage/test_io_config.py \
+            tests/kestra/test_scripts.py \
+            tests/kestra/test_flows.py \
+            --junitxml="artifacts/mage-kestra/junit.xml" \
+            --cov=common \
+            --cov=packages/mage/src/truthound_mage \
+            --cov=packages/kestra/src/truthound_kestra \
+            --cov-report="xml:artifacts/mage-kestra/coverage.xml" | tee artifacts/mage-kestra/pytest.log
+      - name: Upload Mage Kestra artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-mage-kestra
+          path: artifacts/mage-kestra/*
+
+  summary:
+    if: always()
+    needs:
+      - mage-kestra
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate Mage Kestra results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Mage Kestra CI failed: {failures}")
+          print("Mage Kestra summary passed")
+          PY

@@ -58,7 +58,7 @@ with engine:
 
 - Supported Truthound versions: `>=3.0,<4.0`
 - Unsupported Truthound versions: `1.x` and `2.x`
-- This policy applies to the root package and the platform integration packages in this repository
+- This policy applies to the root package and its first-party platform extras in this repository
 - If you need an older Truthound engine line, stay on an older `truthound-orchestration` release line
 
 This release line exists to provide a clear compatibility boundary for the Truthound 3 runtime and result contracts.
@@ -445,6 +445,8 @@ pip install truthound-orchestration[airflow,dagster] "truthound>=3.0,<4.0"
 # All platforms + Truthound 3.x
 pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
+
+For Mage, install the adapter inside a Mage runtime or project environment that already provides `mage-ai`.
 
 #### Truthound Engine Installation
 

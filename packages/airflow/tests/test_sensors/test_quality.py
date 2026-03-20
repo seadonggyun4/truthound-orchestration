@@ -85,6 +85,19 @@ class TestDataQualitySensor:
         assert len(sensor.rules) == 3
         assert sensor.data_path == "/data/test.parquet"
 
+    def test_initialization_with_stream(self) -> None:
+        """Sensor can gate directly on a stream source."""
+        from truthound_airflow.sensors.quality import DataQualitySensor
+
+        sensor = DataQualitySensor(
+            task_id="test_sensor",
+            rules=None,
+            stream=iter([{"id": 1}, {"id": 2}]),
+        )
+
+        assert sensor.stream is not None
+        assert sensor.rules is None
+
     def test_initialization_with_min_pass_rate(self, sample_rules: list[dict[str, Any]]) -> None:
         """Test initialization with min pass rate."""
         from truthound_airflow.sensors.quality import DataQualitySensor
@@ -115,7 +128,7 @@ class TestDataQualitySensor:
         """Test that specifying both data_path and sql raises error."""
         from truthound_airflow.sensors.quality import DataQualitySensor
 
-        with pytest.raises(ValueError, match="Cannot specify both"):
+        with pytest.raises(ValueError, match="Cannot specify more than one"):
             DataQualitySensor(
                 task_id="test_sensor",
                 rules=sample_rules,
@@ -127,7 +140,7 @@ class TestDataQualitySensor:
         """Test that not specifying data source raises error."""
         from truthound_airflow.sensors.quality import DataQualitySensor
 
-        with pytest.raises(ValueError, match="Must specify either"):
+        with pytest.raises(ValueError, match="Must specify one"):
             DataQualitySensor(
                 task_id="test_sensor",
                 rules=sample_rules,
@@ -153,6 +166,18 @@ class TestDataQualitySensor:
 
         assert hasattr(DataQualitySensor, "ui_color")
         assert DataQualitySensor.ui_color.startswith("#")
+
+    def test_deferrable_sensor_execute_complete(self) -> None:
+        """Deferrable sensor should treat successful trigger events as completion."""
+        from truthound_airflow.sensors.quality import DeferrableDataQualitySensor
+
+        sensor = DeferrableDataQualitySensor(
+            task_id="test_sensor",
+            rules=None,
+            data_path="/data/test.parquet",
+        )
+
+        assert sensor.execute_complete({}, {"status": "success"}) is True
 
     @patch("truthound_airflow.hooks.base.DataQualityHook")
     def test_poke_returns_true_on_success(

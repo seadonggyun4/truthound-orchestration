@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from common.testing import MockDataQualityEngine
 from truthound_prefect.blocks.base import (
     BaseBlock,
     BlockConfig,
@@ -278,3 +279,80 @@ class TestEngineBlock:
         assert block.engine_name == "truthound"
         assert block.auto_schema is True
         assert block.warning_threshold == 0.1
+
+    def test_engine_block_stream(self) -> None:
+        """EngineBlock should expose shared streaming batches and summary."""
+        engine = MockDataQualityEngine()
+        engine.configure_check(success=True, passed_count=1)
+        block = EngineBlock(engine=engine)
+        block.setup()
+
+        result = block.stream(iter([{"id": 1}, {"id": 2}, {"id": 3}]), rules=[], batch_size=2)
+
+        assert result["summary"]["total_batches"] == 2
+        assert len(result["batches"]) == 2
+        block.teardown()
+
+    @pytest.mark.asyncio
+    async def test_data_quality_block_astream(self) -> None:
+        """DataQualityBlock should expose async streaming helper."""
+        engine = MockDataQualityEngine()
+        engine.configure_check(success=True, passed_count=1)
+        block = DataQualityBlock()
+        block._engine_block = EngineBlock(engine=engine)
+        block._engine_block.setup()
+
+        async def async_stream():
+            for row in [{"id": 1}, {"id": 2}]:
+                yield row
+
+        result = await block.astream(async_stream(), rules=[], batch_size=1)
+
+        assert result["summary"]["total_batches"] == 2
+
+    def test_engine_block_emits_openlineage_host_execution(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        openlineage_collector: Any,
+    ) -> None:
+        """Prefect block should emit shared host execution metadata."""
+        import prefect.runtime as prefect_runtime
+
+        monkeypatch.setattr(
+            prefect_runtime,
+            "flow_run",
+            type("FlowRun", (), {"id": "flow-123", "deployment_id": "deployment-123"})(),
+            raising=False,
+        )
+        monkeypatch.setattr(
+            prefect_runtime,
+            "task_run",
+            type("TaskRun", (), {"id": "task-123"})(),
+            raising=False,
+        )
+
+        engine = MockDataQualityEngine(name="truthound", version="3.1.0")
+        engine.configure_check(success=True, passed_count=1)
+        block = EngineBlock(
+            EngineBlockConfig(
+                observability={
+                    "backend": "openlineage",
+                    "endpoint": openlineage_collector.endpoint,
+                    "namespace": "truthound",
+                    "job_name": "prefect-check",
+                }
+            ),
+            engine=engine,
+        )
+        block.setup()
+
+        try:
+            block.check([{"id": 1}], rules=None)
+        finally:
+            block.teardown()
+
+        assert len(openlineage_collector.received) == 2
+        facet = openlineage_collector.received[-1]["run"]["facets"]["truthound"]
+        assert facet["host_execution"]["flow_run_id"] == "flow-123"
+        assert facet["host_execution"]["task_run_id"] == "task-123"
+        assert facet["host_execution"]["deployment_id"] == "deployment-123"

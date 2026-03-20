@@ -49,8 +49,11 @@ from typing import TYPE_CHECKING, Any
 from truthound_kestra.scripts.base import (
     CheckScriptConfig,
     DataQualityEngineProtocol,
+    build_runtime_context,
+    extract_observability_config,
     get_engine,
 )
+from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import (
     DataQualityError,
     EngineError,
@@ -189,7 +192,15 @@ class CheckScriptExecutor:
     def __post_init__(self) -> None:
         """Initialize engine if not provided."""
         if self.engine is None:
-            self.engine = get_engine(self.config.engine_name)
+            self.engine = get_engine(
+                self.config.engine_name,
+                observability=extract_observability_config(self.config.metadata),
+                runtime_context=build_runtime_context(
+                    "engine_create",
+                    script_name=type(self).__name__,
+                    metadata=self.config.metadata,
+                ),
+            )
 
     def execute(
         self,
@@ -228,7 +239,11 @@ class CheckScriptExecutor:
                 )
 
         # Merge rules from config and parameters
-        effective_rules = list(rules) if rules else list(self.config.rules)
+        effective_rules = (
+            list(rules)
+            if rules is not None
+            else list(self.config.rules)
+        )
 
         # Validate rules
         rule_errors = validate_rules(effective_rules)
@@ -244,7 +259,10 @@ class CheckScriptExecutor:
         with Timer("check") as timer:
             try:
                 raw_result = self._execute_check(
-                    data, effective_rules, **kwargs
+                    data,
+                    effective_rules,
+                    context=context,
+                    **kwargs,
                 )
             except Exception as e:
                 return self._handle_engine_error(e, context, timer.elapsed_ms)
@@ -280,6 +298,8 @@ class CheckScriptExecutor:
         self,
         data: Any,
         rules: list[RuleDict],
+        *,
+        context: ExecutionContext | None = None,
         **kwargs: Any,
     ) -> Any:
         """Execute the engine check operation."""
@@ -305,11 +325,20 @@ class CheckScriptExecutor:
         # Override with any additional kwargs
         engine_kwargs.update(kwargs)
 
-        # Execute check
-        if rules:
-            return self.engine.check(data, rules=rules, **engine_kwargs)
-        else:
-            return self.engine.check(data, **engine_kwargs)
+        return execute_operation(
+            "check",
+            self.engine,
+            data=data,
+            rules=rules,
+            runtime_context=build_runtime_context(
+                "check",
+                context=context,
+                script_name=type(self).__name__,
+                metadata=self.config.metadata,
+            ),
+            observability=extract_observability_config(self.config.metadata),
+            **engine_kwargs,
+        )
 
     def _convert_result(
         self,

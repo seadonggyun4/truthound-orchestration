@@ -258,6 +258,21 @@ class TestDataQualityTransformer:
         assert result.success is True
         assert result.result is not None
 
+    def test_stream_operation(
+        self, mock_engine: MockDataQualityEngine
+    ) -> None:
+        """Test bounded-memory streaming operation via facade."""
+        transformer = DataQualityTransformer(engine=mock_engine)
+
+        result = transformer.stream(
+            iter([{"id": 1}, {"id": 2}, {"id": 3}]),
+            rules=[],
+            batch_size=2,
+        )
+
+        assert result.success is True
+        assert result.result_dict["summary"]["total_batches"] == 2
+
     def test_learn_operation(
         self, mock_engine: MockDataQualityEngine, sample_data: dict[str, Any]
     ) -> None:

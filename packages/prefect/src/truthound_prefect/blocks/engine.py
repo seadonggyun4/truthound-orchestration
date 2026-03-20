@@ -7,11 +7,21 @@ engines from the common/ module, following the Protocol-based design.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import inspect
 from typing import TYPE_CHECKING, Any, Sequence
 
 from prefect.blocks.core import Block
 from pydantic import Field
 
+from common.engines import normalize_runtime_context
+from common.orchestration import (
+    StreamCheckpointState,
+    StreamRequest,
+    execute_operation,
+    run_stream_check,
+    run_stream_check_async,
+    summarize_stream,
+)
 from truthound_prefect.blocks.base import BaseBlock, BlockConfig
 from truthound_prefect.utils.exceptions import EngineError
 from truthound_prefect.utils.serialization import serialize_result
@@ -19,6 +29,36 @@ from truthound_prefect.utils.serialization import serialize_result
 if TYPE_CHECKING:
     from common.base import CheckResult, LearnResult, ProfileResult
     from common.engines.base import DataQualityEngine
+
+
+def _build_prefect_runtime_context(
+    *,
+    block_type: str,
+    operation: str | None = None,
+) -> Any:
+    """Build Prefect runtime context with host-native execution identifiers."""
+
+    host_execution: dict[str, Any] = {}
+    try:  # pragma: no cover - depends on Prefect runtime context
+        from prefect.runtime import flow_run, task_run
+
+        host_execution = {
+            "flow_run_id": getattr(flow_run, "id", None),
+            "task_run_id": getattr(task_run, "id", None),
+            "deployment_id": getattr(flow_run, "deployment_id", None),
+        }
+    except Exception:
+        host_execution = {}
+
+    host_metadata = {"block_type": block_type}
+    if operation is not None:
+        host_metadata["operation"] = operation
+
+    return normalize_runtime_context(
+        platform="prefect",
+        host_metadata=host_metadata,
+        host_execution=host_execution,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +84,7 @@ class EngineBlockConfig(BlockConfig):
     auto_stop: bool = True
     auto_schema: bool = False
     fail_on_error: bool = True
+    observability: dict[str, Any] = field(default_factory=dict)
 
     def with_engine(self, engine_name: str) -> EngineBlockConfig:
         """Return a new config with engine name changed."""
@@ -59,6 +100,7 @@ class EngineBlockConfig(BlockConfig):
             auto_stop=self.auto_stop,
             auto_schema=self.auto_schema,
             fail_on_error=self.fail_on_error,
+            observability=self.observability,
         )
 
     def with_parallel(
@@ -79,6 +121,7 @@ class EngineBlockConfig(BlockConfig):
             auto_stop=self.auto_stop,
             auto_schema=self.auto_schema,
             fail_on_error=self.fail_on_error,
+            observability=self.observability,
         )
 
     def with_auto_schema(self, auto_schema: bool = True) -> EngineBlockConfig:
@@ -95,6 +138,7 @@ class EngineBlockConfig(BlockConfig):
             auto_stop=self.auto_stop,
             auto_schema=auto_schema,
             fail_on_error=self.fail_on_error,
+            observability=self.observability,
         )
 
     def with_fail_on_error(self, fail_on_error: bool) -> EngineBlockConfig:
@@ -111,6 +155,7 @@ class EngineBlockConfig(BlockConfig):
             auto_stop=self.auto_stop,
             auto_schema=self.auto_schema,
             fail_on_error=fail_on_error,
+            observability=self.observability,
         )
 
     def with_lifecycle(
@@ -131,6 +176,7 @@ class EngineBlockConfig(BlockConfig):
             auto_stop=auto_stop,
             auto_schema=self.auto_schema,
             fail_on_error=self.fail_on_error,
+            observability=self.observability,
         )
 
 
@@ -161,6 +207,14 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
         super().__init__(config)
         self._provided_engine = engine
         self._engine: DataQualityEngine | None = None
+        self._runtime_context = _build_prefect_runtime_context(block_type=type(self).__name__)
+
+    def _refresh_runtime_context(self, operation: str | None = None) -> Any:
+        self._runtime_context = _build_prefect_runtime_context(
+            block_type=type(self).__name__,
+            operation=operation,
+        )
+        return self._runtime_context
 
     @classmethod
     def _default_config(cls) -> EngineBlockConfig:
@@ -232,15 +286,13 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
                 run_preflight,
             )
 
-            runtime_context = normalize_runtime_context(
-                platform="prefect",
-                host_metadata={"block_type": type(self).__name__},
-            )
+            runtime_context = self._refresh_runtime_context("engine_create")
             request = EngineCreationRequest(
                 engine_name=engine_name,
                 runtime_context=runtime_context,
+                observability=self._config.observability,
             )
-            preflight = run_preflight(request)
+            preflight = run_preflight(request, observability=self._config.observability)
             if not preflight.compatible:
                 failures = "; ".join(
                     check.message for check in preflight.compatibility.failures
@@ -290,7 +342,15 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
             if self._config.auto_schema and "auto_schema" not in kwargs:
                 kwargs["auto_schema"] = True
 
-            return self.engine.check(data, rules, **kwargs)
+            return execute_operation(
+                "check",
+                self.engine,
+                data=data,
+                rules=rules,
+                runtime_context=self._refresh_runtime_context("check"),
+                observability=self._config.observability,
+                **kwargs,
+            )
         except Exception as e:
             raise EngineError(
                 message=f"Check operation failed: {e}",
@@ -313,7 +373,14 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
             EngineError: If profiling fails.
         """
         try:
-            return self.engine.profile(data, **kwargs)
+            return execute_operation(
+                "profile",
+                self.engine,
+                data=data,
+                runtime_context=self._refresh_runtime_context("profile"),
+                observability=self._config.observability,
+                **kwargs,
+            )
         except Exception as e:
             raise EngineError(
                 message=f"Profile operation failed: {e}",
@@ -336,7 +403,14 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
             EngineError: If learning fails.
         """
         try:
-            return self.engine.learn(data, **kwargs)
+            return execute_operation(
+                "learn",
+                self.engine,
+                data=data,
+                runtime_context=self._refresh_runtime_context("learn"),
+                observability=self._config.observability,
+                **kwargs,
+            )
         except Exception as e:
             raise EngineError(
                 message=f"Learn operation failed: {e}",
@@ -344,6 +418,83 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
                 operation="learn",
                 original_error=e,
             ) from e
+
+    def stream(
+        self,
+        stream: Any,
+        rules: Sequence[dict[str, Any]] | None = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: dict[str, Any] | None = None,
+        max_batches: int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        checkpoint_state = (
+            StreamCheckpointState(**checkpoint) if checkpoint is not None else None
+        )
+        envelopes = list(
+            run_stream_check(
+                self.engine,
+                StreamRequest(
+                    stream=stream,
+                    rules=rules,
+                    batch_size=batch_size,
+                    checkpoint=checkpoint_state,
+                    max_batches=max_batches,
+                    kwargs=kwargs,
+                ),
+                runtime_context=self._refresh_runtime_context("stream"),
+                observability=self._config.observability,
+            )
+        )
+        return {
+            "batches": [envelope.to_dict() for envelope in envelopes],
+            "summary": summarize_stream(envelopes).to_dict(),
+        }
+
+    async def astream(
+        self,
+        stream: Any,
+        rules: Sequence[dict[str, Any]] | None = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: dict[str, Any] | None = None,
+        max_batches: int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        if not inspect.isasyncgen(stream) and not hasattr(stream, "__aiter__"):
+            return self.stream(
+                stream,
+                rules=rules,
+                batch_size=batch_size,
+                checkpoint=checkpoint,
+                max_batches=max_batches,
+                **kwargs,
+            )
+
+        checkpoint_state = (
+            StreamCheckpointState(**checkpoint) if checkpoint is not None else None
+        )
+        envelopes = [
+            envelope
+            async for envelope in run_stream_check_async(
+                self.engine,
+                StreamRequest(
+                    stream=stream,
+                    rules=rules,
+                    batch_size=batch_size,
+                    checkpoint=checkpoint_state,
+                    max_batches=max_batches,
+                    kwargs=kwargs,
+                ),
+                runtime_context=self._refresh_runtime_context("stream"),
+                observability=self._config.observability,
+            )
+        ]
+        return {
+            "batches": [envelope.to_dict() for envelope in envelopes],
+            "summary": summarize_stream(envelopes).to_dict(),
+        }
 
 
 class DataQualityBlock(Block):
@@ -397,6 +548,10 @@ class DataQualityBlock(Block):
         default=300.0,
         description="Timeout for operations in seconds",
     )
+    observability: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Shared observability configuration for runtime events",
+    )
 
     _engine_block: EngineBlock | None = None
 
@@ -410,6 +565,7 @@ class DataQualityBlock(Block):
                 auto_schema=self.auto_schema,
                 fail_on_error=self.fail_on_error,
                 timeout_seconds=self.timeout_seconds,
+                observability=self.observability,
             )
             self._engine_block = EngineBlock(config)
             self._engine_block.setup()
@@ -479,6 +635,46 @@ class DataQualityBlock(Block):
         engine_block = self._get_engine_block()
         result = engine_block.learn(data, **kwargs)
         return serialize_result(result)
+
+    def stream(
+        self,
+        stream: Any,
+        rules: Sequence[dict[str, Any]] | None = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: dict[str, Any] | None = None,
+        max_batches: int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        engine_block = self._get_engine_block()
+        return engine_block.stream(
+            stream,
+            rules=rules,
+            batch_size=batch_size,
+            checkpoint=checkpoint,
+            max_batches=max_batches,
+            **kwargs,
+        )
+
+    async def astream(
+        self,
+        stream: Any,
+        rules: Sequence[dict[str, Any]] | None = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: dict[str, Any] | None = None,
+        max_batches: int | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        engine_block = self._get_engine_block()
+        return await engine_block.astream(
+            stream,
+            rules=rules,
+            batch_size=batch_size,
+            checkpoint=checkpoint,
+            max_batches=max_batches,
+            **kwargs,
+        )
 
     def __del__(self) -> None:
         """Clean up resources."""

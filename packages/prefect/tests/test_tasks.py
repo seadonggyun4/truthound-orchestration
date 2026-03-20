@@ -26,6 +26,10 @@ from truthound_prefect.tasks.check import (
     create_check_task,
     data_quality_check_task,
 )
+from truthound_prefect.tasks.stream import (
+    create_stream_task,
+    data_quality_stream_task,
+)
 from truthound_prefect.tasks.profile import (
     create_profile_task,
     data_quality_profile_task,
@@ -252,3 +256,31 @@ class TestTaskFactories:
         )
         assert task is not None
         assert callable(task)
+
+    def test_create_stream_task(self, mock_block: MagicMock) -> None:
+        """Test create_stream_task factory."""
+        task = create_stream_task(name="custom_stream", block=mock_block)
+        assert task is not None
+        assert callable(task)
+
+
+@pytest.mark.asyncio
+async def test_data_quality_stream_task_uses_block_stream(mock_block: MagicMock) -> None:
+    """Streaming task should delegate to the shared block streaming surface."""
+    mock_block.stream.return_value = {
+        "batches": [{"batch_index": 1}],
+        "summary": {"total_batches": 1, "failed_batches": 0, "final_status": "PASSED"},
+    }
+
+    with (
+        patch("truthound_prefect.tasks.stream.create_table_artifact", new=AsyncMock()),
+        patch("truthound_prefect.tasks.stream.get_run_logger", return_value=MagicMock()),
+    ):
+        result = await data_quality_stream_task.fn(  # type: ignore[attr-defined]
+            stream=iter([{"id": 1}]),
+            block=mock_block,
+            batch_size=1,
+        )
+
+    assert result["summary"]["total_batches"] == 1
+    mock_block.stream.assert_called_once()

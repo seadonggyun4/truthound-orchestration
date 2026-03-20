@@ -1,0 +1,208 @@
+name: dbt
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: dbt-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+      compile_matrix: ${{ steps.export.outputs.compile_matrix }}
+      run_execution: ${{ steps.export.outputs.run_execution }}
+      execution_target: ${{ steps.export.outputs.execution_target }}
+      execution_adapter: ${{ steps.export.outputs.execution_adapter }}
+      coverage_threshold: ${{ steps.export.outputs.coverage_threshold }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow dbt \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  dbt-python:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install dbt Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "dbt-postgres>=1.8.0,<2.0.0"
+      - name: Run dbt Python suites
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/dbt
+          python -m pytest -q \
+            tests/dbt/test_adapters.py \
+            tests/dbt/test_parsers.py \
+            tests/dbt/test_macros.py \
+            tests/dbt/test_hooks.py \
+            tests/dbt/test_converters.py \
+            --junitxml="artifacts/dbt/junit-python.xml" \
+            --cov=common \
+            --cov=packages/dbt/src/truthound_dbt \
+            --cov-report="xml:artifacts/dbt/coverage-python.xml" | tee artifacts/dbt/pytest-python.log
+      - name: Upload dbt Python artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-dbt-python
+          path: artifacts/dbt/*
+
+  compile-matrix:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.compile_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install dbt compile dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ matrix.adapter }}"
+      - name: Compile adapter-dispatch lane
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/dbt
+          python packages/dbt/scripts/run_first_party_suite.py \
+            --mode compile \
+            --target "${{ matrix.target }}" | tee "artifacts/dbt/compile-${{ matrix.target }}.log"
+      - name: Upload dbt compile artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-dbt-compile-${{ matrix.target }}
+          path: artifacts/dbt/compile-${{ matrix.target }}.log
+
+  postgres-execution:
+    if: needs.matrix.outputs.run_execution == 'true'
+    needs:
+      - matrix
+      - dbt-python
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install dbt execution dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
+      - name: Run dbt PostgreSQL baseline
+        env:
+          POSTGRES_HOST: 127.0.0.1
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/dbt
+          python packages/dbt/scripts/run_first_party_suite.py \
+            --mode execute \
+            --target "${{ needs.matrix.outputs.execution_target }}" | tee artifacts/dbt/postgres-execution.log
+          python packages/dbt/scripts/manifest_parser.py coverage \
+            packages/dbt/integration_tests/target/manifest.json \
+            --threshold "${{ needs.matrix.outputs.coverage_threshold }}" | tee artifacts/dbt/postgres-coverage.log
+      - name: Upload dbt execution artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-dbt-postgres
+          path: artifacts/dbt/*
+
+  summary:
+    if: always()
+    needs:
+      - dbt-python
+      - compile-matrix
+      - postgres-execution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate dbt results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"dbt CI failed: {failures}")
+          print("dbt summary passed")
+          PY

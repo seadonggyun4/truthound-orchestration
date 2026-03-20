@@ -13,6 +13,7 @@ from truthound_dagster.resources.engine import (
     PRODUCTION_ENGINE_CONFIG,
     EngineResourceConfig,
     DataQualityResourceConfig,
+    DataQualityResource,
 )
 
 
@@ -237,3 +238,50 @@ class TestEngineResolverDelegation:
             parallel=True,
             max_workers=4,
         )
+
+
+class TestDataQualityResourceBehavior:
+    """Tests for shared runtime behavior exposed through the resource."""
+
+    def test_stream_check_returns_shared_envelopes(self, mock_engine) -> None:
+        resource = DataQualityResource()
+        resource._engine = mock_engine
+
+        envelopes = resource.stream_check(iter([{"id": 1}, {"id": 2}, {"id": 3}]), batch_size=2)
+
+        assert len(envelopes) == 2
+        assert envelopes[0]["batch_index"] == 1
+
+    def test_check_emits_openlineage_host_execution(
+        self,
+        mock_engine,
+        openlineage_collector,
+    ) -> None:
+        resource = DataQualityResource(
+            observability={
+                "backend": "openlineage",
+                "endpoint": openlineage_collector.endpoint,
+                "namespace": "truthound",
+                "job_name": "dagster-check",
+            }
+        )
+        resource._engine = mock_engine
+
+        context = MagicMock()
+        context.run_id = "dagster-run-123"
+        context.partition_key = "2026-03-21"
+        context.asset_key = MagicMock()
+        context.asset_key.to_user_string.return_value = "users"
+
+        resource.check(
+            [{"id": 1}],
+            rules=None,
+            dagster_context=context,
+            check_name="users_quality",
+        )
+
+        assert len(openlineage_collector.received) == 2
+        facet = openlineage_collector.received[-1]["run"]["facets"]["truthound"]
+        assert facet["host_execution"]["run_id"] == "dagster-run-123"
+        assert facet["host_execution"]["asset_key"] == "users"
+        assert facet["host_execution"]["check_name"] == "users_quality"

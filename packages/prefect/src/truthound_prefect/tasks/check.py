@@ -205,7 +205,11 @@ def create_check_task(
             )
 
         # Use config rules if not provided
-        effective_rules = rules or list(cfg.rules)
+        effective_rules = (
+            list(rules)
+            if rules is not None
+            else list(cfg.rules)
+        )
 
         return await data_quality_check_task(
             data=data,

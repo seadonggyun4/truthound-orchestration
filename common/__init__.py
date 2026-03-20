@@ -256,6 +256,8 @@ from common.engines import (
     EngineInfo,
     # Registry
     EngineRegistry,
+    ObservabilityBackend,
+    ObservabilityConfig,
     PreflightReport,
     PlatformRuntimeContext,
     ResolvedDataSource,
@@ -728,6 +730,8 @@ __all__ = [
     "CompatibilityReport",
     "DataSourceKind",
     "EngineCreationRequest",
+    "ObservabilityBackend",
+    "ObservabilityConfig",
     "PlatformRuntimeContext",
     "PreflightReport",
     "ResolvedDataSource",

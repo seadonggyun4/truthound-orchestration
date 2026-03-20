@@ -132,11 +132,6 @@ length({{ column }})
 {% endmacro %}
 
 
-{% macro redshift__length(column) %}
-len({{ column }})
-{% endmacro %}
-
-
 {% macro databricks__length(column) %}
 length({{ column }})
 {% endmacro %}
@@ -181,23 +176,8 @@ length({{ column }})
 {% endmacro %}
 
 
-{% macro bigquery__regex_match(column, pattern) %}
-regexp_contains({{ column }}, r'{{ pattern }}')
-{% endmacro %}
-
-
 {% macro snowflake__regex_match(column, pattern) %}
 regexp_like({{ column }}, '{{ pattern }}')
-{% endmacro %}
-
-
-{% macro redshift__regex_match(column, pattern) %}
-{{ column }} ~ '{{ pattern }}'
-{% endmacro %}
-
-
-{% macro databricks__regex_match(column, pattern) %}
-{{ column }} rlike '{{ pattern }}'
 {% endmacro %}
 
 
@@ -274,11 +254,6 @@ current_timestamp()
 
 {% macro snowflake__current_timestamp() %}
 current_timestamp()
-{% endmacro %}
-
-
-{% macro redshift__current_timestamp() %}
-getdate()
 {% endmacro %}
 
 
@@ -420,18 +395,6 @@ sample ({{ n }} rows)
 {% endmacro %}
 
 
-{% macro redshift__limit_sample(n) %}
-order by random()
-limit {{ n }}
-{% endmacro %}
-
-
-{% macro databricks__limit_sample(n) %}
-order by rand()
-limit {{ n }}
-{% endmacro %}
-
-
 {# ============================================================================
    Type Casting
    ============================================================================ #}
@@ -469,21 +432,6 @@ limit {{ n }}
 {% else %}
     {{ column }}::{{ data_type }}
 {% endif %}
-{% endmacro %}
-
-
-{% macro snowflake__safe_cast(column, data_type) %}
-try_cast({{ column }} as {{ data_type }})
-{% endmacro %}
-
-
-{% macro bigquery__safe_cast(column, data_type) %}
-safe_cast({{ column }} as {{ data_type }})
-{% endmacro %}
-
-
-{% macro databricks__safe_cast(column, data_type) %}
-try_cast({{ column }} as {{ data_type }})
 {% endmacro %}
 
 

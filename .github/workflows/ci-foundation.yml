@@ -1,0 +1,156 @@
+name: CI Foundation
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: ci-foundation-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+      wheel_smoke_matrix: ${{ steps.export.outputs.wheel_smoke_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow foundation \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  quality:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - uses: rhysd/actionlint@v1
+      - name: Install foundation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,docs]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run foundation checks
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/foundation
+          ruff check . | tee artifacts/foundation/ruff.log
+          mypy common \
+            packages/airflow/src \
+            packages/dagster/src \
+            packages/dbt/src \
+            packages/prefect/src \
+            packages/mage/src \
+            packages/kestra/src | tee artifacts/foundation/mypy.log
+          python -m build --outdir dist | tee artifacts/foundation/build.log
+          python -m twine check dist/* | tee artifacts/foundation/twine.log
+          python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log
+          python docs/scripts/check_doc_contracts.py | tee artifacts/foundation/docs-contracts.log
+          mkdocs build --strict | tee artifacts/foundation/mkdocs.log
+      - name: Upload foundation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-foundation
+          path: |
+            dist/*
+            artifacts/foundation/*
+
+  wheel-smoke:
+    needs:
+      - matrix
+      - quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.wheel_smoke_matrix) }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Download built distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: truthound-foundation
+          path: artifacts/foundation-download
+      - name: Install wheel smoke
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/wheel-smoke
+          python scripts/ci/install_wheel_smoke.py \
+            --dist-dir artifacts/foundation-download \
+            --label "${{ matrix.label }}" \
+            --extra "${{ matrix.extra }}" | tee "artifacts/wheel-smoke/${{ matrix.label }}.log"
+      - name: Upload wheel smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-wheel-smoke-${{ matrix.label }}
+          path: artifacts/wheel-smoke/${{ matrix.label }}.log
+
+  summary:
+    if: always()
+    needs:
+      - quality
+      - wheel-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate foundation results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"CI foundation failed: {failures}")
+          print("CI foundation summary passed")
+          PY

@@ -4,12 +4,6 @@ config-version: 2
 
 require-dbt-version: [">=1.6.0", "<2.0.0"]
 
-# Package metadata
-description: |
-  Official first-party Truthound 3.x dbt package.
-  Provides declarative data quality checks via generic tests, Jinja macros,
-  and adapter dispatch with zero-config defaults.
-
 # Default configuration
 vars:
   truthound:

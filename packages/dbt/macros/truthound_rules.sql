@@ -231,21 +231,6 @@ where {{ truthound.is_null_or_empty(column) }}
 {% endmacro %}
 
 
-{% macro default__rule_unique_optimized(model, column) %}
-{# Default implementation using subquery join #}
-select t.*
-from {{ model }} t
-inner join (
-    select {{ column }}
-    from {{ model }}
-    where {{ column }} is not null
-    group by {{ column }}
-    having count(*) > 1
-) duplicates
-on t.{{ column }} = duplicates.{{ column }}
-{% endmacro %}
-
-
 {% macro rule_unique_combination(model, columns, rule={}) %}
 {#
     Check for duplicate combinations of multiple columns.

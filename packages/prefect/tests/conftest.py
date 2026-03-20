@@ -7,6 +7,9 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from common.pytest_fixtures import openlineage_collector
+
+__all__ = ["openlineage_collector"]
 
 
 @pytest.fixture

@@ -24,6 +24,13 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from dagster import ConfigurableResource, InitResourceContext
 
+from common.engines import normalize_runtime_context
+from common.orchestration import (
+    StreamCheckpointState,
+    StreamRequest,
+    execute_operation,
+    run_stream_check,
+)
 from truthound_dagster.resources.base import BaseResource, ResourceConfig
 
 if TYPE_CHECKING:
@@ -58,6 +65,7 @@ class EngineResourceConfig(ResourceConfig):
     parallel: bool = False
     max_workers: Optional[int] = None
     tags: "frozenset[str]" = field(default_factory=frozenset)
+    observability: Dict[str, Any] = field(default_factory=dict)
 
     def with_engine(self, engine_name: str) -> "EngineResourceConfig":
         """Return new config with updated engine name."""
@@ -70,6 +78,7 @@ class EngineResourceConfig(ResourceConfig):
             parallel=self.parallel,
             max_workers=self.max_workers,
             tags=self.tags,
+            observability=self.observability,
         )
 
     def with_parallel(
@@ -87,6 +96,7 @@ class EngineResourceConfig(ResourceConfig):
             parallel=parallel,
             max_workers=max_workers if max_workers is not None else self.max_workers,
             tags=self.tags,
+            observability=self.observability,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -99,6 +109,7 @@ class EngineResourceConfig(ResourceConfig):
             "auto_stop": self.auto_stop,
             "parallel": self.parallel,
             "max_workers": self.max_workers,
+            "observability": self.observability,
         }
 
 
@@ -220,8 +231,9 @@ class EngineResource(BaseResource["EngineResourceConfig"]):
             request = EngineCreationRequest(
                 engine_name=self.config.engine_name,
                 runtime_context=runtime_context,
+                observability=self.config.observability,
             )
-            preflight = run_preflight(request)
+            preflight = run_preflight(request, observability=self.config.observability)
             if not preflight.compatible:
                 failures = "; ".join(
                     check.message for check in preflight.compatibility.failures
@@ -299,6 +311,7 @@ class DataQualityResourceConfig(EngineResourceConfig):
             parallel=self.parallel,
             max_workers=self.max_workers,
             tags=self.tags,
+            observability=self.observability,
             fail_on_error=fail_on_error,
             warning_threshold=self.warning_threshold,
             sample_size=self.sample_size,
@@ -320,6 +333,7 @@ class DataQualityResourceConfig(EngineResourceConfig):
             parallel=self.parallel,
             max_workers=self.max_workers,
             tags=self.tags,
+            observability=self.observability,
             fail_on_error=self.fail_on_error,
             warning_threshold=threshold,
             sample_size=self.sample_size,
@@ -338,6 +352,7 @@ class DataQualityResourceConfig(EngineResourceConfig):
             parallel=self.parallel,
             max_workers=self.max_workers,
             tags=self.tags,
+            observability=self.observability,
             fail_on_error=self.fail_on_error,
             warning_threshold=self.warning_threshold,
             sample_size=sample_size,
@@ -418,6 +433,7 @@ class DataQualityResource(ConfigurableResource):
     warning_threshold: Optional[float] = None
     parallel: bool = False
     max_workers: Optional[int] = None
+    observability: Optional[Dict[str, Any]] = None
 
     # Internal state (not configurable)
     _engine: Optional["DataQualityEngine"] = None
@@ -437,6 +453,7 @@ class DataQualityResource(ConfigurableResource):
             warning_threshold=self.warning_threshold,
             parallel=self.parallel,
             max_workers=self.max_workers,
+            observability=dict(self.observability or {}),
         )
 
         engine_resource = EngineResource(config=config)
@@ -468,6 +485,28 @@ class DataQualityResource(ConfigurableResource):
             raise RuntimeError(msg)
         return self._engine
 
+    def _build_runtime_context(
+        self,
+        operation: str,
+        dagster_context: Any | None = None,
+        *,
+        check_name: str | None = None,
+    ) -> Any:
+        host_execution: dict[str, Any] = {}
+        if dagster_context is not None:
+            asset_key = getattr(dagster_context, "asset_key", None)
+            host_execution = {
+                "run_id": getattr(dagster_context, "run_id", None),
+                "asset_key": asset_key.to_user_string() if asset_key is not None else None,
+                "partition_key": getattr(dagster_context, "partition_key", None),
+                "check_name": check_name,
+            }
+        return normalize_runtime_context(
+            platform="dagster",
+            host_metadata={"resource_type": type(self).__name__, "operation": operation},
+            host_execution=host_execution,
+        )
+
     def check(
         self,
         data: Any,
@@ -495,14 +534,23 @@ class DataQualityResource(ConfigurableResource):
             DataQualityError: If validation fails and fail_on_error is True.
         """
         from truthound_dagster.utils.exceptions import DataQualityError
+        dagster_context = kwargs.pop("dagster_context", None)
+        check_name = kwargs.pop("check_name", None)
 
         actual_fail = fail_on_error if fail_on_error is not None else self.fail_on_error
         actual_timeout = timeout if timeout is not None else self.timeout_seconds
 
-        # Execute check
-        result = self.engine.check(
-            data,
-            rules,
+        result = execute_operation(
+            "check",
+            self.engine,
+            data=data,
+            rules=rules,
+            runtime_context=self._build_runtime_context(
+                "check",
+                dagster_context,
+                check_name=check_name,
+            ),
+            observability=self.observability,
             auto_schema=auto_schema,
             timeout=actual_timeout,
             **kwargs,
@@ -540,9 +588,14 @@ class DataQualityResource(ConfigurableResource):
             ProfileResult: Profiling result.
         """
         actual_timeout = timeout if timeout is not None else self.timeout_seconds
+        dagster_context = kwargs.pop("dagster_context", None)
 
-        return self.engine.profile(
-            data,
+        return execute_operation(
+            "profile",
+            self.engine,
+            data=data,
+            runtime_context=self._build_runtime_context("profile", dagster_context),
+            observability=self.observability,
             timeout=actual_timeout,
             **kwargs,
         )
@@ -565,12 +618,48 @@ class DataQualityResource(ConfigurableResource):
             LearnResult: Learning result with suggested rules.
         """
         actual_timeout = timeout if timeout is not None else self.timeout_seconds
+        dagster_context = kwargs.pop("dagster_context", None)
 
-        return self.engine.learn(
-            data,
+        return execute_operation(
+            "learn",
+            self.engine,
+            data=data,
+            runtime_context=self._build_runtime_context("learn", dagster_context),
+            observability=self.observability,
             timeout=actual_timeout,
             **kwargs,
         )
+
+    def stream_check(
+        self,
+        stream: Any,
+        rules: Optional[Sequence[Dict[str, Any]]] = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: Optional[dict[str, Any]] = None,
+        max_batches: Optional[int] = None,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        """Execute bounded-memory streaming checks and return shared envelopes."""
+
+        dagster_context = kwargs.pop("dagster_context", None)
+        checkpoint_state = (
+            StreamCheckpointState(**checkpoint) if checkpoint is not None else None
+        )
+        envelopes = run_stream_check(
+            self.engine,
+            StreamRequest(
+                stream=stream,
+                rules=rules,
+                batch_size=batch_size,
+                checkpoint=checkpoint_state,
+                max_batches=max_batches,
+                kwargs=kwargs,
+            ),
+            runtime_context=self._build_runtime_context("stream", dagster_context),
+            observability=self.observability,
+        )
+        return [envelope.to_dict() for envelope in envelopes]
 
 
 # Preset configurations

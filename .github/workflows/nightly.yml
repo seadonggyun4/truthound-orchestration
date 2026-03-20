@@ -1,0 +1,145 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  foundation:
+    uses: ./.github/workflows/ci-foundation.yml
+    with:
+      lane: nightly
+
+  shared-runtime:
+    needs: foundation
+    uses: ./.github/workflows/shared-runtime.yml
+    with:
+      lane: nightly
+
+  airflow:
+    needs: foundation
+    uses: ./.github/workflows/airflow.yml
+    with:
+      lane: nightly
+
+  prefect:
+    needs: foundation
+    uses: ./.github/workflows/prefect.yml
+    with:
+      lane: nightly
+
+  dagster:
+    needs: foundation
+    uses: ./.github/workflows/dagster.yml
+    with:
+      lane: nightly
+
+  mage-kestra:
+    needs: foundation
+    uses: ./.github/workflows/mage-kestra.yml
+    with:
+      lane: nightly
+
+  dbt:
+    needs: foundation
+    uses: ./.github/workflows/dbt.yml
+    with:
+      lane: nightly
+
+  advanced-tier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install advanced-tier canary dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" "truthound>=3.0,<4.0" "great-expectations>=1.5.0" "pandera>=0.20.0"
+      - name: Run advanced-tier smoke tests
+        run: |
+          mkdir -p artifacts/nightly
+          python -m pytest -q \
+            tests/common/test_advanced_tier_smoke.py \
+            --junitxml=artifacts/nightly/advanced-tier.junit.xml | tee artifacts/nightly/advanced-tier.log
+      - name: Upload advanced-tier artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-nightly-advanced-tier
+          path: artifacts/nightly/*
+
+  mage-host-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Mage host runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install mage-ai
+          python -m pip install -e ".[dev,opentelemetry]" "truthound>=3.0,<4.0"
+      - name: Run Mage host smoke
+        run: |
+          mkdir -p artifacts/nightly
+          python -m pytest -q \
+            tests/mage/test_blocks_transformer.py \
+            tests/mage/test_io_config.py \
+            --junitxml=artifacts/nightly/mage-host.junit.xml | tee artifacts/nightly/mage-host.log
+      - name: Upload Mage host artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-nightly-mage-host
+          path: artifacts/nightly/*
+
+  summary:
+    if: always()
+    needs:
+      - foundation
+      - shared-runtime
+      - airflow
+      - prefect
+      - dagster
+      - mage-kestra
+      - dbt
+      - advanced-tier
+      - mage-host-runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate nightly results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Nightly failed: {failures}")
+          print("Nightly summary passed")
+          PY

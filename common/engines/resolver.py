@@ -9,18 +9,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import importlib.metadata
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from common.engines.base import DataQualityEngine
+from common.orchestration import (
+    build_capability_matrix,
+    create_observability_emitter,
+    normalize_operation_kind,
+)
 from common.runtime import (
     AutoConfigPolicy,
     CheckStatus,
     CompatibilityCheck,
     CompatibilityReport,
+    ObservabilityConfig,
     PlatformRuntimeContext,
     PreflightReport,
     ResolvedDataSource,
     normalize_auto_config_policy,
+    normalize_observability_config,
     normalize_runtime_context,
     resolve_data_source,
 )
@@ -35,6 +42,8 @@ class EngineCreationRequest:
     config_overrides: dict[str, Any] = field(default_factory=dict)
     runtime_context: PlatformRuntimeContext | None = None
     auto_config_policy: AutoConfigPolicy = AutoConfigPolicy.SAFE_AUTO
+    required_operations: tuple[str, ...] = ()
+    observability: ObservabilityConfig | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +199,8 @@ def build_compatibility_report(
     runtime_context: PlatformRuntimeContext | None = None,
     resolved_source: ResolvedDataSource | None = None,
     serializer: str = "shared_wire",
+    required_operations: Sequence[str] | None = None,
+    observability: ObservabilityConfig | dict[str, Any] | Any | None = None,
 ) -> CompatibilityReport:
     """Build a compatibility report for the requested engine/runtime pair."""
 
@@ -197,6 +208,16 @@ def build_compatibility_report(
     checks: list[CompatibilityCheck] = []
     engine_name = "truthound"
     engine_version: str | None = None
+    requested_operations = tuple(required_operations or ())
+    if isinstance(request_or_engine, EngineCreationRequest) and not requested_operations:
+        requested_operations = request_or_engine.required_operations
+    effective_observability = observability
+    if (
+        effective_observability is None
+        and isinstance(request_or_engine, EngineCreationRequest)
+        and request_or_engine.observability is not None
+    ):
+        effective_observability = request_or_engine.observability
 
     if context.host_version is not None:
         checks.append(
@@ -246,6 +267,19 @@ def build_compatibility_report(
             auto_config_policy=context.auto_config_policy,
         )
 
+    capability_matrix = build_capability_matrix(engine)
+    for operation in requested_operations:
+        normalized_operation = normalize_operation_kind(operation)
+        capability = capability_matrix.get(normalized_operation)
+        checks.append(
+            CompatibilityCheck(
+                name=f"capability:{normalized_operation.value}",
+                status=CheckStatus.PASSED if capability.supported else CheckStatus.FAILED,
+                message=capability.reason,
+                details=capability.to_dict(),
+            )
+        )
+
     if resolved_source is not None:
         if resolved_source.requires_connection and not (
             context.connection_id or context.profile_name
@@ -290,6 +324,37 @@ def build_compatibility_report(
             )
         )
 
+    if effective_observability is not None:
+        try:
+            if isinstance(effective_observability, (ObservabilityConfig, dict)):
+                emitter = create_observability_emitter(
+                    normalize_observability_config(effective_observability)
+                )
+            else:
+                emitter = effective_observability
+            is_ready, message = emitter.preflight_check()
+            checks.append(
+                CompatibilityCheck(
+                    name="observability",
+                    status=CheckStatus.PASSED if is_ready else CheckStatus.FAILED,
+                    message=message,
+                    details=(
+                        normalize_observability_config(effective_observability).to_dict()
+                        if isinstance(effective_observability, (ObservabilityConfig, dict))
+                        else {}
+                    ),
+                )
+            )
+        except Exception as exc:
+            checks.append(
+                CompatibilityCheck(
+                    name="observability",
+                    status=CheckStatus.FAILED,
+                    message=f"Observability preflight failed: {exc}",
+                    details={"error_type": type(exc).__name__},
+                )
+            )
+
     if engine_name == "truthound" and context.auto_config_policy == AutoConfigPolicy.SAFE_AUTO:
         checks.append(
             CompatibilityCheck(
@@ -320,6 +385,8 @@ def run_preflight(
     data_path: str | None = None,
     sql: str | None = None,
     source_factory: Any | None = None,
+    required_operations: Sequence[str] | None = None,
+    observability: ObservabilityConfig | dict[str, Any] | Any | None = None,
 ) -> PreflightReport:
     """Run a shared preflight/compatibility pass before execution."""
 
@@ -338,12 +405,26 @@ def run_preflight(
         runtime_context=context,
         resolved_source=resolved_source,
         serializer=serializer,
+        required_operations=required_operations,
+        observability=observability,
     )
     return PreflightReport(
         compatibility=compatibility,
         resolved_source=resolved_source,
         serializer=serializer,
-        metadata={"runtime_context": context.to_dict()},
+        metadata={
+            "runtime_context": context.to_dict(),
+            "observability": (
+                normalize_observability_config(observability).to_dict()
+                if isinstance(observability, (ObservabilityConfig, dict))
+                else (
+                    request_or_engine.observability.to_dict()
+                    if isinstance(request_or_engine, EngineCreationRequest)
+                    and request_or_engine.observability is not None
+                    else None
+                )
+            ),
+        },
     )
 
 
@@ -355,6 +436,8 @@ def _coerce_request(
     runtime_context = overrides.pop("runtime_context", None)
     auto_config_policy = overrides.pop("auto_config_policy", None)
     config = overrides.pop("config", None)
+    required_operations = overrides.pop("required_operations", None)
+    observability = overrides.pop("observability", None)
 
     if isinstance(request_or_name, EngineCreationRequest):
         merged_overrides = {**request_or_name.config_overrides, **overrides}
@@ -371,6 +454,10 @@ def _coerce_request(
             auto_config_policy=normalize_auto_config_policy(
                 auto_config_policy or request_or_name.auto_config_policy
             ),
+            required_operations=tuple(required_operations or request_or_name.required_operations),
+            observability=normalize_observability_config(
+                observability if observability is not None else request_or_name.observability
+            ),
         )
 
     return EngineCreationRequest(
@@ -379,6 +466,12 @@ def _coerce_request(
         config_overrides=overrides,
         runtime_context=runtime_context if isinstance(runtime_context, PlatformRuntimeContext) else None,
         auto_config_policy=normalize_auto_config_policy(auto_config_policy),
+        required_operations=tuple(required_operations or ()),
+        observability=(
+            normalize_observability_config(observability)
+            if observability is not None
+            else None
+        ),
     )
 
 
@@ -399,6 +492,7 @@ def _resolve_runtime_context(
             source_name=runtime_context.source_name if runtime_context is not None else None,
             project_root=runtime_context.project_root if runtime_context is not None else None,
             host_metadata=runtime_context.host_metadata if runtime_context is not None else None,
+            host_execution=runtime_context.host_execution if runtime_context is not None else None,
             source_descriptors=(
                 runtime_context.source_descriptors if runtime_context is not None else None
             ),

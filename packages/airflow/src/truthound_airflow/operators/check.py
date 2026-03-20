@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 from airflow.exceptions import AirflowException
 
+from common.orchestration import execute_operation
 from truthound_airflow.operators.base import BaseDataQualityOperator
 
 if TYPE_CHECKING:
@@ -166,11 +167,12 @@ class DataQualityCheckOperator(BaseDataQualityOperator):
         "connection_id",
     )
     ui_color: str = "#4A90D9"
+    required_operations: tuple[str, ...] = ("check",)
 
     def __init__(
         self,
         *,
-        rules: list[dict[str, Any]],
+        rules: list[dict[str, Any]] | None = None,
         data_path: str | None = None,
         sql: str | None = None,
         connection_id: str = "truthound_default",
@@ -220,7 +222,10 @@ class DataQualityCheckOperator(BaseDataQualityOperator):
         Returns:
             CheckResult: Validation result.
         """
-        self.log.info(f"Executing quality check with {len(self.rules)} rules")
+        self.log.info(
+            "Executing quality check with %s configured rules",
+            len(self.rules) if self.rules is not None else 0,
+        )
 
         # Sample data if configured
         if self.sample_size and hasattr(data, "__len__") and len(data) > self.sample_size:
@@ -229,9 +234,14 @@ class DataQualityCheckOperator(BaseDataQualityOperator):
                 data = data.sample(n=self.sample_size)
 
         # Execute check with engine
-        result = self.engine.check(
-            data,
-            self.rules,
+        result = execute_operation(
+            "check",
+            self.engine,
+            data=data,
+            rules=self.rules,
+            runtime_context=self._runtime_context,
+            source=self._resolve_source_descriptor(),
+            observability=self._observability,
             timeout=self.timeout_seconds,
         )
 

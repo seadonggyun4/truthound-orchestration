@@ -26,6 +26,14 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Sequence
 
+from common.engines import normalize_runtime_context
+from common.orchestration import (
+    StreamCheckpointState,
+    StreamRequest,
+    execute_operation,
+    run_stream_check,
+    summarize_stream,
+)
 from truthound_mage.blocks.base import (
     BlockConfig,
     BlockExecutionContext,
@@ -115,8 +123,9 @@ class BaseDataQualityTransformer(ABC):
             request = EngineCreationRequest(
                 engine_name=self.config.engine_name,
                 runtime_context=runtime_context,
+                observability=self._observability_config(),
             )
-            preflight = run_preflight(request)
+            preflight = run_preflight(request, observability=self._observability_config())
             if not preflight.compatible:
                 from truthound_mage.utils.exceptions import BlockExecutionError
 
@@ -279,6 +288,33 @@ class BaseDataQualityTransformer(ABC):
             "run_id": context.run_id,
             "tags": list(self.config.tags),
         }
+
+    def _observability_config(self) -> dict[str, Any] | None:
+        """Extract shared observability config from block extras."""
+
+        observability = self.config.extra.get("observability")
+        if isinstance(observability, dict):
+            return dict(observability)
+        return None
+
+    def _build_runtime_context(
+        self,
+        operation: str,
+        context: BlockExecutionContext,
+    ) -> Any:
+        """Build a normalized Mage runtime context for shared runtime helpers."""
+
+        return normalize_runtime_context(
+            platform="mage",
+            project_root=".",
+            host_metadata={"block_type": type(self).__name__, "operation": operation},
+            host_execution={
+                "block_uuid": context.block_uuid or None,
+                "pipeline_uuid": context.pipeline_uuid or None,
+                "partition_key": context.partition,
+                "run_id": context.run_id,
+            },
+        )
 
     def _handle_result(
         self,
@@ -454,7 +490,15 @@ class CheckTransformer(BaseDataQualityTransformer):
         # Merge with any additional kwargs
         check_kwargs.update(kwargs)
 
-        return self.engine.check(data, **check_kwargs)
+        return execute_operation(
+            "check",
+            self.engine,
+            data=data,
+            rules=check_kwargs.pop("rules", None),
+            runtime_context=self._build_runtime_context("check", context),
+            observability=self._observability_config(),
+            **check_kwargs,
+        )
 
     def _serialize_result(self, result: CheckResult) -> dict[str, Any]:
         """Serialize check result.
@@ -589,7 +633,14 @@ class ProfileTransformer(BaseDataQualityTransformer):
 
         profile_kwargs.update(kwargs)
 
-        return self.engine.profile(data, **profile_kwargs)
+        return execute_operation(
+            "profile",
+            self.engine,
+            data=data,
+            runtime_context=self._build_runtime_context("profile", context),
+            observability=self._observability_config(),
+            **profile_kwargs,
+        )
 
     def _serialize_result(self, result: ProfileResult) -> dict[str, Any]:
         """Serialize profile result.
@@ -683,7 +734,14 @@ class LearnTransformer(BaseDataQualityTransformer):
 
         learn_kwargs.update(kwargs)
 
-        return self.engine.learn(data, **learn_kwargs)
+        return execute_operation(
+            "learn",
+            self.engine,
+            data=data,
+            runtime_context=self._build_runtime_context("learn", context),
+            observability=self._observability_config(),
+            **learn_kwargs,
+        )
 
     def _serialize_result(self, result: LearnResult) -> dict[str, Any]:
         """Serialize learn result.
@@ -759,6 +817,7 @@ class DataQualityTransformer(BaseDataQualityTransformer):
                 fail_on_error=self.config.fail_on_error,
                 timeout_seconds=self.config.timeout_seconds,
                 tags=self.config.tags,
+                extra=dict(self.config.extra),
             )
             self._check_transformer = CheckTransformer(
                 config=config,
@@ -795,6 +854,7 @@ class DataQualityTransformer(BaseDataQualityTransformer):
                 fail_on_error=self.config.fail_on_error,
                 timeout_seconds=self.config.timeout_seconds,
                 tags=self.config.tags,
+                extra=dict(self.config.extra),
             )
             self._profile_transformer = ProfileTransformer(
                 config=config,
@@ -831,6 +891,7 @@ class DataQualityTransformer(BaseDataQualityTransformer):
                 fail_on_error=self.config.fail_on_error,
                 timeout_seconds=self.config.timeout_seconds,
                 tags=self.config.tags,
+                extra=dict(self.config.extra),
             )
             self._learn_transformer = LearnTransformer(
                 config=config,
@@ -840,6 +901,53 @@ class DataQualityTransformer(BaseDataQualityTransformer):
 
         return self._learn_transformer.execute(data, context, **kwargs)
 
+    def stream(
+        self,
+        stream: Any,
+        rules: Sequence[dict[str, Any]] | None = None,
+        context: BlockExecutionContext | None = None,
+        *,
+        batch_size: int = 1000,
+        checkpoint: dict[str, Any] | None = None,
+        max_batches: int | None = None,
+        **kwargs: Any,
+    ) -> BlockResult:
+        """Execute bounded-memory streaming checks from Mage blocks."""
+
+        context = context or BlockExecutionContext()
+        start_time = time.perf_counter()
+        checkpoint_state = (
+            StreamCheckpointState(**checkpoint) if checkpoint is not None else None
+        )
+        envelopes = list(
+            run_stream_check(
+                self.engine,
+                StreamRequest(
+                    stream=stream,
+                    rules=rules,
+                    batch_size=batch_size,
+                    checkpoint=checkpoint_state,
+                    max_batches=max_batches,
+                    kwargs=kwargs,
+                ),
+                runtime_context=self._build_runtime_context("stream", context),
+                observability=self._observability_config(),
+            )
+        )
+        summary = summarize_stream(envelopes)
+        result_dict = {
+            "batches": [envelope.to_dict() for envelope in envelopes],
+            "summary": summary.to_dict(),
+            "_metadata": self._create_metadata(context),
+        }
+        return BlockResult(
+            success=summary.failed_batches == 0,
+            data=stream,
+            result_dict=result_dict,
+            metadata=result_dict["_metadata"],
+            execution_time_ms=(time.perf_counter() - start_time) * 1000,
+        )
+
     def _execute_operation(
         self,
         data: Any,
@@ -847,7 +955,14 @@ class DataQualityTransformer(BaseDataQualityTransformer):
         **kwargs: Any,
     ) -> CheckResult:
         """Default operation: execute check."""
-        return self.engine.check(data, **kwargs)
+        return execute_operation(
+            "check",
+            self.engine,
+            data=data,
+            runtime_context=self._build_runtime_context("check", context),
+            observability=self._observability_config(),
+            **kwargs,
+        )
 
     def _serialize_result(self, result: Any) -> dict[str, Any]:
         """Serialize any result type."""

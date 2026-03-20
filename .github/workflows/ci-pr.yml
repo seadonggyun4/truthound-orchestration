@@ -1,0 +1,171 @@
+name: CI PR
+
+on:
+  pull_request:
+
+concurrency:
+  group: ci-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      all_platforms: ${{ steps.filter.outputs.all_platforms }}
+      airflow: ${{ steps.filter.outputs.airflow }}
+      prefect: ${{ steps.filter.outputs.prefect }}
+      dagster: ${{ steps.filter.outputs.dagster }}
+      mage_kestra: ${{ steps.filter.outputs.mage_kestra }}
+      dbt: ${{ steps.filter.outputs.dbt }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs:
+              - "docs/**"
+              - "README.md"
+              - "mkdocs.yml"
+            all_platforms:
+              - ".github/workflows/**"
+              - "ci/**"
+              - "scripts/ci/**"
+              - "common/**"
+              - "tests/common/**"
+              - "pyproject.toml"
+            airflow:
+              - "packages/airflow/**"
+            prefect:
+              - "packages/prefect/**"
+            dagster:
+              - "packages/dagster/**"
+            mage_kestra:
+              - "packages/mage/**"
+              - "packages/kestra/**"
+              - "tests/mage/**"
+              - "tests/kestra/**"
+            dbt:
+              - "packages/dbt/**"
+              - "tests/dbt/**"
+      - id: classify
+        env:
+          DOCS: ${{ steps.filter.outputs.docs }}
+          ALL_PLATFORMS: ${{ steps.filter.outputs.all_platforms }}
+          AIRFLOW: ${{ steps.filter.outputs.airflow }}
+          PREFECT: ${{ steps.filter.outputs.prefect }}
+          DAGSTER: ${{ steps.filter.outputs.dagster }}
+          MAGE_KESTRA: ${{ steps.filter.outputs.mage_kestra }}
+          DBT: ${{ steps.filter.outputs.dbt }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          docs = os.environ["DOCS"] == "true"
+          others = [
+              os.environ["ALL_PLATFORMS"],
+              os.environ["AIRFLOW"],
+              os.environ["PREFECT"],
+              os.environ["DAGSTER"],
+              os.environ["MAGE_KESTRA"],
+              os.environ["DBT"],
+          ]
+          docs_only = docs and all(value != "true" for value in others)
+          print(f"docs_only={'true' if docs_only else 'false'}")
+          PY
+
+  foundation:
+    uses: ./.github/workflows/ci-foundation.yml
+    with:
+      lane: pr
+
+  shared-runtime:
+    if: needs.changes.outputs.docs_only != 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/shared-runtime.yml
+    with:
+      lane: pr
+
+  airflow:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/airflow.yml
+    with:
+      lane: pr
+
+  prefect:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/prefect.yml
+    with:
+      lane: pr
+
+  dagster:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/dagster.yml
+    with:
+      lane: pr
+
+  mage-kestra:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage_kestra == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/mage-kestra.yml
+    with:
+      lane: pr
+
+  dbt:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/dbt.yml
+    with:
+      lane: pr
+
+  summary:
+    if: always()
+    needs:
+      - foundation
+      - shared-runtime
+      - airflow
+      - prefect
+      - dagster
+      - mage-kestra
+      - dbt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate PR CI results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"CI PR failed: {failures}")
+          print("CI PR summary passed")
+          PY

@@ -1,0 +1,136 @@
+name: Release Gate
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish to PyPI after the gate succeeds
+        required: true
+        default: false
+        type: boolean
+  workflow_call:
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  foundation:
+    uses: ./.github/workflows/ci-foundation.yml
+    with:
+      lane: release
+
+  shared-runtime:
+    needs: foundation
+    uses: ./.github/workflows/shared-runtime.yml
+    with:
+      lane: release
+
+  airflow:
+    needs: foundation
+    uses: ./.github/workflows/airflow.yml
+    with:
+      lane: release
+
+  prefect:
+    needs: foundation
+    uses: ./.github/workflows/prefect.yml
+    with:
+      lane: release
+
+  dagster:
+    needs: foundation
+    uses: ./.github/workflows/dagster.yml
+    with:
+      lane: release
+
+  mage-kestra:
+    needs: foundation
+    uses: ./.github/workflows/mage-kestra.yml
+    with:
+      lane: release
+
+  dbt:
+    needs: foundation
+    uses: ./.github/workflows/dbt.yml
+    with:
+      lane: release
+
+  security:
+    uses: ./.github/workflows/security.yml
+    with:
+      lane: release
+
+  gate-summary:
+    if: always()
+    needs:
+      - foundation
+      - shared-runtime
+      - airflow
+      - prefect
+      - dagster
+      - mage-kestra
+      - dbt
+      - security
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate release gate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Release gate failed: {failures}")
+          print("Release gate passed")
+          PY
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_release == 'true'
+    needs:
+      - gate-summary
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
+    with:
+      artifact_name: truthound-foundation
+
+  summary:
+    if: always()
+    needs:
+      - gate-summary
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate release workflow
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Release workflow failed: {failures}")
+          print("Release workflow summary passed")
+          PY

@@ -1,0 +1,116 @@
+name: Shared Runtime
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: shared-runtime-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_matrix: ${{ steps.export.outputs.python_matrix }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow shared-runtime \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  shared-runtime:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.python_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python_version }}
+          cache: pip
+      - name: Install shared runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run shared runtime suites
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/shared-runtime
+          python -m pytest -q \
+            tests/common/test_ci_support_matrix.py \
+            tests/common/test_runtime_contracts.py \
+            tests/common/test_platform_boundaries.py \
+            tests/common/test_truthound_capabilities.py \
+            tests/common/test_truthound_streaming.py \
+            tests/common/test_truthound_v3_contract.py \
+            tests/opentelemetry/test_config.py \
+            --junitxml="artifacts/shared-runtime/junit-${{ matrix.python_version }}.xml" \
+            --cov=common \
+            --cov-report="xml:artifacts/shared-runtime/coverage-${{ matrix.python_version }}.xml" | tee "artifacts/shared-runtime/pytest-${{ matrix.python_version }}.log"
+      - name: Upload shared runtime artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-shared-runtime-${{ matrix.python_version }}
+          path: artifacts/shared-runtime/*
+
+  summary:
+    if: always()
+    needs:
+      - shared-runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate shared runtime results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Shared runtime failed: {failures}")
+          print("Shared runtime summary passed")
+          PY

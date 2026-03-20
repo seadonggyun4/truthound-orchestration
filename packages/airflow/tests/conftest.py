@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+from common.pytest_fixtures import openlineage_collector
 
 # =============================================================================
 # Mock Airflow modules before any imports
@@ -30,6 +31,10 @@ class MockBaseOperator:
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.task_id = kwargs.get("task_id", "mock_task")
         self.log = MagicMock()
+        self._defer_args: dict[str, Any] | None = None
+
+    def defer(self, **kwargs: Any) -> None:
+        self._defer_args = kwargs
 
 mock_airflow.models.BaseOperator = MockBaseOperator
 
@@ -43,7 +48,27 @@ class MockBaseSensorOperator(MockBaseOperator):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
+    def execute(self, context: dict[str, Any]) -> bool:
+        return bool(self.poke(context))
+
 mock_airflow.sensors.base.BaseSensorOperator = MockBaseSensorOperator
+mock_airflow.triggers = MagicMock()
+mock_airflow.triggers.base = MagicMock()
+
+
+class MockTriggerEvent(dict):
+    """Mock TriggerEvent compatible with Airflow's trigger protocol."""
+
+
+class MockBaseTrigger:
+    """Mock BaseTrigger."""
+
+    def serialize(self) -> tuple[str, dict[str, Any]]:
+        return ("mock", {})
+
+
+mock_airflow.triggers.base.BaseTrigger = MockBaseTrigger
+mock_airflow.triggers.base.TriggerEvent = MockTriggerEvent
 mock_airflow.hooks = MagicMock()
 mock_airflow.hooks.base = MagicMock()
 
@@ -84,6 +109,8 @@ if "airflow" not in sys.modules:
     sys.modules["airflow.sensors.base"] = mock_airflow.sensors.base
     sys.modules["airflow.hooks"] = mock_airflow.hooks
     sys.modules["airflow.hooks.base"] = mock_airflow.hooks.base
+    sys.modules["airflow.triggers"] = mock_airflow.triggers
+    sys.modules["airflow.triggers.base"] = mock_airflow.triggers.base
     sys.modules["airflow.utils"] = mock_airflow.utils
     sys.modules["airflow.utils.context"] = mock_airflow.utils.context
     sys.modules["airflow.exceptions"] = mock_airflow.exceptions
@@ -108,6 +135,9 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line("markers", "slow: marks tests as slow")
     config.addinivalue_line("markers", "requires_polars: marks tests requiring polars")
+
+
+__all__ = ["openlineage_collector"]
 
 
 # =============================================================================

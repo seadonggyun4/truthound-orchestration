@@ -1,0 +1,116 @@
+name: Dagster
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        required: false
+        type: string
+        default: pr
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: CI lane to emulate
+        required: true
+        default: pr
+        type: choice
+        options:
+          - pr
+          - main
+          - release
+          - nightly
+
+concurrency:
+  group: dagster-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  cancel-in-progress: true
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      truthound_range: ${{ steps.export.outputs.truthound_range }}
+      version_matrix: ${{ steps.export.outputs.version_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - id: export
+        name: Export support matrix
+        run: |
+          python scripts/ci/export_support_matrix.py workflow \
+            --workflow dagster \
+            --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+  dagster:
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.version_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+      - name: Install Dagster dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "dagster==${{ matrix.version }}"
+          python -m pip install -e ".[dev,dagster,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run Dagster suites
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/dagster
+          python -m pytest -q \
+            packages/dagster/tests/test_resources.py \
+            packages/dagster/tests/test_assets.py \
+            packages/dagster/tests/test_ops.py \
+            packages/dagster/tests/test_utils.py \
+            --junitxml="artifacts/dagster/junit-${{ matrix.version }}.xml" \
+            --cov=common \
+            --cov=packages/dagster/src/truthound_dagster \
+            --cov-report="xml:artifacts/dagster/coverage-${{ matrix.version }}.xml" | tee "artifacts/dagster/pytest-${{ matrix.version }}.log"
+      - name: Upload Dagster artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-dagster-${{ matrix.version }}
+          path: artifacts/dagster/*
+
+  summary:
+    if: always()
+    needs:
+      - dagster
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Validate Dagster results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failures = {
+              name: details["result"]
+              for name, details in needs.items()
+              if details["result"] not in {"success", "skipped"}
+          }
+          if failures:
+              raise SystemExit(f"Dagster CI failed: {failures}")
+          print("Dagster summary passed")
+          PY

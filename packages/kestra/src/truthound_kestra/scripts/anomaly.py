@@ -42,8 +42,11 @@ from typing import TYPE_CHECKING, Any
 from truthound_kestra.scripts.base import (
     AnomalyScriptConfig,
     DataQualityEngineProtocol,
+    build_runtime_context,
+    extract_observability_config,
     get_engine,
 )
+from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import (
     DataQualityError,
     EngineError,
@@ -52,12 +55,14 @@ from truthound_kestra.utils.exceptions import (
 from truthound_kestra.utils.helpers import (
     Timer,
     create_kestra_output,
+    get_execution_context,
     get_logger,
     kestra_outputs,
     load_data,
     log_operation,
 )
 from truthound_kestra.utils.serialization import serialize_result
+from truthound_kestra.utils.types import ExecutionContext
 
 if TYPE_CHECKING:
     from common.base import AnomalyResult
@@ -150,12 +155,21 @@ class AnomalyScriptExecutor:
     def __post_init__(self) -> None:
         """Initialize engine if not provided."""
         if self.engine is None:
-            self.engine = get_engine(self.config.engine_name)
+            self.engine = get_engine(
+                self.config.engine_name,
+                observability=extract_observability_config(self.config.metadata),
+                runtime_context=build_runtime_context(
+                    "engine_create",
+                    script_name=type(self).__name__,
+                    metadata=self.config.metadata,
+                ),
+            )
 
     def execute(
         self,
         data_path: str | None = None,
         data_sql: str | None = None,
+        context: ExecutionContext | None = None,
         **kwargs: Any,
     ) -> AnomalyScriptResult:
         """Execute anomaly detection.
@@ -175,6 +189,16 @@ class AnomalyScriptExecutor:
         """
         if not self.config.enabled:
             return self._create_skipped_result()
+
+        if context is None:
+            try:
+                context = get_execution_context()
+            except Exception:
+                context = ExecutionContext(
+                    execution_id="local",
+                    flow_id="script",
+                    namespace="default",
+                )
 
         # Resolve data source from config or parameters
         d_path = data_path or self.config.data_path
@@ -218,8 +242,18 @@ class AnomalyScriptExecutor:
         # Execute detection with timing
         with Timer("detect_anomalies") as timer:
             try:
-                raw_result: AnomalyResult = self.engine.detect_anomalies(
-                    data, **detect_kwargs
+                raw_result: AnomalyResult = execute_operation(
+                    "anomaly",
+                    self.engine,
+                    data=data,
+                    runtime_context=build_runtime_context(
+                        "anomaly",
+                        context=context,
+                        script_name=type(self).__name__,
+                        metadata=self.config.metadata,
+                    ),
+                    observability=extract_observability_config(self.config.metadata),
+                    **detect_kwargs,
                 )
             except Exception as e:
                 return self._handle_engine_error(e, timer.elapsed_ms)
