@@ -79,7 +79,7 @@ class DataQualityError(Exception):
         }
         if self.result:
             data["result"] = {
-                "status": self.result.status.value,
+                "status": self.result.status.name,
                 "passed_count": self.result.passed_count,
                 "failed_count": self.result.failed_count,
                 "failure_rate": self.result.failure_rate,

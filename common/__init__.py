@@ -99,7 +99,7 @@ Public API:
     - Testing: MockDataQualityEngine, MockTruthound, create_mock_* functions
 """
 
-__version__ = "1.1.0"
+__version__ = "3.0.0"
 
 # =============================================================================
 # Exceptions
@@ -244,13 +244,23 @@ from common.config import (
 # Engines
 # =============================================================================
 from common.engines import (
+    AutoConfigPolicy,
     # Base Types
     AsyncDataQualityEngine,
+    CompatibilityCheck,
+    CompatibilityReport,
     DataQualityEngine,
+    DataSourceKind,
     EngineCapabilities,
+    EngineCreationRequest,
     EngineInfo,
     # Registry
     EngineRegistry,
+    PreflightReport,
+    PlatformRuntimeContext,
+    ResolvedDataSource,
+    build_compatibility_report,
+    create_engine,
     # Engines
     GreatExpectationsAdapter,
     PanderaAdapter,
@@ -259,7 +269,10 @@ from common.engines import (
     get_engine,
     get_engine_registry,
     list_engines,
+    normalize_runtime_context,
     register_engine,
+    resolve_data_source,
+    run_preflight,
     set_default_engine,
 )
 from common.engines.registry import (
@@ -611,9 +624,12 @@ from common.serializers import (
     PrefectArtifactSerializer,
     ResultSerializer,
     SerializerFactory,
+    deserialize_result_wire,
+    detect_result_type,
     deserialize_result,
     get_serializer,
     register_serializer,
+    serialize_result_wire,
     serialize_result,
 )
 
@@ -706,6 +722,19 @@ __all__ = [
     "load_config_file",
     "require_valid_config",
     "validate_config",
+    # Runtime Context
+    "AutoConfigPolicy",
+    "CompatibilityCheck",
+    "CompatibilityReport",
+    "DataSourceKind",
+    "EngineCreationRequest",
+    "PlatformRuntimeContext",
+    "PreflightReport",
+    "ResolvedDataSource",
+    "build_compatibility_report",
+    "normalize_runtime_context",
+    "resolve_data_source",
+    "run_preflight",
     # Serializers
     "AirflowXComConfig",
     "AirflowXComSerializer",
@@ -715,10 +744,13 @@ __all__ = [
     "PrefectArtifactSerializer",
     "ResultSerializer",
     "SerializerFactory",
+    "detect_result_type",
     "deserialize_result",
+    "deserialize_result_wire",
     "get_serializer",
     "register_serializer",
     "serialize_result",
+    "serialize_result_wire",
     # Logging - Core
     "LogContext",
     "LogContextData",
@@ -1067,6 +1099,7 @@ __all__ = [
     "PanderaAdapter",
     # Engines - Registry
     "EngineRegistry",
+    "create_engine",
     "get_engine_registry",
     "get_engine",
     "register_engine",

@@ -536,6 +536,26 @@ class IOConfig:
 # =============================================================================
 
 
+def find_io_config_path(
+    start_path: str | Path | None = None,
+) -> Path | None:
+    """Find Mage io_config in the current project root or parent directories."""
+
+    start = Path(start_path or Path.cwd()).expanduser().resolve()
+    candidates = ("io_config.yaml", "io_config.yml")
+
+    for directory in (start, *start.parents):
+        for candidate in candidates:
+            path = directory / candidate
+            if path.exists():
+                return path
+
+    home_default = Path.home() / ".mage_ai" / "io_config.yaml"
+    if home_default.exists():
+        return home_default
+    return None
+
+
 def load_io_config(
     path: str | Path | None = None,
     profile: str = "default",
@@ -558,18 +578,8 @@ def load_io_config(
         >>> source = config.get_source("warehouse")
     """
     if path is None:
-        # Search default Mage locations
-        search_paths = [
-            Path.cwd() / "io_config.yaml",
-            Path.cwd() / "io_config.yml",
-            Path.home() / ".mage_ai" / "io_config.yaml",
-        ]
-
-        for search_path in search_paths:
-            if search_path.exists():
-                path = search_path
-                break
-        else:
+        path = find_io_config_path()
+        if path is None:
             msg = "io_config.yaml not found in default locations"
             raise FileNotFoundError(msg)
 

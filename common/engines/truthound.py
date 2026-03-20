@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self
 
@@ -42,17 +41,12 @@ from common.base import (
     CheckResult,
     CheckStatus,
     ColumnDrift,
-    ColumnProfile,
     DriftMethod,
     DriftResult,
     DriftStatus,
-    LearnedRule,
     LearnResult,
-    LearnStatus,
     ProfileResult,
-    ProfileStatus,
     Severity,
-    ValidationFailure,
 )
 from common.engines.base import EngineCapabilities, EngineInfoMixin
 from common.engines.lifecycle import (
@@ -66,19 +60,20 @@ from common.engines.lifecycle import (
 )
 from common.exceptions import ValidationExecutionError
 from common.health import HealthCheckResult, HealthStatus
-
-
-# =============================================================================
-# Severity Mapping
-# =============================================================================
-
-SEVERITY_MAPPING: dict[str, Severity] = {
-    "critical": Severity.CRITICAL,
-    "high": Severity.ERROR,
-    "medium": Severity.WARNING,
-    "low": Severity.INFO,
-    "info": Severity.INFO,
-}
+from common.engines.truthound_mapping import (
+    SEVERITY_MAPPING,
+    map_profile_report,
+    map_schema_to_learn_result,
+    map_validation_run_result,
+)
+from common.engines.truthound_runtime import (
+    TRUTHOUND_VERSION_REQUIREMENT,
+    ensure_truthound_runtime,
+    filter_supported_truthound_kwargs,
+    prepare_truthound_call,
+    resolve_truthound_version,
+    validate_context_mode,
+)
 
 
 # =============================================================================
@@ -123,6 +118,11 @@ class TruthoundEngineConfig(EngineConfig):
     cache_schemas: bool = True
     infer_constraints: bool = True
     categorical_threshold: int = 20
+    context_mode: str = "ephemeral"
+    workspace_root: str | None = None
+    persist_runs: bool = False
+    persist_docs: bool = False
+    auto_create_workspace: bool = False
     default_drift_method: str = "auto"
     default_drift_threshold: float | None = None
     default_anomaly_detector: str = "isolation_forest"
@@ -142,6 +142,7 @@ class TruthoundEngineConfig(EngineConfig):
                 )
         if self.categorical_threshold < 1:
             raise ValueError("categorical_threshold must be at least 1")
+        validate_context_mode(self.context_mode)
         valid_drift_methods = {m.value for m in DriftMethod}
         if self.default_drift_method not in valid_drift_methods:
             raise ValueError(
@@ -222,6 +223,30 @@ class TruthoundEngineConfig(EngineConfig):
             New configuration with threshold setting.
         """
         return self._copy_with(categorical_threshold=threshold)
+
+    def with_context(
+        self,
+        *,
+        context_mode: str | None = None,
+        workspace_root: str | None = None,
+        persist_runs: bool | None = None,
+        persist_docs: bool | None = None,
+        auto_create_workspace: bool | None = None,
+    ) -> Self:
+        """Create config with explicit Truthound context controls."""
+
+        updates: dict[str, Any] = {}
+        if context_mode is not None:
+            updates["context_mode"] = context_mode
+        if workspace_root is not None:
+            updates["workspace_root"] = workspace_root
+        if persist_runs is not None:
+            updates["persist_runs"] = persist_runs
+        if persist_docs is not None:
+            updates["persist_docs"] = persist_docs
+        if auto_create_workspace is not None:
+            updates["auto_create_workspace"] = auto_create_workspace
+        return self._copy_with(**updates)
 
     def with_drift_defaults(
         self,
@@ -357,10 +382,8 @@ class TruthoundEngine(EngineInfoMixin):
         """
         if self._version is None:
             try:
-                import truthound
-
-                self._version = getattr(truthound, "__version__", "0.0.0")
-            except ImportError:
+                self._version = resolve_truthound_version(self._truthound)
+            except ValidationExecutionError:
                 self._version = "0.0.0"
         return self._version
 
@@ -391,6 +414,10 @@ class TruthoundEngine(EngineInfoMixin):
                 "lof",
                 "ensemble",
             ),
+            extra={
+                "truthound_version_requirement": TRUTHOUND_VERSION_REQUIREMENT,
+                "context_modes": ("ephemeral", "project", "provided"),
+            },
         )
 
     def _get_description(self) -> str:
@@ -602,16 +629,8 @@ class TruthoundEngine(EngineInfoMixin):
             ValidationExecutionError: If Truthound is not installed.
         """
         if self._truthound is None:
-            try:
-                import truthound
-
-                self._truthound = truthound
-            except ImportError as e:
-                raise ValidationExecutionError(
-                    "Truthound library is not installed. "
-                    "Install it with: pip install truthound",
-                    cause=e,
-                ) from e
+            self._truthound = ensure_truthound_runtime()
+            self._version = resolve_truthound_version(self._truthound)
         return self._truthound
 
     def check(
@@ -622,7 +641,7 @@ class TruthoundEngine(EngineInfoMixin):
         fail_on_error: bool = True,
         schema: Any | None = None,
         auto_schema: bool = False,
-        parallel: bool = False,
+        parallel: bool | None = None,
         max_workers: int | None = None,
         min_severity: str | None = None,
         **kwargs: Any,
@@ -655,25 +674,33 @@ class TruthoundEngine(EngineInfoMixin):
         try:
             truthound = self._ensure_truthound()
 
-            # Build Truthound kwargs
             th_kwargs: dict[str, Any] = {
-                "parallel": parallel,
+                "parallel": self._config.parallel if parallel is None else parallel,
             }
             if schema is not None:
                 th_kwargs["schema"] = schema
-            if auto_schema:
-                th_kwargs["auto_schema"] = auto_schema
-            if max_workers is not None:
-                th_kwargs["max_workers"] = max_workers
-            if min_severity is not None:
-                th_kwargs["min_severity"] = min_severity
+            if auto_schema or (rules is None and schema is None and "auto_schema" not in kwargs):
+                th_kwargs["auto_schema"] = True if rules is None and schema is None else auto_schema
+            resolved_max_workers = (
+                self._config.max_workers if max_workers is None else max_workers
+            )
+            if resolved_max_workers is not None:
+                th_kwargs["max_workers"] = resolved_max_workers
+            resolved_min_severity = (
+                self._config.min_severity if min_severity is None else min_severity
+            )
+            if resolved_min_severity is not None:
+                th_kwargs["min_severity"] = resolved_min_severity
             th_kwargs.update(kwargs)
 
-            # Execute validation
-            report = truthound.check(data, **th_kwargs)
+            with prepare_truthound_call(self._config, th_kwargs) as prepared_kwargs:
+                call_kwargs = filter_supported_truthound_kwargs(
+                    truthound.check,
+                    prepared_kwargs,
+                )
+                run_result = truthound.check(data, **call_kwargs)
 
-            # Convert to CheckResult
-            return self._convert_check_result(report, start_time)
+            return self._convert_check_result(run_result, start_time)
 
         except ValidationExecutionError:
             raise
@@ -695,7 +722,7 @@ class TruthoundEngine(EngineInfoMixin):
         report: Any,
         start_time: float,
     ) -> CheckResult:
-        """Convert Truthound Report to CheckResult.
+        """Convert Truthound 3.x ValidationRunResult to CheckResult.
 
         Args:
             report: Report from Truthound check.
@@ -704,62 +731,10 @@ class TruthoundEngine(EngineInfoMixin):
         Returns:
             CheckResult instance.
         """
-        failures: list[ValidationFailure] = []
-        failed = 0
-        warnings = 0
-
-        # Get issues from report
-        report_dict = report.to_dict()
-        issues = report_dict.get("issues", [])
-
-        for issue in issues:
-            severity_str = issue.get("severity", "high")
-            severity = SEVERITY_MAPPING.get(severity_str, Severity.ERROR)
-
-            if severity in (Severity.CRITICAL, Severity.ERROR):
-                failed += 1
-            else:
-                warnings += 1
-
-            failures.append(
-                ValidationFailure(
-                    rule_name=issue.get("issue_type", "unknown"),
-                    column=issue.get("column"),
-                    message=issue.get("details", ""),
-                    severity=severity,
-                    failed_count=issue.get("count", 0),
-                    total_count=report_dict.get("row_count", 0),
-                )
-            )
-
-        # Determine status
-        if report.has_critical or failed > 0:
-            status = CheckStatus.FAILED
-        elif warnings > 0:
-            status = CheckStatus.WARNING
-        else:
-            status = CheckStatus.PASSED
-
-        execution_time_ms = (time.perf_counter() - start_time) * 1000
-
-        # Calculate passed count (columns without issues)
-        total_columns = report_dict.get("column_count", 0)
-        columns_with_issues = len({f.column for f in failures if f.column})
-        passed = total_columns - columns_with_issues
-
-        return CheckResult(
-            status=status,
-            passed_count=max(passed, 0),
-            failed_count=failed,
-            warning_count=warnings,
-            failures=tuple(failures),
-            execution_time_ms=execution_time_ms,
-            metadata={
-                "engine": self.engine_name,
-                "source": report_dict.get("source", "unknown"),
-                "row_count": report_dict.get("row_count", 0),
-                "column_count": report_dict.get("column_count", 0),
-            },
+        return map_validation_run_result(
+            report,
+            engine_name=self.engine_name,
+            execution_time_ms=(time.perf_counter() - start_time) * 1000,
         )
 
     def profile(
@@ -792,10 +767,12 @@ class TruthoundEngine(EngineInfoMixin):
         try:
             truthound = self._ensure_truthound()
 
-            # Execute profiling
-            profile_report = truthound.profile(data)
-
-            # Convert to ProfileResult
+            with prepare_truthound_call(self._config, kwargs) as prepared_kwargs:
+                call_kwargs = filter_supported_truthound_kwargs(
+                    truthound.profile,
+                    prepared_kwargs,
+                )
+                profile_report = truthound.profile(data, **call_kwargs)
             return self._convert_profile_result(profile_report, start_time, columns)
 
         except ValidationExecutionError:
@@ -822,62 +799,11 @@ class TruthoundEngine(EngineInfoMixin):
         Returns:
             ProfileResult instance.
         """
-        column_profiles: list[ColumnProfile] = []
-        report_dict = profile_report.to_dict()
-
-        for col_data in report_dict.get("columns", []):
-            col_name = col_data.get("name", "unknown")
-
-            # Skip if not in filter
-            if columns_filter and col_name not in columns_filter:
-                continue
-
-            # Parse percentages
-            null_pct_str = col_data.get("null_pct", "0.0%")
-            null_pct = float(null_pct_str.replace("%", "")) if null_pct_str else 0.0
-
-            unique_pct_str = col_data.get("unique_pct", "0%")
-            unique_pct = float(unique_pct_str.replace("%", "")) if unique_pct_str else 0.0
-
-            # Parse min/max values
-            min_val = col_data.get("min")
-            max_val = col_data.get("max")
-            if min_val == "-":
-                min_val = None
-            if max_val == "-":
-                max_val = None
-
-            # Calculate counts from percentages
-            row_count = report_dict.get("row_count", 0)
-            null_count = int(row_count * null_pct / 100) if row_count > 0 else 0
-            unique_count = int(row_count * unique_pct / 100) if row_count > 0 else 0
-
-            column_profiles.append(
-                ColumnProfile(
-                    column_name=col_name,
-                    dtype=col_data.get("dtype", "unknown"),
-                    null_count=null_count,
-                    null_percentage=null_pct,
-                    unique_count=unique_count,
-                    unique_percentage=unique_pct,
-                    min_value=min_val,
-                    max_value=max_val,
-                )
-            )
-
-        execution_time_ms = (time.perf_counter() - start_time) * 1000
-
-        return ProfileResult(
-            status=ProfileStatus.COMPLETED,
-            row_count=report_dict.get("row_count", 0),
-            column_count=len(column_profiles),
-            columns=tuple(column_profiles),
-            execution_time_ms=execution_time_ms,
-            metadata={
-                "engine": self.engine_name,
-                "source": report_dict.get("source", "unknown"),
-                "size_bytes": report_dict.get("size_bytes"),
-            },
+        return map_profile_report(
+            profile_report,
+            engine_name=self.engine_name,
+            execution_time_ms=(time.perf_counter() - start_time) * 1000,
+            columns_filter=tuple(columns_filter) if columns_filter else None,
         )
 
     def learn(
@@ -885,8 +811,8 @@ class TruthoundEngine(EngineInfoMixin):
         data: Any,
         *,
         columns: Sequence[str] | None = None,
-        infer_constraints: bool = True,
-        categorical_threshold: int = 20,
+        infer_constraints: bool | None = None,
+        categorical_threshold: int | None = None,
         confidence_threshold: float = 0.95,
         **kwargs: Any,
     ) -> LearnResult:
@@ -916,17 +842,33 @@ class TruthoundEngine(EngineInfoMixin):
         try:
             truthound = self._ensure_truthound()
 
-            # Execute learning
-            schema = truthound.learn(
-                data,
-                infer_constraints=infer_constraints,
-                categorical_threshold=categorical_threshold,
+            learn_kwargs = dict(kwargs)
+            learn_kwargs.update(
+                {
+                    "infer_constraints": (
+                        self._config.infer_constraints
+                        if infer_constraints is None
+                        else infer_constraints
+                    ),
+                    "categorical_threshold": (
+                        self._config.categorical_threshold
+                        if categorical_threshold is None
+                        else categorical_threshold
+                    ),
+                }
             )
 
-            # Convert to LearnResult
-            return self._convert_learn_result(
-                schema, start_time, columns, confidence_threshold
-            )
+            with prepare_truthound_call(self._config, learn_kwargs) as prepared_kwargs:
+                call_kwargs = filter_supported_truthound_kwargs(
+                    truthound.learn,
+                    prepared_kwargs,
+                )
+                schema = truthound.learn(
+                    data,
+                    **call_kwargs,
+                )
+
+            return self._convert_learn_result(schema, start_time, columns, confidence_threshold)
 
         except ValidationExecutionError:
             raise
@@ -954,115 +896,12 @@ class TruthoundEngine(EngineInfoMixin):
         Returns:
             LearnResult instance.
         """
-        learned_rules: list[LearnedRule] = []
-        schema_dict = schema.to_dict()
-        columns_data = schema_dict.get("columns", {})
-        row_count = schema_dict.get("row_count", 0)
-
-        for col_name, col_schema in columns_data.items():
-            # Skip if not in filter
-            if columns_filter and col_name not in columns_filter:
-                continue
-
-            # Learn dtype rule
-            if col_schema.get("dtype"):
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="dtype",
-                        column=col_name,
-                        parameters={"dtype": col_schema["dtype"]},
-                        confidence=1.0,
-                        sample_size=row_count,
-                    )
-                )
-
-            # Learn nullable rule
-            null_ratio = col_schema.get("null_ratio", 0.0)
-            if null_ratio < (1 - confidence_threshold):
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="not_null",
-                        column=col_name,
-                        confidence=1 - null_ratio,
-                        sample_size=row_count,
-                    )
-                )
-
-            # Learn unique rule
-            unique_ratio = col_schema.get("unique_ratio", 0.0)
-            if unique_ratio >= confidence_threshold:
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="unique",
-                        column=col_name,
-                        confidence=unique_ratio,
-                        sample_size=row_count,
-                    )
-                )
-
-            # Learn range rule for numeric columns
-            min_val = col_schema.get("min_value")
-            max_val = col_schema.get("max_value")
-            if min_val is not None and max_val is not None:
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="in_range",
-                        column=col_name,
-                        parameters={"min": min_val, "max": max_val},
-                        confidence=1.0,
-                        sample_size=row_count,
-                    )
-                )
-
-            # Learn allowed values for categorical columns
-            allowed_values = col_schema.get("allowed_values")
-            if allowed_values and len(allowed_values) <= 20:
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="in_set",
-                        column=col_name,
-                        parameters={"values": allowed_values},
-                        confidence=1.0,
-                        sample_size=row_count,
-                    )
-                )
-
-            # Learn string length constraints
-            min_length = col_schema.get("min_length")
-            max_length = col_schema.get("max_length")
-            if min_length is not None:
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="min_length",
-                        column=col_name,
-                        parameters={"value": min_length},
-                        confidence=1.0,
-                        sample_size=row_count,
-                    )
-                )
-            if max_length is not None:
-                learned_rules.append(
-                    LearnedRule(
-                        rule_type="max_length",
-                        column=col_name,
-                        parameters={"value": max_length},
-                        confidence=1.0,
-                        sample_size=row_count,
-                    )
-                )
-
-        execution_time_ms = (time.perf_counter() - start_time) * 1000
-
-        return LearnResult(
-            status=LearnStatus.COMPLETED,
-            rules=tuple(learned_rules),
-            columns_analyzed=len(columns_data),
-            execution_time_ms=execution_time_ms,
-            metadata={
-                "engine": self.engine_name,
-                "schema_version": schema_dict.get("version", "1.0"),
-                "row_count": row_count,
-            },
+        return map_schema_to_learn_result(
+            schema,
+            engine_name=self.engine_name,
+            execution_time_ms=(time.perf_counter() - start_time) * 1000,
+            columns_filter=tuple(columns_filter) if columns_filter else None,
+            confidence_threshold=confidence_threshold,
         )
 
     def get_schema(self, data: Any, **kwargs: Any) -> Any:
@@ -1083,7 +922,12 @@ class TruthoundEngine(EngineInfoMixin):
             >>> result = engine.check(new_df, schema=schema)
         """
         truthound = self._ensure_truthound()
-        return truthound.learn(data, **kwargs)
+        with prepare_truthound_call(self._config, kwargs) as prepared_kwargs:
+            call_kwargs = filter_supported_truthound_kwargs(
+                truthound.learn,
+                prepared_kwargs,
+            )
+            return truthound.learn(data, **call_kwargs)
 
     # =========================================================================
     # Drift Detection (DriftDetectionEngine Protocol)

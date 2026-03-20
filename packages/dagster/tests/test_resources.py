@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from truthound_dagster.resources.base import ResourceConfig
@@ -198,3 +200,40 @@ class TestEngineSelection:
         # Custom engine names should work
         config = EngineResourceConfig().with_engine("custom_engine")
         assert config.engine_name == "custom_engine"
+
+
+class TestEngineResolverDelegation:
+    """Tests that Dagster resource engine creation uses the shared resolver."""
+
+    def test_create_engine_uses_common_resolver(self) -> None:
+        from truthound_dagster.resources.engine import EngineResource
+
+        resource = EngineResource(
+            EngineResourceConfig(
+                engine_name="truthound",
+                parallel=True,
+                max_workers=4,
+            )
+        )
+        mock_engine = MagicMock()
+        mock_preflight = MagicMock()
+        mock_preflight.compatible = True
+
+        with (
+            patch("common.engines.run_preflight", return_value=mock_preflight) as run_preflight,
+            patch("common.engines.create_engine", return_value=mock_engine) as create_engine,
+        ):
+            engine = resource._create_engine()
+
+        assert engine == mock_engine
+        run_preflight.assert_called_once()
+        request = create_engine.call_args.args[0]
+        assert request.engine_name == "truthound"
+        assert request.runtime_context.platform == "dagster"
+        create_engine.assert_called_once_with(
+            request,
+            auto_start=False,
+            auto_stop=False,
+            parallel=True,
+            max_workers=4,
+        )

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 )
 async def data_quality_learn_task(
     data: Any,
-    block: DataQualityBlock,
+    block: DataQualityBlock | None = None,
     infer_constraints: bool = True,
     min_confidence: float = 0.9,
     categorical_threshold: int = 20,
@@ -41,7 +41,7 @@ async def data_quality_learn_task(
 
     Args:
         data: The data to learn from.
-        block: DataQualityBlock to use for learning.
+        block: Optional DataQualityBlock to use for learning.
         infer_constraints: Infer constraints from data.
         min_confidence: Minimum confidence for learned rules.
         categorical_threshold: Threshold for categorical column detection.
@@ -66,6 +66,11 @@ async def data_quality_learn_task(
     """
     logger = get_run_logger()
     logger.info("Starting schema learning")
+
+    if block is None:
+        from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+        block = create_ephemeral_truthound_block()
 
     # Add options to kwargs
     if infer_constraints:
@@ -174,8 +179,9 @@ def create_learn_task(
     ) -> dict[str, Any]:
         """Execute the configured learn task."""
         if block is None:
-            from truthound_prefect.blocks import DataQualityBlock as DQBlock
-            block = DQBlock(engine_name="truthound")
+            from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+            block = create_ephemeral_truthound_block()
 
         return await data_quality_learn_task(
             data=data,

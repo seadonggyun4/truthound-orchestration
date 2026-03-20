@@ -1,6 +1,6 @@
 [project]
 name = "truthound-orchestration"
-version = "1.1.0"
+version = "3.0.0"
 description = "Official orchestration integrations for Truthound data quality framework"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -35,6 +35,7 @@ classifiers = [
 
 dependencies = [
     "polars>=0.20.0",
+    "truthound>=3.0,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -70,6 +71,10 @@ kestra = [
     "pyyaml>=6.0.0",
 ]
 
+docs = [
+    "mkdocs>=1.6.0",
+]
+
 opentelemetry = [
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
@@ -78,7 +83,7 @@ opentelemetry = [
 ]
 
 all = [
-    "truthound-orchestration[dev,airflow,dagster,prefect,mage,kestra,opentelemetry]",
+    "truthound-orchestration[dev,airflow,dagster,prefect,mage,kestra,docs,opentelemetry]",
 ]
 
 [project.urls]
@@ -142,6 +147,7 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
+    "--import-mode=importlib",
     "-ra",
 ]
 markers = [

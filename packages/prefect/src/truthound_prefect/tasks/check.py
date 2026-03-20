@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 )
 async def data_quality_check_task(
     data: Any,
-    block: DataQualityBlock,
+    block: DataQualityBlock | None = None,
     rules: Sequence[dict[str, Any]] | None = None,
     fail_on_error: bool = True,
     warning_threshold: float | None = None,
@@ -45,7 +45,7 @@ async def data_quality_check_task(
 
     Args:
         data: The data to check.
-        block: DataQualityBlock to use for the check.
+        block: Optional DataQualityBlock to use for the check.
         rules: Optional list of rules to check.
         fail_on_error: Raise exception on check failures.
         warning_threshold: Failure rate threshold for warnings (0.0 to 1.0).
@@ -74,6 +74,15 @@ async def data_quality_check_task(
     """
     logger = get_run_logger()
     logger.info("Starting data quality check")
+
+    if block is None:
+        from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+        block = create_ephemeral_truthound_block(
+            auto_schema=auto_schema,
+            fail_on_error=fail_on_error,
+            warning_threshold=warning_threshold,
+        )
 
     # Apply auto_schema if specified
     if auto_schema:
@@ -187,8 +196,13 @@ def create_check_task(
     ) -> dict[str, Any]:
         """Execute the configured check task."""
         if block is None:
-            from truthound_prefect.blocks import DataQualityBlock as DQBlock
-            block = DQBlock(engine_name="truthound", auto_schema=cfg.auto_schema)
+            from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+            block = create_ephemeral_truthound_block(
+                auto_schema=cfg.auto_schema,
+                fail_on_error=cfg.fail_on_error,
+                warning_threshold=cfg.warning_threshold,
+            )
 
         # Use config rules if not provided
         effective_rules = rules or list(cfg.rules)

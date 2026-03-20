@@ -1,222 +1,188 @@
-"""Serialization utilities for converting between common/ types and Prefect-compatible formats.
+"""Serialization helpers for Prefect integration.
 
-This module handles the conversion of data quality results to dictionaries
-that can be stored as Prefect artifacts, task results, and flow outputs.
+Prefect-specific helpers are thin wrappers around the shared orchestration wire
+format from ``common.serializers``.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from common.base import CheckResult, LearnResult, ProfileResult
+from common.serializers import detect_result_type, serialize_result_wire
 
 
 class ResultSerializer:
-    """Serializer for data quality results.
-
-    Converts common/ result types to Prefect-compatible dictionaries.
-    Supports CheckResult, ProfileResult, and LearnResult.
-    """
+    """Serializer for data quality results."""
 
     @staticmethod
-    def serialize_check_result(result: CheckResult) -> dict[str, Any]:
-        """Serialize a CheckResult to a dictionary.
+    def serialize_check_result(result: Any) -> dict[str, Any]:
+        return serialize_result(result)
 
-        Args:
-            result: The CheckResult to serialize.
+    @staticmethod
+    def serialize_profile_result(result: Any) -> dict[str, Any]:
+        return serialize_result(result)
 
-        Returns:
-            Dictionary representation suitable for Prefect storage.
-        """
+    @staticmethod
+    def serialize_learn_result(result: Any) -> dict[str, Any]:
+        return serialize_result(result)
+
+
+def _enum_name(value: Any, *, default: str) -> str:
+    if hasattr(value, "name"):
+        return str(value.name)
+    if hasattr(value, "value"):
+        return str(value.value).upper()
+    if value is None:
+        return default
+    return str(value)
+
+
+def _timestamp_value(value: Any) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _serialize_duck_typed_result(result: Any) -> dict[str, Any]:
+    if hasattr(result, "passed_count") and hasattr(result, "failed_count"):
         failures = []
-        for f in result.failures:
-            failure_dict: dict[str, Any] = {
-                "rule_name": f.rule_name,
-                "column": f.column,
-                "message": f.message,
-                "severity": f.severity.value if hasattr(f.severity, "value") else str(f.severity),
-                "failed_count": f.failed_count,
-                "total_count": f.total_count,
-            }
-            if hasattr(f, "metadata") and f.metadata:
-                failure_dict["metadata"] = f.metadata
-            failures.append(failure_dict)
+        for failure in getattr(result, "failures", []):
+            failures.append(
+                {
+                    "rule_name": getattr(failure, "rule_name", "unknown"),
+                    "column": getattr(failure, "column", None),
+                    "message": getattr(failure, "message", ""),
+                    "severity": _enum_name(getattr(failure, "severity", None), default="ERROR"),
+                    "failed_count": getattr(failure, "failed_count", 0),
+                    "total_count": getattr(failure, "total_count", 0),
+                }
+            )
 
-        total = result.passed_count + result.failed_count
-        failure_rate = result.failed_count / total if total > 0 else 0.0
+        total = getattr(result, "passed_count", 0) + getattr(result, "failed_count", 0)
+        failure_rate = getattr(result, "failure_rate", None)
+        if failure_rate is None:
+            failure_rate = (getattr(result, "failed_count", 0) / total * 100) if total else 0.0
 
         return {
-            "status": result.status.value if hasattr(result.status, "value") else str(result.status),
-            "is_success": result.is_success,
-            "passed_count": result.passed_count,
-            "failed_count": result.failed_count,
+            "type": "check",
+            "result_type": "check",
+            "status": _enum_name(getattr(result, "status", None), default="UNKNOWN"),
+            "is_success": getattr(result, "is_success", False),
+            "passed_count": getattr(result, "passed_count", 0),
+            "failed_count": getattr(result, "failed_count", 0),
+            "warning_count": getattr(result, "warning_count", 0),
+            "skipped_count": getattr(result, "skipped_count", 0),
             "failure_rate": failure_rate,
             "failures": failures,
-            "execution_time_ms": result.execution_time_ms,
-            "timestamp": result.timestamp.isoformat() if hasattr(result, "timestamp") else datetime.now().isoformat(),
-            "metadata": result.metadata if hasattr(result, "metadata") else {},
+            "execution_time_ms": getattr(result, "execution_time_ms", 0.0),
+            "timestamp": _timestamp_value(getattr(result, "timestamp", None)),
+            "metadata": getattr(result, "metadata", {}),
         }
 
-    @staticmethod
-    def serialize_profile_result(result: ProfileResult) -> dict[str, Any]:
-        """Serialize a ProfileResult to a dictionary.
-
-        Args:
-            result: The ProfileResult to serialize.
-
-        Returns:
-            Dictionary representation suitable for Prefect storage.
-        """
+    if hasattr(result, "columns") and hasattr(result, "row_count"):
         columns = []
-        for col in result.columns:
-            col_dict: dict[str, Any] = {
-                "column_name": col.column_name,
-                "dtype": col.dtype,
-                "null_count": col.null_count,
-                "null_percentage": col.null_percentage,
-                "unique_count": col.unique_count,
-                "unique_percentage": col.unique_percentage,
-            }
-            # Add optional statistics if available
-            if hasattr(col, "min_value") and col.min_value is not None:
-                col_dict["min_value"] = col.min_value
-            if hasattr(col, "max_value") and col.max_value is not None:
-                col_dict["max_value"] = col.max_value
-            if hasattr(col, "mean_value") and col.mean_value is not None:
-                col_dict["mean_value"] = col.mean_value
-            if hasattr(col, "std_value") and col.std_value is not None:
-                col_dict["std_value"] = col.std_value
-            columns.append(col_dict)
+        for column in getattr(result, "columns", []):
+            columns.append(
+                {
+                    "column_name": getattr(column, "column_name", "unknown"),
+                    "dtype": str(getattr(column, "dtype", "unknown")),
+                    "null_count": getattr(column, "null_count", 0),
+                    "null_percentage": getattr(column, "null_percentage", 0.0),
+                    "unique_count": getattr(column, "unique_count", 0),
+                    "unique_percentage": getattr(column, "unique_percentage", 0.0),
+                }
+            )
 
         return {
-            "row_count": result.row_count,
-            "column_count": result.column_count,
+            "type": "profile",
+            "result_type": "profile",
+            "row_count": getattr(result, "row_count", 0),
+            "column_count": getattr(result, "column_count", len(columns)),
             "columns": columns,
-            "execution_time_ms": result.execution_time_ms,
-            "timestamp": result.timestamp.isoformat() if hasattr(result, "timestamp") else datetime.now().isoformat(),
-            "metadata": result.metadata if hasattr(result, "metadata") else {},
+            "execution_time_ms": getattr(result, "execution_time_ms", 0.0),
+            "timestamp": _timestamp_value(getattr(result, "timestamp", None)),
+            "metadata": getattr(result, "metadata", {}),
         }
 
-    @staticmethod
-    def serialize_learn_result(result: LearnResult) -> dict[str, Any]:
-        """Serialize a LearnResult to a dictionary.
-
-        Args:
-            result: The LearnResult to serialize.
-
-        Returns:
-            Dictionary representation suitable for Prefect storage.
-        """
+    if hasattr(result, "rules"):
         rules = []
-        for rule in result.rules:
-            rule_dict: dict[str, Any] = {
-                "rule_type": rule.rule_type,
-                "column": rule.column,
-                "confidence": rule.confidence,
-            }
-            if hasattr(rule, "parameters") and rule.parameters:
-                rule_dict["parameters"] = rule.parameters
-            if hasattr(rule, "metadata") and rule.metadata:
-                rule_dict["metadata"] = rule.metadata
-            rules.append(rule_dict)
+        for rule in getattr(result, "rules", []):
+            rules.append(
+                {
+                    "rule_type": getattr(rule, "rule_type", "unknown"),
+                    "column": getattr(rule, "column", None),
+                    "confidence": getattr(rule, "confidence", 0.0),
+                    "parameters": getattr(rule, "parameters", {}),
+                }
+            )
 
         return {
+            "type": "learn",
+            "result_type": "learn",
             "rules": rules,
-            "rules_count": len(rules),
-            "execution_time_ms": result.execution_time_ms,
-            "timestamp": result.timestamp.isoformat() if hasattr(result, "timestamp") else datetime.now().isoformat(),
-            "metadata": result.metadata if hasattr(result, "metadata") else {},
+            "execution_time_ms": getattr(result, "execution_time_ms", 0.0),
+            "timestamp": _timestamp_value(getattr(result, "timestamp", None)),
+            "metadata": getattr(result, "metadata", {}),
         }
+
+    raise TypeError(f"Unknown result type: {type(result).__name__}")
 
 
 def serialize_result(result: Any) -> dict[str, Any]:
-    """Serialize any data quality result to a dictionary.
+    """Serialize any supported result object to the shared wire format."""
 
-    Auto-detects the result type and uses the appropriate serializer.
+    if isinstance(result, dict):
+        return dict(result)
 
-    Args:
-        result: A CheckResult, ProfileResult, or LearnResult.
+    if hasattr(result, "to_dict"):
+        payload = serialize_result_wire(result, include_result_type=True)
+        payload["type"] = detect_result_type(result)
+        return payload
 
-    Returns:
-        Dictionary representation of the result.
-
-    Raises:
-        TypeError: If the result type is not recognized.
-    """
-    serializer = ResultSerializer()
-
-    # Duck-type detection based on attributes
-    if hasattr(result, "passed_count") and hasattr(result, "failed_count"):
-        return serializer.serialize_check_result(result)
-    elif hasattr(result, "columns") and hasattr(result, "row_count"):
-        return serializer.serialize_profile_result(result)
-    elif hasattr(result, "rules"):
-        return serializer.serialize_learn_result(result)
-    else:
-        raise TypeError(f"Unknown result type: {type(result).__name__}")
+    return _serialize_duck_typed_result(result)
 
 
 def deserialize_result(data: dict[str, Any]) -> dict[str, Any]:
-    """Deserialize a result dictionary.
+    """Normalize serialized data for Prefect consumers."""
 
-    This function validates and normalizes the dictionary format.
-    It does not reconstruct the original result objects.
-
-    Args:
-        data: Dictionary to deserialize.
-
-    Returns:
-        Normalized dictionary representation.
-    """
-    # Just return as-is for now, could add validation later
     return dict(data)
 
 
 def to_prefect_artifact(result: dict[str, Any], artifact_type: str = "table") -> dict[str, Any]:
-    """Convert a serialized result to Prefect artifact format.
+    """Convert a serialized result to Prefect artifact format."""
 
-    Args:
-        result: Serialized result dictionary.
-        artifact_type: Type of Prefect artifact (table, markdown, etc.).
-
-    Returns:
-        Prefect-compatible artifact dictionary.
-    """
     if artifact_type == "table":
         return _to_table_artifact(result)
-    elif artifact_type == "markdown":
+    if artifact_type == "markdown":
         return _to_markdown_artifact(result)
-    else:
-        return {"type": artifact_type, "data": result}
+    return {"type": artifact_type, "data": result}
 
 
 def _to_table_artifact(result: dict[str, Any]) -> dict[str, Any]:
-    """Convert to table artifact format."""
     rows = []
+    result_type = result.get("type") or result.get("result_type")
 
-    # Check result
-    if "passed_count" in result and "failed_count" in result:
-        rows.extend([
-            {"metric": "Status", "value": result.get("status", "unknown")},
-            {"metric": "Passed", "value": result.get("passed_count", 0)},
-            {"metric": "Failed", "value": result.get("failed_count", 0)},
-            {"metric": "Failure Rate", "value": f"{result.get('failure_rate', 0):.2%}"},
-        ])
-
-    # Profile result
-    elif "row_count" in result and "column_count" in result:
-        rows.extend([
-            {"metric": "Row Count", "value": result.get("row_count", 0)},
-            {"metric": "Column Count", "value": result.get("column_count", 0)},
-        ])
-
-    # Learn result
-    elif "rules" in result:
+    if result_type == "check" or ("passed_count" in result and "failed_count" in result):
+        rows.extend(
+            [
+                {"metric": "Status", "value": result.get("status", "UNKNOWN")},
+                {"metric": "Passed", "value": result.get("passed_count", 0)},
+                {"metric": "Failed", "value": result.get("failed_count", 0)},
+                {"metric": "Failure Rate", "value": f"{result.get('failure_rate', 0):.2f}%"},
+            ]
+        )
+    elif result_type == "profile" or ("row_count" in result and "column_count" in result):
+        rows.extend(
+            [
+                {"metric": "Row Count", "value": result.get("row_count", 0)},
+                {"metric": "Column Count", "value": result.get("column_count", 0)},
+            ]
+        )
+    elif result_type == "learn" or "rules" in result:
         rows.append({"metric": "Rules Learned", "value": len(result.get("rules", []))})
 
-    # Common fields
     if "execution_time_ms" in result:
         rows.append({"metric": "Duration (ms)", "value": result.get("execution_time_ms", 0)})
 
@@ -224,7 +190,6 @@ def _to_table_artifact(result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _to_markdown_artifact(result: dict[str, Any]) -> dict[str, Any]:
-    """Convert to markdown artifact format."""
     lines = ["## Data Quality Result\n"]
 
     if "status" in result:
@@ -234,12 +199,15 @@ def _to_markdown_artifact(result: dict[str, Any]) -> dict[str, Any]:
     if "passed_count" in result:
         lines.append(f"- **Passed:** {result['passed_count']}")
         lines.append(f"- **Failed:** {result['failed_count']}")
-        lines.append(f"- **Failure Rate:** {result.get('failure_rate', 0):.2%}\n")
+        lines.append(f"- **Failure Rate:** {result.get('failure_rate', 0):.2f}%\n")
 
     if "failures" in result and result["failures"]:
         lines.append("### Failures\n")
-        for f in result["failures"][:10]:  # Limit to 10
-            lines.append(f"- **{f.get('rule_name', 'Unknown')}** ({f.get('column', 'N/A')}): {f.get('message', '')}")
+        for failure in result["failures"][:10]:
+            lines.append(
+                f"- **{failure.get('rule_name', 'Unknown')}** "
+                f"({failure.get('column', 'N/A')}): {failure.get('message', '')}"
+            )
 
     return {"type": "markdown", "content": "\n".join(lines)}
 

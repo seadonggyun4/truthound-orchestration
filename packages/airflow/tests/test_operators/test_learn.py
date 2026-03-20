@@ -91,7 +91,7 @@ class TestDataQualityLearnOperator:
         mock_hook.load_data.return_value = sample_dataframe
         mock_hook_class.return_value = mock_hook
 
-        with patch("common.engines.get_engine") as mock_get_engine:
+        with patch("common.engines.create_engine") as mock_get_engine:
             mock_engine = MagicMock()
             mock_learn_result = MagicMock()
             mock_learn_result.rules = [
@@ -133,7 +133,7 @@ class TestDataQualityLearnOperator:
         mock_hook.load_data.return_value = sample_dataframe
         mock_hook_class.return_value = mock_hook
 
-        with patch("common.engines.get_engine") as mock_get_engine:
+        with patch("common.engines.create_engine") as mock_get_engine:
             mock_engine = MagicMock()
             mock_learn_result = MagicMock()
             mock_learn_result.rules = []

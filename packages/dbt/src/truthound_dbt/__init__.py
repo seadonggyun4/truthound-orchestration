@@ -1,8 +1,9 @@
 """Truthound dbt Integration Package.
 
-This package provides Python-based utilities for dbt data quality integration.
-It enables programmatic rule generation, manifest parsing, cross-adapter SQL
-generation, and seamless integration with the Truthound orchestration framework.
+This package provides Python-based utilities for the official Truthound 3.x dbt
+integration line. It enables programmatic rule generation, manifest parsing,
+cross-adapter SQL generation, and first-party alignment with the broader
+Truthound orchestration framework.
 
 Key Features:
     - Cross-Adapter SQL Generation: Generate database-specific SQL for data quality checks
@@ -106,7 +107,7 @@ Public API:
         - MockAdapter, MockManifest, create_mock_test_result
 """
 
-__version__ = "0.1.0"
+__version__ = "3.0.0"
 
 # =============================================================================
 # Adapters

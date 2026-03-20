@@ -35,7 +35,7 @@ class TestResultSerializer:
 
         result = serializer.serialize_check_result(mock_result)
 
-        assert result["status"] == "passed"
+        assert result["status"] == "PASSED"
         assert result["is_success"] is True
         assert result["passed_count"] == 10
         assert result["failed_count"] == 0
@@ -136,7 +136,7 @@ class TestSerializeResult:
 
         result = serialize_result(mock_result)
 
-        assert result["status"] == "passed"
+        assert result["status"] == "PASSED"
         assert result["_serializer"] == "truthound_airflow"
 
     def test_serialize_object_with_to_dict(self) -> None:

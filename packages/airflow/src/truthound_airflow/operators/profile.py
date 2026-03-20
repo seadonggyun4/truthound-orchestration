@@ -189,29 +189,9 @@ class DataQualityProfileOperator(BaseDataQualityOperator):
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        # ProfileResult has to_dict method
-        if hasattr(result, "to_dict"):
-            return result.to_dict()
+        from truthound_airflow.utils.serialization import serialize_result
 
-        # Fallback serialization
-        return {
-            "row_count": getattr(result, "row_count", 0),
-            "column_count": getattr(result, "column_count", 0),
-            "columns": [
-                {
-                    "column_name": col.column_name,
-                    "dtype": str(col.dtype),
-                    "null_count": col.null_count,
-                    "null_percentage": col.null_percentage,
-                    "unique_count": col.unique_count,
-                    "statistics": col.statistics if self.include_statistics else {},
-                    "patterns": col.patterns if self.include_patterns else [],
-                    "distribution": col.distribution if self.include_distributions else {},
-                }
-                for col in getattr(result, "columns", [])
-            ],
-            "execution_time_ms": getattr(result, "execution_time_ms", 0.0),
-        }
+        return serialize_result(result)
 
     def _log_metrics(self, result_dict: dict[str, Any]) -> None:
         """Log profiling metrics.

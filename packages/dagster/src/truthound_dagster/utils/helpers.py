@@ -137,7 +137,7 @@ def summarize_check_result(result: CheckResult) -> dict[str, Any]:
         'PASSED'
     """
     return {
-        "status": result.status.value,
+        "status": result.status.name,
         "is_success": result.is_success,
         "passed_count": result.passed_count,
         "failed_count": result.failed_count,
@@ -404,13 +404,17 @@ def create_quality_metadata(
         dict[str, Any]: Quality metadata.
     """
     metadata = {
-        "quality_status": result.status.value,
+        "quality_status": result.status.name,
         "quality_passed": result.is_success,
         "quality_passed_count": result.passed_count,
         "quality_failed_count": result.failed_count,
         "quality_failure_rate": result.failure_rate,
         "quality_execution_time_ms": result.execution_time_ms,
-        "quality_timestamp": result.timestamp.isoformat(),
+        "quality_timestamp": (
+            result.timestamp.isoformat()
+            if hasattr(result.timestamp, "isoformat")
+            else result.timestamp
+        ),
     }
 
     if additional:

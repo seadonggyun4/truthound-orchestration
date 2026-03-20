@@ -59,7 +59,11 @@ def _serialize_learn_result(result: "LearnResult") -> Dict[str, Any]:
         "rule_count": len(result.rules),
         "rules": rules,
         "execution_time_ms": result.execution_time_ms,
-        "timestamp": result.timestamp.isoformat(),
+        "timestamp": (
+            result.timestamp.isoformat()
+            if hasattr(result.timestamp, "isoformat")
+            else result.timestamp
+        ),
     }
 
 

@@ -246,29 +246,9 @@ class DataQualityCheckOperator(BaseDataQualityOperator):
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        return {
-            "status": result.status.value,
-            "is_success": result.is_success,
-            "passed_count": result.passed_count,
-            "failed_count": result.failed_count,
-            "warning_count": result.warning_count,
-            "skipped_count": getattr(result, "skipped_count", 0),
-            "failure_rate": result.failure_rate,
-            "failures": [
-                {
-                    "rule_name": f.rule_name,
-                    "column": f.column,
-                    "message": f.message,
-                    "severity": f.severity.value,
-                    "failed_count": f.failed_count,
-                    "total_count": f.total_count,
-                    "failure_rate": f.failure_rate,
-                }
-                for f in result.failures
-            ],
-            "execution_time_ms": result.execution_time_ms,
-            "timestamp": result.timestamp.isoformat(),
-        }
+        from truthound_airflow.utils.serialization import serialize_result
+
+        return serialize_result(result)
 
     def _handle_result(
         self,

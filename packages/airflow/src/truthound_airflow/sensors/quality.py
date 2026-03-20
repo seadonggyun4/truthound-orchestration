@@ -220,14 +220,20 @@ class DataQualitySensor(BaseSensorOperator):
         # Engine configuration
         self._engine = engine
         self._engine_name = engine_name
+        self._runtime_context: Any | None = None
 
     @property
     def engine(self) -> DataQualityEngine:
         """Get the data quality engine instance."""
         if self._engine is None:
-            from common.engines import get_engine
+            from common.engines import EngineCreationRequest, create_engine
 
-            self._engine = get_engine(self._engine_name)
+            self._engine = create_engine(
+                EngineCreationRequest(
+                    engine_name=self._engine_name or "truthound",
+                    runtime_context=self._runtime_context,
+                )
+            )
         return self._engine
 
     def poke(self, context: Context) -> bool:
@@ -239,7 +245,31 @@ class DataQualitySensor(BaseSensorOperator):
         Returns:
             bool: True if conditions are met, False to continue waiting.
         """
+        from common.engines import EngineCreationRequest, normalize_runtime_context, run_preflight
         from truthound_airflow.hooks.base import DataQualityHook
+
+        self._runtime_context = normalize_runtime_context(
+            platform="airflow",
+            connection_id=self.connection_id if self.sql else None,
+            host_metadata={
+                "task_id": self.task_id,
+                "sensor": type(self).__name__,
+            },
+        )
+        preflight = run_preflight(
+            EngineCreationRequest(
+                engine_name=self._engine_name or "truthound",
+                runtime_context=self._runtime_context,
+            ),
+            data_path=self.data_path,
+            sql=self.sql,
+        )
+        if not preflight.compatible:
+            self.log.warning(
+                "Preflight failed: %s",
+                "; ".join(check.message for check in preflight.compatibility.failures),
+            )
+            return False
 
         self.log.info("Checking data quality conditions...")
 

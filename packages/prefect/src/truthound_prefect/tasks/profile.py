@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 )
 async def data_quality_profile_task(
     data: Any,
-    block: DataQualityBlock,
+    block: DataQualityBlock | None = None,
     include_histograms: bool = False,
     sample_size: int | None = None,
     store_artifact: bool = True,
@@ -40,7 +40,7 @@ async def data_quality_profile_task(
 
     Args:
         data: The data to profile.
-        block: DataQualityBlock to use for profiling.
+        block: Optional DataQualityBlock to use for profiling.
         include_histograms: Include histogram data in profile.
         sample_size: Maximum rows to sample for profiling.
         store_artifact: Store result as Prefect artifact.
@@ -64,6 +64,11 @@ async def data_quality_profile_task(
     """
     logger = get_run_logger()
     logger.info("Starting data profiling")
+
+    if block is None:
+        from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+        block = create_ephemeral_truthound_block()
 
     # Add options to kwargs
     if include_histograms:
@@ -170,8 +175,9 @@ def create_profile_task(
     ) -> dict[str, Any]:
         """Execute the configured profile task."""
         if block is None:
-            from truthound_prefect.blocks import DataQualityBlock as DQBlock
-            block = DQBlock(engine_name="truthound")
+            from truthound_prefect.blocks.engine import create_ephemeral_truthound_block
+
+            block = create_ephemeral_truthound_block()
 
         return await data_quality_profile_task(
             data=data,

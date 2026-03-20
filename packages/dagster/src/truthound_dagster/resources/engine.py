@@ -205,59 +205,39 @@ class EngineResource(BaseResource["EngineResourceConfig"]):
             ImportError: If engine dependencies are not available.
             ValueError: If engine name is unknown.
         """
-        engine_name = self.config.engine_name.lower()
-
-        if engine_name == "truthound":
-            return self._create_truthound_engine()
-        elif engine_name in ("great_expectations", "ge"):
-            return self._create_ge_engine()
-        elif engine_name == "pandera":
-            return self._create_pandera_engine()
-        else:
-            # Try to get from registry
-            try:
-                from common.engines import get_engine
-
-                return get_engine(engine_name)
-            except (ImportError, KeyError) as e:
-                msg = f"Unknown engine: {engine_name}"
-                raise ValueError(msg) from e
-
-    def _create_truthound_engine(self) -> "DataQualityEngine":
-        """Create Truthound engine with configuration."""
         try:
-            from common.engines import TruthoundEngine, TruthoundEngineConfig
+            from common.engines import (
+                EngineCreationRequest,
+                create_engine,
+                normalize_runtime_context,
+                run_preflight,
+            )
 
-            config = TruthoundEngineConfig(
-                auto_start=False,  # We handle lifecycle
+            runtime_context = normalize_runtime_context(
+                platform="dagster",
+                host_metadata={"resource_type": type(self).__name__},
+            )
+            request = EngineCreationRequest(
+                engine_name=self.config.engine_name,
+                runtime_context=runtime_context,
+            )
+            preflight = run_preflight(request)
+            if not preflight.compatible:
+                failures = "; ".join(
+                    check.message for check in preflight.compatibility.failures
+                )
+                raise ValueError(f"Dagster preflight failed: {failures}")
+
+            return create_engine(
+                request,
+                auto_start=False,
                 auto_stop=False,
                 parallel=self.config.parallel,
                 max_workers=self.config.max_workers,
             )
-            return TruthoundEngine(config=config)
-        except ImportError as e:
-            msg = "Truthound is not installed. Install with: pip install truthound"
-            raise ImportError(msg) from e
-
-    def _create_ge_engine(self) -> "DataQualityEngine":
-        """Create Great Expectations engine."""
-        try:
-            from common.engines import GreatExpectationsAdapter
-
-            return GreatExpectationsAdapter()
-        except ImportError as e:
-            msg = "Great Expectations is not installed. Install with: pip install great-expectations"
-            raise ImportError(msg) from e
-
-    def _create_pandera_engine(self) -> "DataQualityEngine":
-        """Create Pandera engine."""
-        try:
-            from common.engines import PanderaAdapter
-
-            return PanderaAdapter()
-        except ImportError as e:
-            msg = "Pandera is not installed. Install with: pip install pandera"
-            raise ImportError(msg) from e
+        except (ImportError, KeyError, ValueError) as e:
+            msg = f"Unknown engine: {self.config.engine_name.lower()}"
+            raise ValueError(msg) from e
 
     def __enter__(self) -> "EngineResource":
         """Context manager entry."""
@@ -522,7 +502,7 @@ class DataQualityResource(ConfigurableResource):
         # Execute check
         result = self.engine.check(
             data,
-            rules or [],
+            rules,
             auto_schema=auto_schema,
             timeout=actual_timeout,
             **kwargs,

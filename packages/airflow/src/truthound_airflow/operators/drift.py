@@ -140,14 +140,20 @@ class DataQualityDriftOperator(BaseOperator):
 
         self._engine = engine
         self._engine_name = engine_name
+        self._runtime_context: Any | None = None
 
     @property
     def engine(self) -> DataQualityEngine:
         """Get the data quality engine instance (lazy initialization)."""
         if self._engine is None:
-            from common.engines import get_engine
+            from common.engines import EngineCreationRequest, create_engine
 
-            self._engine = get_engine(self._engine_name)
+            self._engine = create_engine(
+                EngineCreationRequest(
+                    engine_name=self._engine_name or "truthound",
+                    runtime_context=self._runtime_context,
+                )
+            )
         return self._engine
 
     def execute(self, context: Context) -> dict[str, Any]:
@@ -164,6 +170,25 @@ class DataQualityDriftOperator(BaseOperator):
                               and fail_on_drift is True.
         """
         from common.engines.base import supports_drift
+        from common.engines import EngineCreationRequest, normalize_runtime_context, run_preflight
+
+        self._runtime_context = normalize_runtime_context(
+            platform="airflow",
+            connection_id=self.connection_id,
+            host_metadata={
+                "task_id": self.task_id,
+                "operator": type(self).__name__,
+            },
+        )
+        preflight = run_preflight(
+            EngineCreationRequest(
+                engine_name=self._engine_name or "truthound",
+                runtime_context=self._runtime_context,
+            )
+        )
+        if not preflight.compatible:
+            failures = "; ".join(check.message for check in preflight.compatibility.failures)
+            raise AirflowException(f"Truthound Airflow preflight failed: {failures}")
 
         # Verify engine supports drift detection
         if not supports_drift(self.engine):
@@ -210,7 +235,9 @@ class DataQualityDriftOperator(BaseOperator):
         )
 
         # Serialize
-        result_dict = result.to_dict()
+        from truthound_airflow.utils.serialization import serialize_result
+
+        result_dict = serialize_result(result)
         result_dict["_metadata"] = {
             "engine": self.engine.engine_name,
             "engine_version": self.engine.engine_version,

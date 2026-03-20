@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-kestra"
-version = "0.1.0"
+version = "3.0.0"
 description = "Truthound data quality integration for Kestra workflow orchestration"
 readme = "README.md"
 license = "MIT"
@@ -33,7 +33,8 @@ keywords = [
     "truthound",
 ]
 dependencies = [
-    "truthound-orchestration>=1.0.0",
+    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound>=3.0,<4.0",
     "polars>=0.20.0",
     "pyyaml>=6.0",
 ]
@@ -119,7 +120,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --import-mode=importlib"
 markers = [
     "slow: marks tests as slow",
     "integration: marks integration tests",

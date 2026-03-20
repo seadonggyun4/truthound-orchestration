@@ -1,10 +1,10 @@
 # Truthound dbt Package
 
-> Data quality checks for dbt using Truthound's declarative rule syntax.
+> Official first-party dbt package for Truthound 3.x rule execution and adapter-dispatched SQL generation.
 
 ## Overview
 
-`truthound` is a dbt package that provides comprehensive data quality testing through Generic Tests and Jinja Macros. It integrates seamlessly with dbt's native testing framework while offering advanced validation capabilities.
+`truthound` is the official dbt package in the `truthound-orchestration 3.x` line. It keeps dbt-native generic tests and adapter dispatch front and center, while aligning package defaults with Truthound 3.x and a zero-config first run experience.
 
 ## Features
 
@@ -23,7 +23,7 @@
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=0.1.0"
+    version: ">=3.0.0,<4.0.0"
 ```
 
 ### From Git
@@ -33,7 +33,7 @@ packages:
 packages:
   - git: "https://github.com/seadonggyun4/truthound-integrations.git"
     subdirectory: "packages/dbt"
-    revision: "v0.1.0"
+    revision: "v3.0.0"
 ```
 
 ### Local Development

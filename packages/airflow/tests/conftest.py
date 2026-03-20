@@ -415,7 +415,7 @@ def patch_base_hook() -> Any:
 @pytest.fixture
 def patch_engine() -> Any:
     """Patch the default engine registry."""
-    with patch("common.engines.get_engine") as mock:
+    with patch("common.engines.create_engine") as mock:
         yield mock
 
 

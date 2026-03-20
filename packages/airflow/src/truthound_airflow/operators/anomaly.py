@@ -171,7 +171,9 @@ class DataQualityAnomalyOperator(BaseDataQualityOperator):
         Returns:
             XCom-compatible dictionary.
         """
-        return result.to_dict()
+        from truthound_airflow.utils.serialization import serialize_result
+
+        return serialize_result(result)
 
     def _handle_result(
         self,

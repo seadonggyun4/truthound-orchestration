@@ -1,17 +1,21 @@
 name: 'truthound'
-version: '0.1.0'
+version: '3.0.0'
 config-version: 2
 
 require-dbt-version: [">=1.6.0", "<2.0.0"]
 
 # Package metadata
 description: |
-  Truthound data quality package for dbt.
-  Provides declarative data quality checks via Generic Tests and Jinja Macros.
+  Official first-party Truthound 3.x dbt package.
+  Provides declarative data quality checks via generic tests, Jinja macros,
+  and adapter dispatch with zero-config defaults.
 
 # Default configuration
 vars:
   truthound:
+    default_engine: 'truthound'
+    engine_line: '3.x'
+    zero_config: true
     # Global settings
     default_severity: 'error'
     fail_on_first: false

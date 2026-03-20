@@ -17,8 +17,10 @@ from truthound_prefect.blocks.engine import (
     AUTO_SCHEMA_ENGINE_CONFIG,
     DEFAULT_ENGINE_CONFIG,
     PARALLEL_ENGINE_CONFIG,
+    DataQualityBlock,
     EngineBlock,
     EngineBlockConfig,
+    create_ephemeral_truthound_block,
 )
 
 
@@ -222,6 +224,38 @@ class TestEngineBlock:
             assert block.engine == mock_engine
             block.teardown()
 
+    def test_create_engine_uses_common_resolver(self) -> None:
+        """Test engine creation delegates to common resolver."""
+        block = EngineBlock(
+            EngineBlockConfig(
+                engine_name="truthound",
+                parallel=True,
+                max_workers=2,
+            )
+        )
+        mock_engine = MagicMock()
+        mock_preflight = MagicMock()
+        mock_preflight.compatible = True
+
+        with (
+            patch("common.engines.run_preflight", return_value=mock_preflight) as run_preflight,
+            patch("common.engines.create_engine", return_value=mock_engine) as create_engine,
+        ):
+            engine = block._create_engine()
+
+        assert engine == mock_engine
+        run_preflight.assert_called_once()
+        request = create_engine.call_args.args[0]
+        assert request.engine_name == "truthound"
+        assert request.runtime_context.platform == "prefect"
+        create_engine.assert_called_once_with(
+            request,
+            auto_start=False,
+            auto_stop=False,
+            parallel=True,
+            max_workers=2,
+        )
+
     def test_engine_name_property(self, mock_engine: MagicMock) -> None:
         """Test engine_name property."""
         block = EngineBlock(engine=mock_engine)
@@ -235,3 +269,12 @@ class TestEngineBlock:
         block.setup()
         assert block.engine_version == "1.0.0"
         block.teardown()
+
+    def test_create_ephemeral_truthound_block(self) -> None:
+        """Test zero-config helper returns an in-memory Truthound block."""
+        block = create_ephemeral_truthound_block(auto_schema=True, warning_threshold=0.1)
+
+        assert isinstance(block, DataQualityBlock)
+        assert block.engine_name == "truthound"
+        assert block.auto_schema is True
+        assert block.warning_threshold == 0.1

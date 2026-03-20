@@ -14,6 +14,7 @@ from truthound_mage.io.config import (
     DataSinkConfig,
     DataSourceType,
     DataFormat,
+    find_io_config_path,
     load_io_config,
     DEFAULT_IO_CONFIG,
 )
@@ -371,3 +372,15 @@ class TestLoadIOConfig:
         """Test default I/O configuration."""
         assert DEFAULT_IO_CONFIG.sources == {}
         assert DEFAULT_IO_CONFIG.sinks == {}
+
+    def test_find_io_config_path_walks_up_to_project_root(self, tmp_path: Path) -> None:
+        """Test project-root discovery searches parent directories."""
+        project_root = tmp_path / "mage-project"
+        nested = project_root / "pipelines" / "users"
+        nested.mkdir(parents=True)
+        config_path = project_root / "io_config.yaml"
+        config_path.write_text("default: {}\n", encoding="utf-8")
+
+        resolved = find_io_config_path(nested)
+
+        assert resolved == config_path

@@ -480,3 +480,13 @@ class TestGetEngine:
 
         with pytest.raises((ValueError, ImportError, ConfigurationError)):
             get_engine("nonexistent_engine")
+
+    def test_get_engine_uses_common_resolver(self) -> None:
+        """Test Kestra get_engine delegates to common resolver."""
+        mock_engine = MagicMock()
+
+        with patch("common.engines.create_engine", return_value=mock_engine) as create_engine:
+            engine = get_engine("truthound")
+
+        assert engine == mock_engine
+        create_engine.assert_called_once_with("truthound")

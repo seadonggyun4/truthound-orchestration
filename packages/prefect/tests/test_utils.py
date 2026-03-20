@@ -289,7 +289,7 @@ class TestSerialization:
             metadata = {}
 
         result = serializer.serialize_check_result(MockCheckResult())
-        assert result["status"] == "passed"
+        assert result["status"] == "PASSED"
         assert result["passed_count"] == 5
 
     def test_to_prefect_artifact_table(

@@ -74,7 +74,11 @@ def _serialize_profile_result(result: "ProfileResult") -> Dict[str, Any]:
         "column_count": result.column_count,
         "columns": columns,
         "execution_time_ms": result.execution_time_ms,
-        "timestamp": result.timestamp.isoformat(),
+        "timestamp": (
+            result.timestamp.isoformat()
+            if hasattr(result.timestamp, "isoformat")
+            else result.timestamp
+        ),
     }
 
 

@@ -249,7 +249,7 @@ class TestResultSerializer:
         result = serializer.serialize_check_result(mock_check_result)
 
         assert result["type"] == "check"
-        assert result["status"] == "passed"
+        assert result["status"] == "PASSED"
         assert result["is_success"] is True
         assert result["passed_count"] == 10
 
@@ -300,7 +300,7 @@ class TestDeserializeResult:
     def test_check_result(self) -> None:
         data = {
             "type": "check",
-            "status": "passed",
+            "status": "PASSED",
             "timestamp": "2024-01-15T10:30:00+00:00",
         }
         result = deserialize_result(data)
@@ -318,7 +318,7 @@ class TestToDagsterMetadata:
     def test_check_metadata(self) -> None:
         data = {
             "type": "check",
-            "status": "passed",
+            "status": "PASSED",
             "is_success": True,
             "passed_count": 10,
             "failed_count": 0,
@@ -327,7 +327,7 @@ class TestToDagsterMetadata:
         }
         metadata = to_dagster_metadata(data)
 
-        assert metadata["status"] == "passed"
+        assert metadata["status"] == "PASSED"
         assert metadata["is_success"] is True
         assert metadata["passed_count"] == 10
 

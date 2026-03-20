@@ -84,7 +84,7 @@ class TestDataQualityProfileOperator:
         mock_hook.load_data.return_value = sample_dataframe
         mock_hook_class.return_value = mock_hook
 
-        with patch("common.engines.get_engine") as mock_get_engine:
+        with patch("common.engines.create_engine") as mock_get_engine:
             mock_engine = MagicMock()
             mock_profile_result = MagicMock()
             mock_profile_result.columns = []
@@ -123,7 +123,7 @@ class TestDataQualityProfileOperator:
         mock_hook.query.return_value = sample_dataframe
         mock_hook_class.return_value = mock_hook
 
-        with patch("common.engines.get_engine") as mock_get_engine:
+        with patch("common.engines.create_engine") as mock_get_engine:
             mock_engine = MagicMock()
             mock_profile_result = MagicMock()
             mock_profile_result.to_dict.return_value = {"row_count": 100, "columns": []}

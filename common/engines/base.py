@@ -243,7 +243,7 @@ class DataQualityEngine(Protocol):
     def check(
         self,
         data: Any,
-        rules: Sequence[Mapping[str, Any]],
+        rules: Sequence[Mapping[str, Any]] | None = None,
         **kwargs: Any,
     ) -> CheckResult:
         """Execute validation checks on the data.
@@ -330,7 +330,7 @@ class AsyncDataQualityEngine(Protocol):
     async def check(
         self,
         data: Any,
-        rules: Sequence[Mapping[str, Any]],
+        rules: Sequence[Mapping[str, Any]] | None = None,
         **kwargs: Any,
     ) -> CheckResult:
         """Execute validation checks asynchronously.

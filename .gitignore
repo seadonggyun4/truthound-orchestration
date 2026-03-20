@@ -68,6 +68,7 @@ dmypy.json
 # =============================================================================
 .env
 .venv
+.venv*/
 env/
 venv/
 ENV/
@@ -323,6 +324,7 @@ CLAUDE.md
 local/
 local_settings.py
 *.local.py
+.truthound/
 
 # Test artifacts
 .benchmarks/

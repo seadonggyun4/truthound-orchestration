@@ -303,6 +303,7 @@ class BaseDataQualityOperator(BaseOperator, ABC):
         # Engine configuration
         self._engine = engine
         self._engine_name = engine_name
+        self._runtime_context: Any | None = None
 
     @property
     def engine(self) -> DataQualityEngine:
@@ -316,9 +317,14 @@ class BaseDataQualityOperator(BaseOperator, ABC):
             Uses the provided engine, or gets one from the registry.
         """
         if self._engine is None:
-            from common.engines import get_engine
+            from common.engines import EngineCreationRequest, create_engine
 
-            self._engine = get_engine(self._engine_name)
+            self._engine = create_engine(
+                EngineCreationRequest(
+                    engine_name=self._engine_name or "truthound",
+                    runtime_context=self._runtime_context,
+                )
+            )
         return self._engine
 
     def execute(self, context: Context) -> dict[str, Any]:
@@ -340,6 +346,13 @@ class BaseDataQualityOperator(BaseOperator, ABC):
             AirflowException: If operation fails and fail_on_error is True.
         """
         from truthound_airflow.hooks.base import DataQualityHook
+        from airflow.exceptions import AirflowException
+
+        self._runtime_context = self._build_runtime_context(context)
+        preflight = self._run_preflight()
+        if not preflight.compatible:
+            failures = "; ".join(check.message for check in preflight.compatibility.failures)
+            raise AirflowException(f"Truthound Airflow preflight failed: {failures}")
 
         self.log.info(f"Starting data quality operation with engine: {self.engine.engine_name}")
 
@@ -450,6 +463,51 @@ class BaseDataQualityOperator(BaseOperator, ABC):
         self.log.info(
             f"Operation completed - "
             f"engine={result_dict.get('_metadata', {}).get('engine', 'unknown')}"
+        )
+
+    def _build_runtime_context(self, context: Context | None) -> Any:
+        """Build a shared runtime context for common resolver/preflight helpers."""
+
+        from common.engines import normalize_runtime_context
+
+        dag = context.get("dag") if context else None
+        dag_id = getattr(dag, "dag_id", None)
+        source = self._resolve_source_descriptor()
+        connection_id = self.connection_id if self.sql or (source and source.requires_connection) else None
+
+        runtime_context = normalize_runtime_context(
+            platform="airflow",
+            connection_id=connection_id,
+            source_name=self.data_path or self.sql,
+            host_metadata={
+                "task_id": self.task_id,
+                "dag_id": dag_id,
+                "operator": type(self).__name__,
+            },
+        )
+        if source is not None:
+            runtime_context = runtime_context.with_source(source)
+        return runtime_context
+
+    def _resolve_source_descriptor(self) -> Any:
+        """Resolve the configured data source using the shared runtime contract."""
+
+        from common.engines import resolve_data_source
+
+        return resolve_data_source(data_path=self.data_path, sql=self.sql)
+
+    def _run_preflight(self) -> Any:
+        """Run common preflight checks before execution."""
+
+        from common.engines import EngineCreationRequest, run_preflight
+
+        return run_preflight(
+            EngineCreationRequest(
+                engine_name=self._engine_name or "truthound",
+                runtime_context=self._runtime_context,
+            ),
+            data_path=self.data_path,
+            sql=self.sql,
         )
 
 

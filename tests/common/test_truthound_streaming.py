@@ -17,18 +17,47 @@ from common.engines.truthound import TruthoundEngine, TruthoundEngineConfig
 
 
 class FakeCheckReport:
-    """Fake Truthound check report for testing."""
+    """Fake Truthound 3.x ValidationRunResult-like object for testing."""
 
-    def __init__(self, has_critical: bool = False, issues: list | None = None) -> None:
-        self.has_critical = has_critical
-        self._issues = issues or []
+    class Issue:
+        def __init__(self, issue_type: str, severity: str, count: int, column: str = "_table_") -> None:
+            self.issue_type = issue_type
+            self.severity = severity
+            self.count = count
+            self.column = column
+            self.details = issue_type
+            self.sample_values = None
+            self.validator_name = issue_type
+
+    class Check:
+        def __init__(self, issues: tuple["FakeCheckReport.Issue", ...]) -> None:
+            self.name = "stream_batch"
+            self.category = "streaming"
+            self.issues = issues
+            self.success = len(issues) == 0
+
+    def __init__(self, issues: list[dict[str, Any]] | None = None) -> None:
+        mapped_issues = tuple(self.Issue(**issue) for issue in (issues or []))
+        self.checks = (self.Check(mapped_issues),)
+        self.issues = mapped_issues
+        self.execution_issues = ()
+        self.source = "test"
+        self.suite_name = "streaming"
+        self.row_count = 10
+        self.column_count = 3
+        self.run_id = "run_test"
+        self.execution_mode = "sequential"
+        self.result_format = type("ResultFormat", (), {"value": "summary"})()
+        self.metadata = {}
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "issues": self._issues,
-            "row_count": 10,
-            "column_count": 3,
-            "source": "test",
+            "checks": [],
+            "issues": [],
+            "execution_issues": [],
+            "row_count": self.row_count,
+            "column_count": self.column_count,
+            "source": self.source,
         }
 
 
@@ -142,9 +171,8 @@ class TestCheckStream:
     def test_each_result_independent(self, engine: TruthoundEngine) -> None:
         """Each batch produces an independent result."""
         reports = [
-            FakeCheckReport(has_critical=False),
+            FakeCheckReport(),
             FakeCheckReport(
-                has_critical=True,
                 issues=[{"issue_type": "null", "severity": "critical", "count": 1}],
             ),
         ]

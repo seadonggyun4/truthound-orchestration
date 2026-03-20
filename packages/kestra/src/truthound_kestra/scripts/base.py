@@ -1033,33 +1033,36 @@ def get_engine(name: str = "truthound") -> DataQualityEngineProtocol:
         >>> result = engine.check(data, auto_schema=True)
     """
     try:
-        from common.engines import get_engine as _get_engine
+        from common.engines import (
+            EngineCreationRequest,
+            create_engine as _create_engine,
+            normalize_runtime_context,
+            run_preflight,
+        )
 
-        return _get_engine(name)
-    except ImportError:
-        # Fallback for when common package is not fully available
-        try:
-            if name == "truthound":
-                from common.engines.truthound import TruthoundEngine
+        runtime_context = normalize_runtime_context(
+            platform="kestra",
+            host_metadata={"script_api": "truthound_kestra"},
+        )
+        request = EngineCreationRequest(engine_name=name, runtime_context=runtime_context)
+        preflight = run_preflight(request)
+        if not preflight.compatible:
+            failures = "; ".join(check.message for check in preflight.compatibility.failures)
+            raise ConfigurationError(
+                message=f"Preflight failed for engine '{name}': {failures}",
+                field="engine_name",
+                value=name,
+                reason=failures,
+            )
 
-                return TruthoundEngine()
-            elif name == "great_expectations":
-                from common.engines.great_expectations import GreatExpectationsAdapter
-
-                return GreatExpectationsAdapter()
-            elif name == "pandera":
-                from common.engines.pandera import PanderaAdapter
-
-                return PanderaAdapter()
-        except ImportError:
-            pass
-
+        return _create_engine(request)
+    except ImportError as e:
         raise ConfigurationError(
             message=f"Engine '{name}' not found",
             field="engine_name",
             value=name,
             reason="Engine not available. Install the required dependencies.",
-        )
+        ) from e
     except Exception as e:
         raise ConfigurationError(
             message=f"Failed to get engine '{name}': {e}",

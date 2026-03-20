@@ -16,6 +16,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
+from common.serializers import detect_result_type, serialize_result_wire
+
 
 # =============================================================================
 # Protocols
@@ -36,6 +38,50 @@ class HasTimestamp(Protocol):
     """Protocol for objects with timestamp."""
 
     timestamp: datetime
+
+
+def _serialize_shared_result(
+    result: Any,
+    *,
+    fallback: Any,
+) -> dict[str, Any]:
+    if hasattr(result, "to_dict"):
+        try:
+            payload = serialize_result_wire(result, include_result_type=True)
+            payload["type"] = detect_result_type(result)
+        except TypeError:
+            payload = to_xcom_value(result.to_dict())
+            payload["type"] = str(
+                payload.get("type", payload.get("result_type", "check"))
+            ).lower()
+            payload["result_type"] = payload["type"]
+    else:
+        payload = fallback(result)
+        payload["type"] = payload.get("type", payload.get("result_type", "check")).lower()
+        payload["result_type"] = payload["type"]
+
+    payload.setdefault("result_type", payload.get("type", "check"))
+
+    if "timestamp" in payload and isinstance(payload["timestamp"], datetime):
+        payload["timestamp"] = payload["timestamp"].isoformat()
+
+    payload["_serializer"] = "truthound_airflow"
+    payload["_version"] = "3.0"
+    payload["_type"] = f"{payload.get('type', 'result')}_result"
+    return payload
+
+
+def _deserialize_shared_result(data: dict[str, Any]) -> dict[str, Any]:
+    result = dict(data)
+    if "timestamp" in result and isinstance(result["timestamp"], str):
+        try:
+            result["timestamp"] = datetime.fromisoformat(result["timestamp"])
+        except ValueError:
+            pass
+    result.pop("_serializer", None)
+    result.pop("_version", None)
+    result.pop("_type", None)
+    return result
 
 
 # =============================================================================
@@ -64,21 +110,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        if hasattr(result, "to_dict"):
-            base = result.to_dict()
-        else:
-            base = self._serialize_check_result_attrs(result)
-
-        # Ensure timestamp is ISO format
-        if "timestamp" in base and isinstance(base["timestamp"], datetime):
-            base["timestamp"] = base["timestamp"].isoformat()
-
-        # Add serialization metadata
-        base["_serializer"] = "truthound_airflow"
-        base["_version"] = "1.0"
-        base["_type"] = "check_result"
-
-        return base
+        return _serialize_shared_result(result, fallback=self._serialize_check_result_attrs)
 
     def _serialize_check_result_attrs(self, result: Any) -> dict[str, Any]:
         """Serialize CheckResult by attribute access."""
@@ -88,9 +120,14 @@ class ResultSerializer:
                 "rule_name": getattr(f, "rule_name", "unknown"),
                 "column": getattr(f, "column", None),
                 "message": getattr(f, "message", ""),
-                "severity": getattr(f, "severity", {}).value
-                if hasattr(getattr(f, "severity", None), "value")
-                else "medium",
+                "severity": (
+                    getattr(getattr(f, "severity", None), "name", None)
+                    or (
+                        str(getattr(getattr(f, "severity", None), "value")).upper()
+                        if hasattr(getattr(f, "severity", None), "value")
+                        else "medium"
+                    )
+                ),
                 "failed_count": getattr(f, "failed_count", 0),
                 "total_count": getattr(f, "total_count", 0),
                 "failure_rate": getattr(f, "failure_rate", 0.0),
@@ -104,8 +141,10 @@ class ResultSerializer:
             timestamp = datetime.now(timezone.utc).isoformat()
 
         status = getattr(result, "status", None)
-        if hasattr(status, "value"):
-            status = status.value
+        if hasattr(status, "name"):
+            status = status.name
+        elif hasattr(status, "value"):
+            status = str(status.value).upper()
         elif status is None:
             status = "unknown"
 
@@ -134,18 +173,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: Deserialized result dictionary.
         """
-        result = dict(data)
-
-        # Parse timestamp
-        if "timestamp" in result and isinstance(result["timestamp"], str):
-            result["timestamp"] = datetime.fromisoformat(result["timestamp"])
-
-        # Remove serialization metadata for cleaner output
-        result.pop("_serializer", None)
-        result.pop("_version", None)
-        result.pop("_type", None)
-
-        return result
+        return _deserialize_shared_result(data)
 
     def serialize_profile_result(self, result: Any) -> dict[str, Any]:
         """Serialize ProfileResult to dictionary.
@@ -156,16 +184,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        if hasattr(result, "to_dict"):
-            base = result.to_dict()
-        else:
-            base = self._serialize_profile_result_attrs(result)
-
-        base["_serializer"] = "truthound_airflow"
-        base["_version"] = "1.0"
-        base["_type"] = "profile_result"
-
-        return base
+        return _serialize_shared_result(result, fallback=self._serialize_profile_result_attrs)
 
     def _serialize_profile_result_attrs(self, result: Any) -> dict[str, Any]:
         """Serialize ProfileResult by attribute access."""
@@ -203,11 +222,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: Deserialized result dictionary.
         """
-        result = dict(data)
-        result.pop("_serializer", None)
-        result.pop("_version", None)
-        result.pop("_type", None)
-        return result
+        return _deserialize_shared_result(data)
 
     def serialize_learn_result(self, result: Any) -> dict[str, Any]:
         """Serialize LearnResult to dictionary.
@@ -218,16 +233,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        if hasattr(result, "to_dict"):
-            base = result.to_dict()
-        else:
-            base = self._serialize_learn_result_attrs(result)
-
-        base["_serializer"] = "truthound_airflow"
-        base["_version"] = "1.0"
-        base["_type"] = "learn_result"
-
-        return base
+        return _serialize_shared_result(result, fallback=self._serialize_learn_result_attrs)
 
     def _serialize_learn_result_attrs(self, result: Any) -> dict[str, Any]:
         """Serialize LearnResult by attribute access."""
@@ -261,11 +267,7 @@ class ResultSerializer:
         Returns:
             dict[str, Any]: Deserialized result dictionary.
         """
-        result = dict(data)
-        result.pop("_serializer", None)
-        result.pop("_version", None)
-        result.pop("_type", None)
-        return result
+        return _deserialize_shared_result(data)
 
 
 # =============================================================================

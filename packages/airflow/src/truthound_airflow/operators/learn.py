@@ -224,34 +224,9 @@ class DataQualityLearnOperator(BaseDataQualityOperator):
         Returns:
             dict[str, Any]: XCom-compatible dictionary.
         """
-        # LearnResult has to_dict method
-        if hasattr(result, "to_dict"):
-            return result.to_dict()
+        from truthound_airflow.utils.serialization import serialize_result
 
-        # Fallback serialization
-        return {
-            "rules": [
-                {
-                    "column": rule.column,
-                    "rule_type": rule.rule_type,
-                    "parameters": rule.parameters,
-                    "confidence": rule.confidence,
-                }
-                for rule in getattr(result, "rules", [])
-            ],
-            "schema": {
-                "columns": [
-                    {
-                        "name": col.name,
-                        "dtype": str(col.dtype),
-                        "nullable": col.nullable,
-                    }
-                    for col in getattr(result, "columns", [])
-                ],
-            },
-            "strictness": self.strictness,
-            "execution_time_ms": getattr(result, "execution_time_ms", 0.0),
-        }
+        return serialize_result(result)
 
     def _log_metrics(self, result_dict: dict[str, Any]) -> None:
         """Log learning metrics.

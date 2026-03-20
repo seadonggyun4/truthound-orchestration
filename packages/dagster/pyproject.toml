@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-dagster"
-version = "0.1.0"
+version = "3.0.0"
 description = "Dagster integration for data quality operations with Truthound"
 readme = "README.md"
 license = "MIT"
@@ -32,6 +32,8 @@ classifiers = [
 ]
 dependencies = [
     "dagster>=1.5.0",
+    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound>=3.0,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +62,7 @@ packages = ["src/truthound_dagster"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.ruff]
 target-version = "py311"

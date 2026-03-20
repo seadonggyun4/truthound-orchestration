@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 def _serialize_check_result(result: CheckResult) -> dict[str, Any]:
     """Serialize CheckResult for metadata."""
     return {
-        "status": result.status.value,
+        "status": result.status.name,
         "is_success": result.is_success,
         "passed_count": result.passed_count,
         "failed_count": result.failed_count,

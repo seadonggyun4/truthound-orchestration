@@ -105,7 +105,7 @@ def _serialize_check_result(result: "CheckResult") -> Dict[str, Any]:
         Dict[str, Any]: Serialized result.
     """
     return {
-        "status": result.status.value,
+        "status": result.status.name,
         "is_success": result.is_success,
         "passed_count": result.passed_count,
         "failed_count": result.failed_count,
@@ -116,14 +116,18 @@ def _serialize_check_result(result: "CheckResult") -> Dict[str, Any]:
                 "rule_name": f.rule_name,
                 "column": f.column,
                 "message": f.message,
-                "severity": f.severity.value,
+                "severity": f.severity.name,
                 "failed_count": f.failed_count,
                 "total_count": f.total_count,
             }
             for f in result.failures
         ],
         "execution_time_ms": result.execution_time_ms,
-        "timestamp": result.timestamp.isoformat(),
+        "timestamp": (
+            result.timestamp.isoformat()
+            if hasattr(result.timestamp, "isoformat")
+            else result.timestamp
+        ),
     }
 
 
@@ -229,7 +233,7 @@ def data_quality_check_op(
     # Add metadata to context
     context.add_output_metadata(
         {
-            "status": result.status.value,
+            "status": result.status.name,
             "passed_count": result.passed_count,
             "failed_count": result.failed_count,
             "execution_time_ms": result.execution_time_ms,
@@ -368,7 +372,7 @@ def create_check_op(
 
         context.add_output_metadata(
             {
-                "status": result.status.value,
+                "status": result.status.name,
                 "passed_count": result.passed_count,
                 "failed_count": result.failed_count,
             }

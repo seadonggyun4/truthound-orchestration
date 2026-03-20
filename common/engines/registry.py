@@ -473,18 +473,16 @@ def _register_default_engines(registry: EngineRegistry) -> None:
     Args:
         registry: Registry to populate with default engines.
     """
-    # Import here to avoid circular imports
-    from common.engines.great_expectations import GreatExpectationsAdapter
-    from common.engines.pandera import PanderaAdapter
-    from common.engines.truthound import TruthoundEngine
+    from common.engines.resolver import BUILTIN_ENGINE_SPECS, create_builtin_engine
 
-    # Register Truthound as the default engine
-    registry.register("truthound", TruthoundEngine(), set_as_default=True)
-
-    # Register other adapters
-    registry.register("great_expectations", GreatExpectationsAdapter())
-    registry.register("ge", GreatExpectationsAdapter())  # Alias
-    registry.register("pandera", PanderaAdapter())
+    for spec in BUILTIN_ENGINE_SPECS.values():
+        registry.register(
+            spec.name,
+            create_builtin_engine(spec.name),
+            set_as_default=spec.default,
+        )
+        for alias in spec.aliases:
+            registry.register(alias, create_builtin_engine(spec.name))
 
 
 # =============================================================================
@@ -508,7 +506,9 @@ def get_engine(name: str) -> DataQualityEngine:
         >>> engine = get_engine("truthound")
         >>> result = engine.check(data, rules)
     """
-    return get_engine_registry().get(name)
+    from common.engines.resolver import normalize_engine_name
+
+    return get_engine_registry().get(normalize_engine_name(name))
 
 
 def get_default_engine() -> DataQualityEngine:
@@ -533,7 +533,9 @@ def set_default_engine(name: str) -> None:
     Example:
         >>> set_default_engine("great_expectations")
     """
-    get_engine_registry().set_default(name)
+    from common.engines.resolver import normalize_engine_name
+
+    get_engine_registry().set_default(normalize_engine_name(name))
 
 
 def register_engine(

@@ -225,16 +225,39 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
         engine_name = self._config.engine_name.lower()
 
         try:
-            if engine_name == "truthound":
-                return self._create_truthound_engine()
-            elif engine_name in ("great_expectations", "ge"):
-                return self._create_ge_engine()
-            elif engine_name == "pandera":
-                return self._create_pandera_engine()
-            else:
-                # Fallback to registry
-                from common.engines import get_engine
-                return get_engine(engine_name)
+            from common.engines import (
+                EngineCreationRequest,
+                create_engine,
+                normalize_runtime_context,
+                run_preflight,
+            )
+
+            runtime_context = normalize_runtime_context(
+                platform="prefect",
+                host_metadata={"block_type": type(self).__name__},
+            )
+            request = EngineCreationRequest(
+                engine_name=engine_name,
+                runtime_context=runtime_context,
+            )
+            preflight = run_preflight(request)
+            if not preflight.compatible:
+                failures = "; ".join(
+                    check.message for check in preflight.compatibility.failures
+                )
+                raise EngineError(
+                    message=f"Preflight failed: {failures}",
+                    engine_name=engine_name,
+                    operation="preflight",
+                )
+
+            return create_engine(
+                request,
+                auto_start=False,
+                auto_stop=False,
+                parallel=self._config.parallel,
+                max_workers=self._config.max_workers,
+            )
         except Exception as e:
             raise EngineError(
                 message=f"Failed to create engine: {engine_name}",
@@ -242,26 +265,6 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
                 operation="create",
                 original_error=e,
             ) from e
-
-    def _create_truthound_engine(self) -> DataQualityEngine:
-        """Create a Truthound engine."""
-        from common.engines import TruthoundEngine, TruthoundEngineConfig
-
-        config = TruthoundEngineConfig(
-            parallel=self._config.parallel,
-            max_workers=self._config.max_workers,
-        )
-        return TruthoundEngine(config=config)
-
-    def _create_ge_engine(self) -> DataQualityEngine:
-        """Create a Great Expectations engine."""
-        from common.engines import GreatExpectationsAdapter
-        return GreatExpectationsAdapter()
-
-    def _create_pandera_engine(self) -> DataQualityEngine:
-        """Create a Pandera engine."""
-        from common.engines import PanderaAdapter
-        return PanderaAdapter()
 
     def check(
         self,
@@ -287,7 +290,7 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
             if self._config.auto_schema and "auto_schema" not in kwargs:
                 kwargs["auto_schema"] = True
 
-            return self.engine.check(data, rules or [], **kwargs)
+            return self.engine.check(data, rules, **kwargs)
         except Exception as e:
             raise EngineError(
                 message=f"Check operation failed: {e}",
@@ -483,6 +486,24 @@ class DataQualityBlock(Block):
             self._engine_block.teardown()
 
 
+def create_ephemeral_truthound_block(
+    *,
+    auto_schema: bool = False,
+    fail_on_error: bool = True,
+    warning_threshold: float | None = None,
+    timeout_seconds: float = 300.0,
+) -> DataQualityBlock:
+    """Create an in-memory Truthound-backed block for zero-config execution."""
+
+    return DataQualityBlock(
+        engine_name="truthound",
+        auto_schema=auto_schema,
+        fail_on_error=fail_on_error,
+        warning_threshold=warning_threshold,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 # Preset configurations
 DEFAULT_ENGINE_CONFIG = EngineBlockConfig()
 
@@ -528,6 +549,7 @@ __all__ = [
     # Blocks
     "EngineBlock",
     "DataQualityBlock",
+    "create_ephemeral_truthound_block",
     # Presets
     "DEFAULT_ENGINE_CONFIG",
     "PARALLEL_ENGINE_CONFIG",

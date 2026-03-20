@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-mage"
-version = "0.1.0"
+version = "3.0.0"
 description = "Mage AI integration for data quality validation with pluggable engine support"
 readme = "README.md"
 license = "MIT"
@@ -27,7 +27,8 @@ keywords = ["mage", "mage-ai", "data-quality", "truthound", "validation", "great
 
 dependencies = [
     "mage-ai>=0.9.0",
-    "truthound-orchestration>=0.1.0",
+    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound>=3.0,<4.0",
     "polars>=0.20.0",
 ]
 
@@ -93,7 +94,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --import-mode=importlib"
 markers = [
     "integration: marks tests as integration tests",
     "slow: marks tests as slow",

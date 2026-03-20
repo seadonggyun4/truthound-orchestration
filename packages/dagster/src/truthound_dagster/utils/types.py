@@ -183,7 +183,7 @@ class QualityCheckOutput(Generic[DataT]):
             dict[str, Any]: Dagster-compatible metadata.
         """
         return {
-            "status": self.result.status.value,
+            "status": self.result.status.name,
             "passed": self.passed,
             "passed_count": self.result.passed_count,
             "failed_count": self.failure_count,

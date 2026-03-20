@@ -205,6 +205,26 @@ from common.engines.registry import (
     is_plugin_discovery_enabled,
     discover_and_register_plugins,
 )
+from common.engines.resolver import (
+    EngineCreationRequest,
+    build_compatibility_report,
+    create_builtin_engine,
+    create_engine,
+    normalize_engine_name,
+    resolve_builtin_engine_spec,
+    run_preflight,
+)
+from common.runtime import (
+    AutoConfigPolicy,
+    CompatibilityCheck,
+    CompatibilityReport,
+    DataSourceKind,
+    PlatformRuntimeContext,
+    PreflightReport,
+    ResolvedDataSource,
+    normalize_runtime_context,
+    resolve_data_source,
+)
 from common.engines.plugin import (
     # Constants
     ENTRY_POINT_GROUP,
@@ -496,6 +516,14 @@ __all__ = [
     "EngineCapabilities",
     "EngineInfo",
     "EngineInfoMixin",
+    "EngineCreationRequest",
+    "AutoConfigPolicy",
+    "DataSourceKind",
+    "ResolvedDataSource",
+    "PlatformRuntimeContext",
+    "CompatibilityCheck",
+    "CompatibilityReport",
+    "PreflightReport",
     # State
     "EngineState",
     "EngineStateSnapshot",
@@ -613,7 +641,15 @@ __all__ = [
     "EngineRegistry",
     "get_engine_registry",
     "get_engine",
+    "create_engine",
+    "create_builtin_engine",
+    "build_compatibility_report",
+    "normalize_engine_name",
+    "normalize_runtime_context",
+    "resolve_builtin_engine_spec",
+    "resolve_data_source",
     "register_engine",
+    "run_preflight",
     "list_engines",
     "get_default_engine",
     "set_default_engine",

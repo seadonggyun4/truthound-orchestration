@@ -90,9 +90,32 @@ class BaseDriftTransformer(ABC):
             Lazily initializes the engine on first access.
         """
         if self._engine is None:
-            from common.engines import get_engine
+            from common.engines import (
+                EngineCreationRequest,
+                create_engine,
+                normalize_runtime_context,
+                run_preflight,
+            )
 
-            self._engine = get_engine(self._engine_name)
+            runtime_context = normalize_runtime_context(
+                platform="mage",
+                project_root=".",
+                host_metadata={"block_type": type(self).__name__},
+            )
+            request = EngineCreationRequest(
+                engine_name=self._engine_name,
+                runtime_context=runtime_context,
+            )
+            preflight = run_preflight(request)
+            if not preflight.compatible:
+                from truthound_mage.utils.exceptions import BlockExecutionError
+
+                failures = "; ".join(
+                    check.message for check in preflight.compatibility.failures
+                )
+                raise BlockExecutionError(f"Truthound Mage preflight failed: {failures}")
+
+            self._engine = create_engine(request)
         return self._engine
 
     def add_hook(self, hook: Any) -> None:

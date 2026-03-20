@@ -36,6 +36,7 @@ from truthound_prefect.blocks.engine import (
     EngineBlockConfig,
     PARALLEL_ENGINE_CONFIG,
     PRODUCTION_ENGINE_CONFIG,
+    create_ephemeral_truthound_block,
 )
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "EngineBlockConfig",
     "EngineBlock",
     "DataQualityBlock",
+    "create_ephemeral_truthound_block",
     "DEFAULT_ENGINE_CONFIG",
     "PARALLEL_ENGINE_CONFIG",
     "PRODUCTION_ENGINE_CONFIG",

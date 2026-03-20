@@ -1083,6 +1083,67 @@ class SerializerFactory:
 _default_factory = SerializerFactory()
 
 
+def detect_result_type(
+    result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult | dict[str, Any],
+) -> str:
+    """Infer the canonical result type name."""
+
+    if isinstance(result, CheckResult):
+        return "check"
+    if isinstance(result, ProfileResult):
+        return "profile"
+    if isinstance(result, LearnResult):
+        return "learn"
+    if isinstance(result, DriftResult):
+        return "drift"
+    if isinstance(result, AnomalyResult):
+        return "anomaly"
+    if isinstance(result, dict):
+        result_type = result.get("result_type") or result.get("type")
+        if isinstance(result_type, str):
+            return result_type.lower()
+        if "passed_count" in result and "failed_count" in result:
+            return "check"
+        if "drifted_columns" in result:
+            return "drift"
+        if "anomalies" in result:
+            return "anomaly"
+        if "columns" in result and "row_count" in result:
+            return "profile"
+        if "rules" in result:
+            return "learn"
+    raise TypeError(f"Unknown result type: {type(result).__name__}")
+
+
+def serialize_result_wire(
+    result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
+    *,
+    include_result_type: bool = False,
+    result_type_key: str = "result_type",
+) -> dict[str, Any]:
+    """Serialize a result into the shared orchestration wire format."""
+
+    payload = result.to_dict()
+    if include_result_type:
+        payload[result_type_key] = detect_result_type(result)
+    return payload
+
+
+def deserialize_result_wire(
+    data: dict[str, Any],
+    *,
+    result_type: str | None = None,
+    result_type_key: str = "result_type",
+) -> dict[str, Any]:
+    """Normalize a shared wire payload for downstream platform consumers."""
+
+    payload = dict(data)
+    payload.pop(result_type_key, None)
+    if result_type is not None:
+        payload["result_type"] = result_type
+    return payload
+
+
 def serialize_result(
     result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
     format: str = "dict",

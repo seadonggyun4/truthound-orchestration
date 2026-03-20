@@ -1,122 +1,36 @@
 ---
-title: Prefect Integration
+title: Prefect
 ---
 
-# Prefect Integration
+# Prefect
 
-Provides Blocks, Tasks, and Flows for data quality validation within Prefect.
+Prefect integration uses Blocks as the persisted boundary and tasks or flows as the execution boundary.
 
-## Installation
+## Install
 
 ```bash
-pip install truthound-orchestration[prefect]
+pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
 ```
 
-## Components
-
-| Component | Description | Documentation |
-|-----------|-------------|---------------|
-| Blocks | Engine and configuration storage | [blocks.md](blocks.md) |
-| Tasks | Data quality tasks | [tasks.md](tasks.md) |
-| Flows | Quality flow templates | [flows.md](flows.md) |
-
-## Quick Start
+## Zero-Config Path
 
 ```python
 from prefect import flow
-from packages.prefect.tasks import data_quality_check_task
+from truthound_prefect.tasks import data_quality_check_task
 
 @flow
-def quality_flow():
-    data = load_data()
-    result = data_quality_check_task(data, auto_schema=True)
-    return result
+async def validate_users(data):
+    return await data_quality_check_task(data)
 ```
 
-## Blocks
+If you omit a block, Prefect creates an in-memory Truthound-backed block for the run.
 
-### DataQualityBlock
-
-Data quality engine Block:
+## Saved Block Path
 
 ```python
-from packages.prefect.blocks import DataQualityBlock
+from truthound_prefect.blocks import DataQualityBlock
 
 block = DataQualityBlock(engine_name="truthound")
-block.save("my-quality-block")
-
-# Load later
-block = DataQualityBlock.load("my-quality-block")
-result = block.check(data, auto_schema=True)
 ```
 
-## Tasks
-
-### data_quality_check_task
-
-Data validation task:
-
-```python
-from packages.prefect.tasks import data_quality_check_task
-
-@flow
-def my_flow():
-    result = data_quality_check_task(data, auto_schema=True)
-```
-
-### data_quality_profile_task
-
-Profiling task:
-
-```python
-from packages.prefect.tasks import data_quality_profile_task
-
-@flow
-def profile_flow():
-    profile = data_quality_profile_task(data)
-```
-
-### data_quality_learn_task
-
-Schema learning task:
-
-```python
-from packages.prefect.tasks import data_quality_learn_task
-
-@flow
-def learn_flow():
-    learn_result = data_quality_learn_task(data)
-```
-
-## Specialized Tasks
-
-```python
-from packages.prefect.tasks import (
-    auto_schema_check_task,   # Auto schema validation
-    strict_check_task,        # Strict validation
-    lenient_check_task,       # Lenient validation
-)
-
-@flow
-def specialized_flow():
-    result = strict_check_task(data)
-```
-
-## Flows
-
-Flow templates:
-
-```python
-from packages.prefect.flows import FlowConfig, QualityFlowConfig
-
-config = QualityFlowConfig(
-    auto_schema=True,
-    fail_on_error=True,
-)
-```
-
-## Navigation
-
-- [Blocks](blocks.md) - Detailed Block usage
-- [Tasks](tasks.md) - Task configuration
-- [Flows](flows.md) - Flow utilization
+Use saved blocks when you want reusable deployment configuration. Use the no-block path when you want the fastest first run.

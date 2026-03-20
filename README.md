@@ -1,4 +1,4 @@
-<img width="300" height="300" alt="Truthound_icon" src="https://github.com/user-attachments/assets/90d9e806-8895-45ec-97dc-f8300da4d997" />
+<img width="500" alt="Truthound_icon" src="https://github.com/user-attachments/assets/90d9e806-8895-45ec-97dc-f8300da4d997" />
 
 > **Alpha Stage** — This project is currently in **alpha**. APIs may change without notice. Not recommended for production use yet.
 
@@ -10,7 +10,7 @@
 [![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Downloads](https://img.shields.io/pepy/dt/truthound-orchestration?color=brightgreen)](https://pepy.tech/project/truthound-orchestration)
 
-**Truthound Orchestration** is a **generic data quality integration framework** that provides adapters for major workflow orchestration platforms. While [Truthound](https://github.com/seadonggyun4/Truthound) serves as the default data quality engine, the framework supports **any data quality engine** through its Protocol-based architecture.
+**Truthound Orchestration** provides the **official orchestration integrations for Truthound 3.x** across major workflow orchestration platforms. It is the first-party compatibility line for running [Truthound](https://github.com/seadonggyun4/Truthound) in orchestration environments, while still exposing Protocol-based extension points for advanced teams that need alternative or custom engines.
 
 **Documentation**: [https://truthound.netlify.app](https://truthound.netlify.app/orchestration/)
 
@@ -19,16 +19,16 @@
 ## Quick Start
 
 ```bash
-# Install from PyPI
-pip install truthound-orchestration
+# Recommended: Truthound 3.x with a platform integration
+pip install truthound-orchestration[airflow] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[dagster] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
 
-# With platform integration
-pip install truthound-orchestration[airflow]
-pip install truthound-orchestration[dagster]
-pip install truthound-orchestration[prefect]
+# Core package + Truthound 3.x
+pip install truthound-orchestration "truthound>=3.0,<4.0"
 
-# All platforms
-pip install truthound-orchestration[all]
+# All supported platform integrations
+pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
 
 ```python
@@ -54,9 +54,23 @@ with engine:
 
 ---
 
+## Truthound 3.x Compatibility
+
+`truthound-orchestration` `3.x` supports `Truthound 3.x` only.
+
+- Supported Truthound versions: `>=3.0,<4.0`
+- Unsupported Truthound versions: `1.x` and `2.x`
+- This policy applies to the root package and the platform integration packages in this repository
+- If you need an older Truthound engine line, stay on an older `truthound-orchestration` release line
+
+This release line exists to provide a clear compatibility boundary for the Truthound 3 runtime and result contracts.
+
+---
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Truthound 3.x Compatibility](#truthound-3x-compatibility)
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Implementation Status](#implementation-status)
@@ -66,6 +80,7 @@ with engine:
   - [Drift Detection](#drift-detection)
   - [Anomaly Detection](#anomaly-detection)
   - [Streaming Validation](#streaming-validation)
+- [Advanced Engine Support](#advanced-engine-support)
 - [Development](#development)
 - [Contributing](#contributing)
 - [License](#license)
@@ -80,21 +95,21 @@ with engine:
 
 ### Motivation
 
-Modern data ecosystems require robust quality assurance mechanisms that integrate natively with workflow orchestration tools. Truthound Orchestration addresses this requirement by providing **engine-agnostic** adapters for each supported platform, ensuring that data quality validation becomes a first-class operation within existing pipeline architectures—regardless of which data quality engine you choose.
+Modern data ecosystems need data quality checks that fit naturally inside orchestration systems without losing runtime semantics. Truthound Orchestration exists to make Truthound 3.x a first-class citizen in Airflow, Dagster, Prefect, dbt, Mage, and Kestra through official adapters, shared result semantics, and a clearly documented compatibility line.
 
 ### Design Principles
 
 | Principle | Description |
 |-----------|-------------|
-| Engine-Agnostic Design | Supports any data quality engine via the `DataQualityEngine` Protocol |
+| Truthound-First Experience | Official orchestration integrations for Truthound 3.x with Truthound as the primary documented path |
 | Platform-Native Patterns | Adheres to the idiomatic conventions of each target platform |
-| Protocol-Based Architecture | Employs Python Protocols for loose coupling and extensibility |
-| Independent Versioning | Maintains separate release cycles aligned with platform evolution |
-| Zero-Configuration Defaults | Provides sensible defaults (Truthound) while supporting advanced customization |
+| Protocol-Based Architecture | Employs Python Protocols internally for loose coupling, maintainability, and advanced extensibility |
+| Clear Compatibility Line | `truthound-orchestration` `3.x` targets `Truthound` `3.x` only |
+| Advanced Extensibility | Alternative and custom engines remain available for advanced integrations |
 
 ### Core Capabilities
 
-- **Engine Abstraction**: Plug in any data quality engine (Truthound, Great Expectations, Pandera, custom engines)
+- **Truthound 3.x Integration**: Official orchestration adapters for validation, profiling, schema learning, drift, anomaly detection, and streaming workflows
 - **Data Validation**: Execute comprehensive validation rules across multiple data quality dimensions
 - **Data Profiling**: Perform automated statistical analysis and pattern detection
 - **Schema Learning**: Automatically infer validation rules from data characteristics
@@ -102,12 +117,13 @@ Modern data ecosystems require robust quality assurance mechanisms that integrat
 - **Anomaly Detection**: ML-based anomaly detection with Isolation Forest, Z-Score, LOF, and Ensemble detectors
 - **Streaming Validation**: Memory-efficient batch-by-batch validation of streaming data via Iterator/Generator patterns
 - **Cross-Platform Consistency**: Maintain uniform validation semantics across all supported platforms
+- **Advanced Extensibility**: Protocol-based hooks for alternative engines and custom integrations when needed
 
 ---
 
 ## Architecture
 
-The system architecture employs a layered design pattern with **engine abstraction** at its core. The `DataQualityEngine` Protocol enables any data quality engine to be plugged in, with Truthound as the default implementation. Extended Protocols (`DriftDetectionEngine`, `AnomalyDetectionEngine`, `StreamingEngine`) provide opt-in advanced capabilities.
+The system architecture keeps a protocol-based core so the first-party Truthound integration remains maintainable and testable. For the `3.x` release line, Truthound is the primary supported runtime, while extended protocols preserve room for advanced custom integrations.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -254,11 +270,11 @@ The enterprise module extends the core framework with production-grade capabilit
 | Status | Complete |
 |--------|----------|
 
-Apache Airflow Provider package implementing native Operators, Sensors, and Hooks with **pluggable engine support**.
+Apache Airflow Provider package implementing native Operators, Sensors, and Hooks for **Truthound-first data quality workflows**.
 
 | Component | Description |
 |-----------|-------------|
-| `DataQualityCheckOperator` | Execute data quality validation with any engine (default: Truthound) |
+| `DataQualityCheckOperator` | Execute Truthound-backed data quality validation with optional advanced engine injection |
 | `DataQualityProfileOperator` | Perform statistical profiling of datasets |
 | `DataQualityLearnOperator` | Automatically infer validation schemas |
 | `DataQualityDriftOperator` | Detect data drift between baseline and current datasets |
@@ -279,11 +295,11 @@ Apache Airflow Provider package implementing native Operators, Sensors, and Hook
 | Status | Complete |
 |--------|----------|
 
-Dagster integration utilizing ConfigurableResource and Software-Defined Assets with **engine abstraction**.
+Dagster integration utilizing ConfigurableResource and Software-Defined Assets with **Truthound-first defaults**.
 
 | Component | Description |
 |-----------|-------------|
-| `DataQualityResource` | Configurable resource with pluggable engine support |
+| `DataQualityResource` | Configurable resource with Truthound-first defaults and optional custom engine injection |
 | `create_quality_check_asset` | Factory function for quality validation assets |
 | `data_quality_check_op` | Op implementation for graph-based workflows |
 | `data_quality_drift_op` | Drift detection op with dual-input (baseline + current) |
@@ -303,11 +319,11 @@ Dagster integration utilizing ConfigurableResource and Software-Defined Assets w
 | Status | Complete |
 |--------|----------|
 
-Prefect integration providing Blocks, Tasks, and Flow templates with **engine-agnostic design**.
+Prefect integration providing Blocks, Tasks, and Flow templates for **Truthound-first orchestration workflows**.
 
 | Component | Description |
 |-----------|-------------|
-| `DataQualityBlock` | Persistent configuration storage with engine selection |
+| `DataQualityBlock` | Persistent configuration storage with Truthound-first defaults and optional advanced engine selection |
 | `data_quality_check` | Task decorator for validation operations |
 | `data_quality_profile` | Task decorator for profiling operations |
 | `data_quality_drift_task` | Async drift detection task with table artifact visualization |
@@ -408,56 +424,50 @@ Kestra integration providing Python script executors and YAML flow generators.
 | Requirement | Version |
 |-------------|---------|
 | Python | >= 3.11 |
-| Truthound (optional, default engine) | >= 1.0.0 |
+| Truthound (primary engine) | >= 3.0, < 4.0 |
 
-### Package Installation
+### Recommended Truthound 3.x Installation
 
-This project employs a **single package with optional dependencies** architecture to optimize developer experience:
+This project is published as a **single package with optional dependencies**. For the primary `3.x` support path, install `truthound-orchestration` together with `Truthound 3.x`.
 
 ```bash
-# Core package only (includes common module + engine adapters)
-pip install truthound-orchestration
+# Core package + Truthound 3.x
+pip install truthound-orchestration "truthound>=3.0,<4.0"
 
-# With specific platform integration
-pip install truthound-orchestration[airflow]
-pip install truthound-orchestration[dagster]
-pip install truthound-orchestration[prefect]
-pip install truthound-orchestration[mage]
-pip install truthound-orchestration[kestra]
+# With specific platform integration + Truthound 3.x
+pip install truthound-orchestration[airflow] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[dagster] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[mage] "truthound>=3.0,<4.0"
+pip install truthound-orchestration[kestra] "truthound>=3.0,<4.0"
 
-# Multiple platforms
-pip install truthound-orchestration[airflow,dagster]
+# Multiple platforms + Truthound 3.x
+pip install truthound-orchestration[airflow,dagster] "truthound>=3.0,<4.0"
 
-# All platforms + development tools
-pip install truthound-orchestration[all]
+# All platforms + Truthound 3.x
+pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
 
-#### Engine Installation
+#### Truthound Engine Installation
 
-Engines are installed separately based on your choice:
+Install Truthound explicitly for the supported `3.x` runtime:
 
 ```bash
-# Truthound (default, recommended)
-pip install truthound
-
-# Great Expectations
-pip install great-expectations
-
-# Pandera
-pip install pandera
+# Truthound 3.x (recommended)
+pip install "truthound>=3.0,<4.0"
 ```
 
-#### Complete Example
+#### Complete Truthound Examples
 
 ```bash
-# Airflow user with Truthound engine
-pip install truthound-orchestration[airflow] truthound
+# Airflow user with Truthound 3.x
+pip install truthound-orchestration[airflow] "truthound>=3.0,<4.0"
 
-# Dagster user with Great Expectations engine
-pip install truthound-orchestration[dagster] great-expectations
+# Dagster user with Truthound 3.x
+pip install truthound-orchestration[dagster] "truthound>=3.0,<4.0"
 
-# Multi-platform with Pandera
-pip install truthound-orchestration[airflow,prefect] pandera
+# Prefect user with Truthound 3.x
+pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
 ```
 
 ### Why Single Package?
@@ -465,9 +475,9 @@ pip install truthound-orchestration[airflow,prefect] pandera
 | Aspect | Single Package (`truthound-orchestration[airflow]`) | Multi Package (`truthound-airflow`) |
 |--------|-----------------------------------------------------|-------------------------------------|
 | **Developer Experience** | Simple, consistent | Multiple package names to remember |
-| **Versioning** | Unified version | Separate version per package |
+| **Versioning** | Unified Truthound 3.x compatibility line | Separate version per package |
 | **Size** | ~50KB core + platform deps | Same total size |
-| **Maintenance** | Single PyPI package | 5 separate packages |
+| **Maintenance** | Single first-party release line | 5 separate packages |
 
 The `common/` module is lightweight (approximately 50KB of pure Python). Platform-specific dependencies (Airflow approximately 200MB, Dagster approximately 150MB) are installed only when the corresponding extra is specified.
 
@@ -485,13 +495,24 @@ packages:
 
 | Extra | Default Engine | Platform Requirement |
 |-------|----------------|----------------------|
-| `[airflow]` | Truthound (optional) | Apache Airflow >= 2.6.0 |
-| `[dagster]` | Truthound (optional) | Dagster >= 1.5.0 |
-| `[prefect]` | Truthound (optional) | Prefect >= 2.14.0 |
+| `[airflow]` | Truthound 3.x only | Apache Airflow >= 2.6.0 |
+| `[dagster]` | Truthound 3.x only | Dagster >= 1.5.0 |
+| `[prefect]` | Truthound 3.x only | Prefect >= 2.14.0 |
 | `[opentelemetry]` | - | OpenTelemetry SDK >= 1.20.0 |
 
-**Supported Engines:**
-- [Truthound](https://github.com/seadonggyun4/Truthound) (default, recommended)
+### Advanced: Alternative and Custom Engines
+
+Truthound 3.x is the primary documented and tested runtime for this release line. Alternative engines remain available for advanced integrations through the shared protocol and adapter boundaries.
+
+```bash
+# Great Expectations
+pip install truthound-orchestration[dagster] great-expectations
+
+# Pandera
+pip install truthound-orchestration[airflow,prefect] pandera
+```
+
+**Advanced engine options beyond Truthound:**
 - [Great Expectations](https://greatexpectations.io/) (via adapter)
 - [Pandera](https://pandera.readthedocs.io/) (via adapter)
 - Custom engines (implement `DataQualityEngine` Protocol)
@@ -500,7 +521,7 @@ packages:
 
 ## Usage Examples
 
-The following examples demonstrate the API for each platform integration with **pluggable engine support**.
+The following examples show the primary Truthound 3.x workflow across supported platforms.
 
 ### Apache Airflow
 
@@ -525,15 +546,6 @@ with DAG(
         ],
         data_path="s3://data-lake/users/{{ ds }}/data.parquet",
         fail_on_error=True,
-    )
-
-    # Using custom engine
-    from my_project import CustomEngine
-    validate_with_custom = DataQualityCheckOperator(
-        task_id="validate_with_custom",
-        engine=CustomEngine(),  # Plug in any DataQualityEngine
-        rules=[...],
-        data_path="...",
     )
 ```
 
@@ -562,13 +574,6 @@ defs = Definitions(
     assets=[raw_users, validated_users],
     resources={"data_quality": DataQualityResource()},
 )
-
-# Custom engine example
-from common.engines import GreatExpectationsAdapter
-defs = Definitions(
-    assets=[raw_users, validated_users],
-    resources={"data_quality": DataQualityResource(engine=GreatExpectationsAdapter())},
-)
 ```
 
 ### Prefect
@@ -595,8 +600,8 @@ async def validation_pipeline():
         ],
     )
 
-    # Or using a configured block with custom engine
-    block = await DataQualityBlock.load("my-ge-config")
+    # Or using a configured Truthound block
+    block = await DataQualityBlock.load("my-truthound-config")
     result = await block.check(data, rules=[...])
 
     return result
@@ -696,6 +701,58 @@ for batch_result in engine.check_stream(data_stream(), batch_size=5000):
 
 ---
 
+## Advanced Engine Support
+
+Alternative and custom engines remain available for advanced use cases, but they are not the primary compatibility story for the `3.x` release line.
+
+### Airflow With a Custom Engine
+
+```python
+from airflow import DAG
+from airflow.utils.dates import days_ago
+from truthound_airflow import DataQualityCheckOperator
+from my_project import CustomEngine
+
+with DAG(
+    dag_id="custom_engine_quality_pipeline",
+    start_date=days_ago(1),
+    schedule_interval="@daily",
+) as dag:
+    validate_with_custom = DataQualityCheckOperator(
+        task_id="validate_with_custom",
+        engine=CustomEngine(),
+        rules=[...],
+        data_path="...",
+    )
+```
+
+### Dagster With Great Expectations
+
+```python
+from dagster import Definitions
+from common.engines import GreatExpectationsAdapter
+from truthound_dagster import DataQualityResource
+
+defs = Definitions(
+    assets=[...],
+    resources={"data_quality": DataQualityResource(engine=GreatExpectationsAdapter())},
+)
+```
+
+### Prefect With a Custom Block Configuration
+
+```python
+from prefect import flow
+from truthound_prefect import DataQualityBlock
+
+@flow
+async def validation_pipeline(data):
+    block = await DataQualityBlock.load("my-custom-engine-config")
+    return await block.check(data, rules=[...])
+```
+
+---
+
 ## Development
 
 ### Environment Setup
@@ -732,8 +789,15 @@ ruff check .
 # Run type checker
 mypy common/
 
-# Run tests
-pytest
+# Run the monorepo tests with importlib mode
+PYTHONPATH=. pytest --import-mode=importlib
+
+# Run the common test suite only
+PYTHONPATH=. pytest --import-mode=importlib tests/common
+
+# Run platform package tests with explicit src paths
+PYTHONPATH=.:packages/prefect/src pytest --import-mode=importlib packages/prefect/tests
+PYTHONPATH=.:packages/dagster/src pytest --import-mode=importlib packages/dagster/tests
 
 # Run all pre-commit checks
 pre-commit run --all-files
