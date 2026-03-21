@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import csv
 from pathlib import Path
+import re
 import sys
 
 import pytest
@@ -111,3 +113,17 @@ def test_integration_schema_uses_package_qualified_generic_tests() -> None:
     assert "truthound.truthound_check" in schema_text
     assert "truthound.truthound_not_null" in schema_text
     assert "truthound.truthound_range" in schema_text
+
+
+def test_valid_seed_urls_match_project_url_pattern() -> None:
+    project_text = (ROOT / "packages" / "dbt" / "dbt_project.yml").read_text(encoding="utf-8")
+    match = re.search(r"^\s+url:\s+'([^']+)'", project_text, re.MULTILINE)
+    assert match is not None
+    url_pattern = re.compile(match.group(1))
+
+    seed_path = ROOT / "packages" / "dbt" / "integration_tests" / "seeds" / "test_valid_data.csv"
+    with seed_path.open(encoding="utf-8", newline="") as handle:
+        rows = csv.DictReader(handle)
+        invalid_urls = [row["url"] for row in rows if not url_pattern.match(row["url"])]
+
+    assert invalid_urls == []
