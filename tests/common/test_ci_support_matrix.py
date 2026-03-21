@@ -119,19 +119,25 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "truthound==3.0.0",
         "apache-airflow==3.1.8",
     ]
-    assert blocking["airflow"]["constraints"] == []
-    assert blocking["airflow"]["constraint_urls"] == [
-        "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"
+    assert blocking["airflow"]["constraints"] == [
+        "cryptography>=46.0.5",
+        "pyjwt>=2.12.0",
     ]
+    assert blocking["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.22",
     ]
-    assert blocking["prefect"]["constraints"] == ["starlette>=0.49.1"]
+    assert blocking["prefect"]["constraints"] == [
+        "cryptography>=46.0.5",
+        "protobuf>=5.29.6",
+        "pyjwt>=2.12.0",
+        "starlette>=0.49.1",
+    ]
     assert blocking["dbt"]["host_requirements"] == [
         "truthound==3.0.0",
-        "dbt-core==1.10.15",
-        "dbt-postgres==1.10.15",
+        "dbt-core==1.10.20",
+        "dbt-postgres==1.10.0",
     ]
     assert blocking["kestra"]["host_requirements"] == [
         "truthound==3.0.0",
@@ -143,6 +149,11 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "opentelemetry-sdk==1.40.0",
         "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
         "opentelemetry-exporter-otlp-proto-http==1.40.0",
+    ]
+    assert blocking["opentelemetry"]["constraints"] == [
+        "cryptography>=46.0.5",
+        "googleapis-common-protos>=1.57,<2",
+        "protobuf>=5.29.6,<6",
     ]
     assert canary == {
         "all": {

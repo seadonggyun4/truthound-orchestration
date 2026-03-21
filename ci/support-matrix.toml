@@ -77,8 +77,8 @@ required = true
 extra = "dbt"
 execution_target = "postgres"
 core_range = "dbt-core>=1.10.0,<1.11.0"
-execution_core_version = "1.10.15"
-execution_adapter_version = "1.10.15"
+execution_core_version = "1.10.20"
+execution_adapter_version = "1.10.0"
 coverage_threshold = 0.8
 
 [dbt.compile_adapters]
@@ -105,13 +105,18 @@ constraint_urls = []
 [security.surfaces.airflow]
 extra = "airflow"
 host_requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
-constraints = []
-constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"]
+constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
+constraint_urls = []
 
 [security.surfaces.prefect]
 extra = "prefect"
 host_requirements = ["truthound==3.0.0", "prefect==3.6.22"]
-constraints = ["starlette>=0.49.1"]
+constraints = [
+    "cryptography>=46.0.5",
+    "protobuf>=5.29.6",
+    "pyjwt>=2.12.0",
+    "starlette>=0.49.1",
+]
 constraint_urls = []
 
 [security.surfaces.dagster]
@@ -122,7 +127,7 @@ constraint_urls = []
 
 [security.surfaces.dbt]
 extra = "dbt"
-host_requirements = ["truthound==3.0.0", "dbt-core==1.10.15", "dbt-postgres==1.10.15"]
+host_requirements = ["truthound==3.0.0", "dbt-core==1.10.20", "dbt-postgres==1.10.0"]
 constraints = []
 constraint_urls = []
 
@@ -141,7 +146,11 @@ host_requirements = [
     "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
     "opentelemetry-exporter-otlp-proto-http==1.40.0",
 ]
-constraints = []
+constraints = [
+    "cryptography>=46.0.5",
+    "googleapis-common-protos>=1.57,<2",
+    "protobuf>=5.29.6,<6",
+]
 constraint_urls = []
 
 [security.surfaces.all]

@@ -46,7 +46,7 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.22` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
-| dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.15` + `dbt-postgres 1.10.15` |
+| dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
 
