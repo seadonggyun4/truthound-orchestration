@@ -91,6 +91,30 @@
 {% endmacro %}
 
 
+{% macro round_percentage(numerator, denominator, scale=2, zero_on_zero=false) %}
+{#
+    Compute a percentage with stable decimal rounding across adapters.
+
+    Some engines, including PostgreSQL, do not support `round(float, scale)`.
+    Route the calculation through `numeric` so two-argument rounding remains
+    portable for summary/profile macros.
+#}
+{{ return(adapter.dispatch('round_percentage', 'truthound')(numerator, denominator, scale, zero_on_zero)) }}
+{% endmacro %}
+
+
+{% macro default__round_percentage(numerator, denominator, scale=2, zero_on_zero=false) %}
+{% if zero_on_zero %}
+case
+    when {{ denominator }} = 0 then cast(0 as numeric)
+    else round(cast({{ numerator }} as numeric) / cast({{ denominator }} as numeric) * 100, {{ scale }})
+end
+{% else %}
+round(cast({{ numerator }} as numeric) / nullif(cast({{ denominator }} as numeric), 0) * 100, {{ scale }})
+{% endif %}
+{% endmacro %}
+
+
 {# ============================================================================
    String Functions
    ============================================================================ #}

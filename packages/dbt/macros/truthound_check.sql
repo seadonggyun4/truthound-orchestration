@@ -307,10 +307,7 @@ summary as (
         '{{ rule.get('check', rule.get('type', 'unknown')) }}' as check_type,
         r.failure_count,
         t.cnt as total_count,
-        case
-            when t.cnt = 0 then 0.0
-            else round(cast(r.failure_count as {{ dbt.type_float() }}) / t.cnt * 100, 2)
-        end as failure_rate_pct
+        {{ truthound.round_percentage('r.failure_count', 't.cnt', scale=2, zero_on_zero=true) }} as failure_rate_pct
     from rule_{{ idx }}_count r
     cross join total_count t
     {% if not loop.last %}
@@ -386,9 +383,9 @@ combined_profile as (
     select
         p.column_name,
         p.null_count,
-        round(cast(p.null_count as {{ dbt.type_float() }}) / nullif(t.cnt, 0) * 100, 2) as null_rate_pct,
+        {{ truthound.round_percentage('p.null_count', 't.cnt', scale=2) }} as null_rate_pct,
         p.distinct_count,
-        round(cast(p.distinct_count as {{ dbt.type_float() }}) / nullif(t.cnt, 0) * 100, 2) as distinct_rate_pct,
+        {{ truthound.round_percentage('p.distinct_count', 't.cnt', scale=2) }} as distinct_rate_pct,
         p.min_length,
         p.max_length,
         t.cnt as total_count
