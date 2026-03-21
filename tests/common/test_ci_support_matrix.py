@@ -132,7 +132,7 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "cryptography>=46.0.5",
         "protobuf>=5.29.6",
         "pyjwt>=2.12.0",
-        "starlette>=0.49.1",
+        "starlette==0.49.1",
     ]
     assert blocking["dbt"]["host_requirements"] == [
         "truthound==3.0.0",

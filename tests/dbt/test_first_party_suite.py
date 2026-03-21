@@ -89,3 +89,16 @@ def test_validate_dbt_configuration_fails_on_profile_mismatch(tmp_path: Path) ->
             profiles_dir,
             "postgres",
         )
+
+
+def test_generic_test_definitions_live_in_macro_path() -> None:
+    generic_tests = ROOT / "packages" / "dbt" / "macros" / "truthound_generic_tests.sql"
+    deprecated_location = (
+        ROOT / "packages" / "dbt" / "tests" / "generic" / "test_truthound_check.sql"
+    )
+
+    text = generic_tests.read_text(encoding="utf-8")
+
+    assert "{% test truthound_check(" in text
+    assert "{% test truthound_not_null(" in text
+    assert not deprecated_location.exists()
