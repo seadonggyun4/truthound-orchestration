@@ -12,6 +12,20 @@ from urllib import error, parse, request
 API_VERSION = "2026-03-10"
 
 
+def normalize_vulnerabilities(change: dict[str, object]) -> list[dict[str, object]]:
+    """Return a typed vulnerability list from a dependency review change item."""
+
+    raw_vulnerabilities = change.get("vulnerabilities")
+    if not isinstance(raw_vulnerabilities, list):
+        return []
+
+    vulnerabilities: list[dict[str, object]] = []
+    for vulnerability in raw_vulnerabilities:
+        if isinstance(vulnerability, dict):
+            vulnerabilities.append(vulnerability)
+    return vulnerabilities
+
+
 def fetch_dependency_changes(
     owner: str,
     repo: str,
@@ -50,7 +64,7 @@ def find_vulnerable_additions(changes: Iterable[dict[str, object]]) -> list[dict
     for change in changes:
         if change.get("change_type") != "added":
             continue
-        vulnerabilities = change.get("vulnerabilities") or []
+        vulnerabilities = normalize_vulnerabilities(change)
         if not vulnerabilities:
             continue
         findings.append(change)
@@ -68,10 +82,8 @@ def format_findings(findings: Iterable[dict[str, object]]) -> str:
         advisories = ", ".join(
             (
                 f"{vuln.get('advisory_ghsa_id', 'UNKNOWN')} ({vuln.get('severity', 'unknown')})"
-                if isinstance(vuln, dict)
-                else "UNKNOWN"
             )
-            for vuln in (finding.get("vulnerabilities") or [])
+            for vuln in normalize_vulnerabilities(finding)
         )
         lines.append(f"- {name} {version} via {manifest}: {advisories}")
     return "\n".join(lines)
