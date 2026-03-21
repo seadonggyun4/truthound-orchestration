@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import csv
+import json
 from pathlib import Path
 import re
 import sys
@@ -57,6 +58,43 @@ def test_build_commands_include_explicit_project_and_profiles_dirs() -> None:
         "--profiles-dir",
         str(profiles_dir),
     )
+
+
+def test_execute_macro_smoke_targets_reference_existing_columns() -> None:
+    project_dir = Path("/tmp/truthound-dbt-project")
+    profiles_dir = Path("/tmp/truthound-dbt-profiles")
+
+    commands = dbt_first_party_suite.build_commands(
+        "execute",
+        "postgres",
+        macro_smoke=True,
+        project_dir=project_dir,
+        profiles_dir=profiles_dir,
+        dbt_executable="dbt",
+    )
+
+    assert [command.name for command in commands] == [
+        "deps",
+        "seed",
+        "run",
+        "test",
+        "run_truthound_check",
+        "run_truthound_summary",
+    ]
+
+    check_args = json.loads(commands[-2].argv[-1])
+    summary_args = json.loads(commands[-1].argv[-1])
+
+    assert check_args == {
+        "model_name": "test_model_valid",
+        "rules": [{"column": "id", "check": "not_null"}],
+        "options": {"limit": 50},
+    }
+    assert summary_args == {
+        "model_name": "test_reference_model",
+        "rules": [{"column": "name", "check": "not_null"}],
+        "options": {"limit": 50},
+    }
 
 
 def test_validate_dbt_configuration_passes_for_checked_in_project() -> None:

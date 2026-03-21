@@ -190,7 +190,7 @@ def build_commands(
             )
             summary_args = json.dumps(
                 {
-                    "model_name": "test_model_valid",
+                    "model_name": "test_reference_model",
                     "rules": [{"column": "name", "check": "not_null"}],
                     "options": {"limit": 50},
                 }
@@ -228,7 +228,7 @@ def build_commands(
                         metadata={
                             "phase": "run-operation",
                             "macro": "run_truthound_summary",
-                            "model_name": "test_model_valid",
+                            "model_name": "test_reference_model",
                         },
                     ),
                 ]

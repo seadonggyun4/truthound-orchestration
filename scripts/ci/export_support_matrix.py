@@ -148,6 +148,7 @@ def build_security_surface(
         "extra": surface["extra"],
         "host_requirements": list(surface.get("host_requirements", [])),
         "constraints": list(surface.get("constraints", [])),
+        "ignore_vulns": list(surface.get("ignore_vulns", [])),
         "constraint_urls": list(surface.get("constraint_urls", [])),
     }
 

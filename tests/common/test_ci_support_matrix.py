@@ -28,7 +28,7 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
                 "label": "primary",
                 "version": "3.1.8",
                 "python_version": "3.12",
-                "constraints": ["starlette==0.49.1"],
+                "constraints": [],
                 "constraint_urls": [],
             }
         ]
@@ -113,18 +113,18 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "extra": "",
         "host_requirements": ["truthound==3.0.0"],
         "constraints": [],
+        "ignore_vulns": [],
         "constraint_urls": [],
     }
     assert blocking["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
         "apache-airflow==3.1.8",
-        "starlette==0.49.1",
     ]
     assert blocking["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
         "pyjwt>=2.12.0",
-        "starlette==0.49.1",
     ]
+    assert blocking["airflow"]["ignore_vulns"] == ["CVE-2025-62727"]
     assert blocking["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
@@ -137,15 +137,18 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "pyjwt>=2.12.0",
         "starlette==0.49.1",
     ]
+    assert blocking["prefect"]["ignore_vulns"] == []
     assert blocking["dbt"]["host_requirements"] == [
         "truthound==3.0.0",
         "dbt-core==1.10.20",
         "dbt-postgres==1.10.0",
     ]
+    assert blocking["dbt"]["ignore_vulns"] == []
     assert blocking["kestra"]["host_requirements"] == [
         "truthound==3.0.0",
         "kestra==1.3.0",
     ]
+    assert blocking["kestra"]["ignore_vulns"] == []
     assert blocking["opentelemetry"]["host_requirements"] == [
         "truthound==3.0.0",
         "opentelemetry-api==1.40.0",
@@ -158,12 +161,14 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "googleapis-common-protos>=1.57,<2",
         "protobuf>=5.29.6,<6",
     ]
+    assert blocking["opentelemetry"]["ignore_vulns"] == []
     assert canary == {
         "all": {
             "label": "all",
             "extra": "all",
             "host_requirements": ["truthound==3.0.0"],
             "constraints": [],
+            "ignore_vulns": [],
             "constraint_urls": [],
         }
     }

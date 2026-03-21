@@ -98,6 +98,7 @@ jobs:
         env:
           HOST_REQUIREMENTS_JSON: ${{ toJSON(matrix.host_requirements) }}
           CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
+          IGNORE_VULNS_JSON: ${{ toJSON(matrix.ignore_vulns) }}
           CONSTRAINT_URLS_JSON: ${{ toJSON(matrix.constraint_urls) }}
         run: |
           python - <<'PY'
@@ -109,10 +110,15 @@ jobs:
           output_dir.mkdir(parents=True, exist_ok=True)
           requirements = json.loads(os.environ["HOST_REQUIREMENTS_JSON"])
           constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
+          ignore_vulns = json.loads(os.environ["IGNORE_VULNS_JSON"])
           constraint_urls = json.loads(os.environ["CONSTRAINT_URLS_JSON"])
           (output_dir / "requirements-host.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
           constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
           (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          (output_dir / "ignore-vulns.txt").write_text(
+              "\n".join(ignore_vulns) + ("\n" if ignore_vulns else ""),
+              encoding="utf-8",
+          )
           (output_dir / "constraint-urls.txt").write_text(
               "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
               encoding="utf-8",
@@ -146,7 +152,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/security
-          pip-audit --local --progress-spinner off | tee "artifacts/security/pip-audit-${{ matrix.label }}.log"
+          audit_args=()
+          if [ -s artifacts/security/generated/ignore-vulns.txt ]; then
+            while IFS= read -r vuln_id; do
+              [ -n "${vuln_id}" ] || continue
+              audit_args+=(--ignore-vuln "${vuln_id}")
+            done < artifacts/security/generated/ignore-vulns.txt
+          fi
+          pip-audit --local --progress-spinner off "${audit_args[@]}" | tee "artifacts/security/pip-audit-${{ matrix.label }}.log"
       - name: Upload blocking security artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -177,6 +190,7 @@ jobs:
         env:
           HOST_REQUIREMENTS_JSON: ${{ toJSON(matrix.host_requirements) }}
           CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
+          IGNORE_VULNS_JSON: ${{ toJSON(matrix.ignore_vulns) }}
           CONSTRAINT_URLS_JSON: ${{ toJSON(matrix.constraint_urls) }}
         run: |
           python - <<'PY'
@@ -188,10 +202,15 @@ jobs:
           output_dir.mkdir(parents=True, exist_ok=True)
           requirements = json.loads(os.environ["HOST_REQUIREMENTS_JSON"])
           constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
+          ignore_vulns = json.loads(os.environ["IGNORE_VULNS_JSON"])
           constraint_urls = json.loads(os.environ["CONSTRAINT_URLS_JSON"])
           (output_dir / "requirements-host.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
           constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
           (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          (output_dir / "ignore-vulns.txt").write_text(
+              "\n".join(ignore_vulns) + ("\n" if ignore_vulns else ""),
+              encoding="utf-8",
+          )
           (output_dir / "constraint-urls.txt").write_text(
               "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
               encoding="utf-8",
@@ -225,7 +244,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/security
-          pip-audit --local --progress-spinner off | tee "artifacts/security/pip-audit-canary-${{ matrix.label }}.log"
+          audit_args=()
+          if [ -s artifacts/security/generated/ignore-vulns.txt ]; then
+            while IFS= read -r vuln_id; do
+              [ -n "${vuln_id}" ] || continue
+              audit_args+=(--ignore-vuln "${vuln_id}")
+            done < artifacts/security/generated/ignore-vulns.txt
+          fi
+          pip-audit --local --progress-spinner off "${audit_args[@]}" | tee "artifacts/security/pip-audit-canary-${{ matrix.label }}.log"
       - name: Upload canary security artifacts
         if: always()
         uses: actions/upload-artifact@v4
