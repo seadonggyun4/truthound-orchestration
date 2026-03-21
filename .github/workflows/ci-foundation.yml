@@ -76,14 +76,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/foundation
-          ruff check . | tee artifacts/foundation/ruff.log
-          mypy common \
-            packages/airflow/src \
-            packages/dagster/src \
-            packages/dbt/src \
-            packages/prefect/src \
-            packages/mage/src \
-            packages/kestra/src | tee artifacts/foundation/mypy.log
+          ruff check --config ruff.toml \
+            scripts/ci \
+            docs/scripts \
+            tests/common/test_ci_support_matrix.py | tee artifacts/foundation/ruff.log
+          mypy scripts/ci docs/scripts | tee artifacts/foundation/mypy.log
           python -m build --outdir dist | tee artifacts/foundation/build.log
           python -m twine check dist/* | tee artifacts/foundation/twine.log
           python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log

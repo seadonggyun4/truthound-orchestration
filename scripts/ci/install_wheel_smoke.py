@@ -6,8 +6,8 @@ import argparse
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
 import venv
+from pathlib import Path
 
 
 PACKAGE_NAME = "truthound-orchestration"

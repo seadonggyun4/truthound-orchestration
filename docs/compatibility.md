@@ -45,7 +45,8 @@ Truthound release line: `>=3.0,<4.0`
 | Airflow | `2.6.0` | `3.1.8` |
 | Prefect | `2.14.0` | `3.6.22` |
 | Dagster | `1.5.0` | `1.12.18` |
-| dbt | `dbt-core>=1.8.0,<2.0.0` + `dbt-postgres>=1.8.0,<2.0.0` | `dbt-core 1.9.1` + `dbt-postgres 1.9.1` |
+| Kestra | `1.3.0` | `1.3.0` |
+| dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.15` + `dbt-postgres 1.10.15` |
 
 ## Security Audit Surfaces
 
@@ -61,6 +62,7 @@ Truthound release line: `>=3.0,<4.0`
 | `all` | `truthound-orchestration[all]` | Nightly canary only |
 
 First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## Supported Scope

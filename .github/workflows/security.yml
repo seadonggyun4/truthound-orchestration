@@ -96,8 +96,9 @@ jobs:
             ci/support-matrix.toml
       - name: Write blocking security inputs
         env:
-          REQUIREMENTS_JSON: ${{ toJSON(matrix.requirements) }}
+          HOST_REQUIREMENTS_JSON: ${{ toJSON(matrix.host_requirements) }}
           CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
+          CONSTRAINT_URLS_JSON: ${{ toJSON(matrix.constraint_urls) }}
         run: |
           python - <<'PY'
           import json
@@ -106,11 +107,16 @@ jobs:
 
           output_dir = Path("artifacts/security/generated")
           output_dir.mkdir(parents=True, exist_ok=True)
-          requirements = json.loads(os.environ["REQUIREMENTS_JSON"])
+          requirements = json.loads(os.environ["HOST_REQUIREMENTS_JSON"])
           constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
-          (output_dir / "requirements.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          constraint_urls = json.loads(os.environ["CONSTRAINT_URLS_JSON"])
+          (output_dir / "requirements-host.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
           constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
           (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          (output_dir / "constraint-urls.txt").write_text(
+              "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
+              encoding="utf-8",
+          )
           PY
       - name: Install blocking audit dependencies
         env:
@@ -119,20 +125,23 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pip-audit
+          install_args=()
+          if [ -s artifacts/security/generated/constraint-urls.txt ]; then
+            while IFS= read -r constraint_url; do
+              [ -n "${constraint_url}" ] || continue
+              install_args+=(--constraint "${constraint_url}")
+            done < artifacts/security/generated/constraint-urls.txt
+          fi
+          if [ -s artifacts/security/generated/constraints.txt ]; then
+            install_args+=(-c artifacts/security/generated/constraints.txt)
+          fi
+          install_args+=(-r artifacts/security/generated/requirements-host.txt)
+          python -m pip install "${install_args[@]}"
           package_target="."
           if [ -n "${EXTRA}" ]; then
             package_target=".[${EXTRA}]"
           fi
-          if [ -s artifacts/security/generated/constraints.txt ]; then
-            python -m pip install \
-              -c artifacts/security/generated/constraints.txt \
-              -r artifacts/security/generated/requirements.txt \
-              -e "${package_target}"
-          else
-            python -m pip install \
-              -r artifacts/security/generated/requirements.txt \
-              -e "${package_target}"
-          fi
+          python -m pip install --no-deps -e "${package_target}"
       - name: Run pip-audit
         run: |
           set -euo pipefail
@@ -166,8 +175,9 @@ jobs:
             ci/support-matrix.toml
       - name: Write canary security inputs
         env:
-          REQUIREMENTS_JSON: ${{ toJSON(matrix.requirements) }}
+          HOST_REQUIREMENTS_JSON: ${{ toJSON(matrix.host_requirements) }}
           CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
+          CONSTRAINT_URLS_JSON: ${{ toJSON(matrix.constraint_urls) }}
         run: |
           python - <<'PY'
           import json
@@ -176,11 +186,16 @@ jobs:
 
           output_dir = Path("artifacts/security/generated")
           output_dir.mkdir(parents=True, exist_ok=True)
-          requirements = json.loads(os.environ["REQUIREMENTS_JSON"])
+          requirements = json.loads(os.environ["HOST_REQUIREMENTS_JSON"])
           constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
-          (output_dir / "requirements.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          constraint_urls = json.loads(os.environ["CONSTRAINT_URLS_JSON"])
+          (output_dir / "requirements-host.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
           constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
           (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          (output_dir / "constraint-urls.txt").write_text(
+              "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
+              encoding="utf-8",
+          )
           PY
       - name: Install canary audit dependencies
         env:
@@ -189,20 +204,23 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pip-audit
+          install_args=()
+          if [ -s artifacts/security/generated/constraint-urls.txt ]; then
+            while IFS= read -r constraint_url; do
+              [ -n "${constraint_url}" ] || continue
+              install_args+=(--constraint "${constraint_url}")
+            done < artifacts/security/generated/constraint-urls.txt
+          fi
+          if [ -s artifacts/security/generated/constraints.txt ]; then
+            install_args+=(-c artifacts/security/generated/constraints.txt)
+          fi
+          install_args+=(-r artifacts/security/generated/requirements-host.txt)
+          python -m pip install "${install_args[@]}"
           package_target="."
           if [ -n "${EXTRA}" ]; then
             package_target=".[${EXTRA}]"
           fi
-          if [ -s artifacts/security/generated/constraints.txt ]; then
-            python -m pip install \
-              -c artifacts/security/generated/constraints.txt \
-              -r artifacts/security/generated/requirements.txt \
-              -e "${package_target}"
-          else
-            python -m pip install \
-              -r artifacts/security/generated/requirements.txt \
-              -e "${package_target}"
-          fi
+          python -m pip install --no-deps -e "${package_target}"
       - name: Run pip-audit canary
         run: |
           set -euo pipefail

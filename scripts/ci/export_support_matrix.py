@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
 import tomllib
+from pathlib import Path
 from typing import Any
 
 
@@ -126,8 +126,9 @@ def build_security_surface(
     return {
         "label": name,
         "extra": surface["extra"],
-        "requirements": list(surface.get("requirements", [])),
+        "host_requirements": list(surface.get("host_requirements", [])),
         "constraints": list(surface.get("constraints", [])),
+        "constraint_urls": list(surface.get("constraint_urls", [])),
     }
 
 
@@ -239,6 +240,11 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             f"`{data['platforms']['dagster']['primary']}`",
         ),
         (
+            "Kestra",
+            f"`{data['platforms']['kestra']['min']}`",
+            f"`{data['platforms']['kestra']['primary']}`",
+        ),
+        (
             "dbt",
             (
                 f"`{data['platforms']['dbt']['core_range']}` + "
@@ -295,6 +301,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             "",
             "First-party release guarantees apply to per-surface installs. "
             "`truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.",
+            "Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.",
         ]
     )
     return "\n".join(lines).strip()

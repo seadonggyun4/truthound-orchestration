@@ -24,9 +24,6 @@ pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
 
 # Core package + Truthound 3.x
 pip install truthound-orchestration "truthound>=3.0,<4.0"
-
-# Convenience aggregate for local experiments and nightly CI canary coverage
-pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
 
 First-party release guarantees apply to the per-platform install surfaces such as `[airflow]`, `[dagster]`, `[prefect]`, `[dbt]`, and `[kestra]`. The `[all]` extra remains available as a convenience aggregate and nightly canary surface, not as the primary release-blocked install target.

@@ -58,30 +58,46 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     assert blocking["base"] == {
         "label": "base",
         "extra": "",
-        "requirements": ["truthound==3.0.0"],
+        "host_requirements": ["truthound==3.0.0"],
         "constraints": [],
+        "constraint_urls": [],
     }
-    assert blocking["airflow"]["requirements"] == [
+    assert blocking["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
         "apache-airflow==3.1.8",
     ]
-    assert blocking["airflow"]["constraints"] == ["starlette>=0.49.1"]
-    assert blocking["prefect"]["requirements"] == [
+    assert blocking["airflow"]["constraints"] == []
+    assert blocking["airflow"]["constraint_urls"] == [
+        "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"
+    ]
+    assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.22",
     ]
     assert blocking["prefect"]["constraints"] == ["starlette>=0.49.1"]
-    assert blocking["dbt"]["requirements"] == [
+    assert blocking["dbt"]["host_requirements"] == [
         "truthound==3.0.0",
-        "dbt-core==1.9.1",
-        "dbt-postgres==1.9.1",
+        "dbt-core==1.10.15",
+        "dbt-postgres==1.10.15",
+    ]
+    assert blocking["kestra"]["host_requirements"] == [
+        "truthound==3.0.0",
+        "kestra==1.3.0",
+    ]
+    assert blocking["opentelemetry"]["host_requirements"] == [
+        "truthound==3.0.0",
+        "opentelemetry-api==1.40.0",
+        "opentelemetry-sdk==1.40.0",
+        "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
+        "opentelemetry-exporter-otlp-proto-http==1.40.0",
     ]
     assert canary == {
         "all": {
             "label": "all",
             "extra": "all",
-            "requirements": ["truthound==3.0.0"],
+            "host_requirements": ["truthound==3.0.0"],
             "constraints": [],
+            "constraint_urls": [],
         }
     }
 

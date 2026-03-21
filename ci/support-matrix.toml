@@ -33,25 +33,25 @@ runtime_expectation = "Inside a Mage runtime that already provides mage-ai"
 [platforms.kestra]
 required = true
 extra = "kestra"
-min = "0.15.0"
-primary = "0.15.0"
+min = "1.3.0"
+primary = "1.3.0"
 runtime_expectation = "Kestra runtime with generated scripts and templates"
 
 [platforms.dbt]
 required = true
 extra = "dbt"
 execution_target = "postgres"
-core_range = "dbt-core>=1.8.0,<2.0.0"
-execution_core_version = "1.9.1"
-execution_adapter_version = "1.9.1"
+core_range = "dbt-core>=1.10.0,<1.11.0"
+execution_core_version = "1.10.15"
+execution_adapter_version = "1.10.15"
 coverage_threshold = 0.8
 
 [dbt.compile_adapters]
-postgres = "dbt-postgres>=1.8.0,<2.0.0"
-snowflake = "dbt-snowflake>=1.8.0,<2.0.0"
-bigquery = "dbt-bigquery>=1.8.0,<2.0.0"
-redshift = "dbt-redshift>=1.8.0,<2.0.0"
-databricks = "dbt-databricks>=1.8.0,<2.0.0"
+postgres = "dbt-postgres>=1.10.0,<1.11.0"
+snowflake = "dbt-snowflake>=1.10.0,<1.11.0"
+bigquery = "dbt-bigquery>=1.10.0,<1.11.0"
+redshift = "dbt-redshift>=1.10.0,<1.11.0"
+databricks = "dbt-databricks>=1.10.0,<1.11.0"
 
 [wheel_smoke]
 extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
@@ -63,49 +63,57 @@ canary_surfaces = ["all"]
 
 [security.surfaces.base]
 extra = ""
-requirements = ["truthound==3.0.0"]
+host_requirements = ["truthound==3.0.0"]
 constraints = []
+constraint_urls = []
 
 [security.surfaces.airflow]
 extra = "airflow"
-requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
-constraints = ["starlette>=0.49.1"]
+host_requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
+constraints = []
+constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"]
 
 [security.surfaces.prefect]
 extra = "prefect"
-requirements = ["truthound==3.0.0", "prefect==3.6.22"]
+host_requirements = ["truthound==3.0.0", "prefect==3.6.22"]
 constraints = ["starlette>=0.49.1"]
+constraint_urls = []
 
 [security.surfaces.dagster]
 extra = "dagster"
-requirements = ["truthound==3.0.0", "dagster==1.12.18"]
+host_requirements = ["truthound==3.0.0", "dagster==1.12.18"]
 constraints = []
+constraint_urls = []
 
 [security.surfaces.dbt]
 extra = "dbt"
-requirements = ["truthound==3.0.0", "dbt-core==1.9.1", "dbt-postgres==1.9.1"]
+host_requirements = ["truthound==3.0.0", "dbt-core==1.10.15", "dbt-postgres==1.10.15"]
 constraints = []
+constraint_urls = []
 
 [security.surfaces.kestra]
 extra = "kestra"
-requirements = ["truthound==3.0.0", "kestra==0.15.0"]
+host_requirements = ["truthound==3.0.0", "kestra==1.3.0"]
 constraints = []
+constraint_urls = []
 
 [security.surfaces.opentelemetry]
 extra = "opentelemetry"
-requirements = [
+host_requirements = [
     "truthound==3.0.0",
-    "opentelemetry-api==1.20.0",
-    "opentelemetry-sdk==1.20.0",
-    "opentelemetry-exporter-otlp-proto-grpc==1.20.0",
-    "opentelemetry-exporter-otlp-proto-http==1.20.0",
+    "opentelemetry-api==1.40.0",
+    "opentelemetry-sdk==1.40.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
+    "opentelemetry-exporter-otlp-proto-http==1.40.0",
 ]
 constraints = []
+constraint_urls = []
 
 [security.surfaces.all]
 extra = "all"
-requirements = ["truthound==3.0.0"]
+host_requirements = ["truthound==3.0.0"]
 constraints = []
+constraint_urls = []
 
 [advanced_tier]
 engines = ["great_expectations", "pandera"]
