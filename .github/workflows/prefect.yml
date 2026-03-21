@@ -34,8 +34,8 @@ jobs:
       truthound_range: ${{ steps.export.outputs.truthound_range }}
       host_matrix: ${{ steps.export.outputs.host_matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -56,8 +56,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.host_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
           cache: pip
@@ -113,7 +113,7 @@ jobs:
             --cov-report="xml:artifacts/prefect/coverage-${{ matrix.version }}.xml" | tee "artifacts/prefect/pytest-${{ matrix.version }}.log"
       - name: Upload Prefect artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-prefect-${{ matrix.version }}
           path: artifacts/prefect/*

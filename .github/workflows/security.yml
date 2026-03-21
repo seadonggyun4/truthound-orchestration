@@ -40,8 +40,8 @@ jobs:
       blocking_matrix: ${{ steps.export.outputs.blocking_matrix }}
       canary_matrix: ${{ steps.export.outputs.canary_matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -57,7 +57,7 @@ jobs:
       checks: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: reviewdog/action-actionlint@a5524e1c19e62881d79c1f1b9b6f09f16356e281 # v1.65.2
         with:
           github_token: ${{ github.token }}
@@ -72,8 +72,16 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/checkout@v5
+      - name: Review dependency changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/ci/dependency_review.py \
+            --owner "${{ github.repository_owner }}" \
+            --repo "${{ github.event.repository.name }}" \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}"
 
   pip-audit:
     if: github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')
@@ -86,8 +94,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.blocking_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -162,7 +170,7 @@ jobs:
           pip-audit --local --progress-spinner off "${audit_args[@]}" | tee "artifacts/security/pip-audit-${{ matrix.label }}.log"
       - name: Upload blocking security artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-security-${{ matrix.label }}
           path: artifacts/security/*
@@ -178,8 +186,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.canary_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -254,7 +262,7 @@ jobs:
           pip-audit --local --progress-spinner off "${audit_args[@]}" | tee "artifacts/security/pip-audit-canary-${{ matrix.label }}.log"
       - name: Upload canary security artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-security-canary-${{ matrix.label }}
           path: artifacts/security/*
@@ -272,11 +280,11 @@ jobs:
       matrix:
         language: [python, actions]
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@v5
+      - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
 
   summary:
     if: always()

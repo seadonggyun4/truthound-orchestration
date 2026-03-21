@@ -34,8 +34,8 @@ jobs:
       python_version: ${{ steps.export.outputs.python_version }}
       truthound_range: ${{ steps.export.outputs.truthound_range }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -53,8 +53,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -81,7 +81,7 @@ jobs:
             --cov-report="xml:artifacts/mage-kestra/coverage.xml" | tee artifacts/mage-kestra/pytest.log
       - name: Upload Mage Kestra artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-mage-kestra
           path: artifacts/mage-kestra/*

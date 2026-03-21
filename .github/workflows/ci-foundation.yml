@@ -35,8 +35,8 @@ jobs:
       truthound_range: ${{ steps.export.outputs.truthound_range }}
       wheel_smoke_matrix: ${{ steps.export.outputs.wheel_smoke_matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -55,8 +55,8 @@ jobs:
       checks: write
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -88,7 +88,7 @@ jobs:
           mkdocs build --strict | tee artifacts/foundation/mkdocs.log
       - name: Upload foundation artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-foundation
           path: |
@@ -107,12 +107,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.wheel_smoke_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
       - name: Download built distribution
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: truthound-foundation
           path: artifacts/foundation-download
@@ -126,7 +126,7 @@ jobs:
             --extra "${{ matrix.extra }}" | tee "artifacts/wheel-smoke/${{ matrix.label }}.log"
       - name: Upload wheel smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-wheel-smoke-${{ matrix.label }}
           path: artifacts/wheel-smoke/${{ matrix.label }}.log

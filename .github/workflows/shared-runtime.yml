@@ -34,8 +34,8 @@ jobs:
       python_matrix: ${{ steps.export.outputs.python_matrix }}
       truthound_range: ${{ steps.export.outputs.truthound_range }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -56,8 +56,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.python_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
           cache: pip
@@ -85,7 +85,7 @@ jobs:
             --cov-report="xml:artifacts/shared-runtime/coverage-${{ matrix.python_version }}.xml" | tee "artifacts/shared-runtime/pytest-${{ matrix.python_version }}.log"
       - name: Upload shared runtime artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-shared-runtime-${{ matrix.python_version }}
           path: artifacts/shared-runtime/*

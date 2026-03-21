@@ -39,8 +39,8 @@ jobs:
       execution_adapter: ${{ steps.export.outputs.execution_adapter }}
       coverage_threshold: ${{ steps.export.outputs.coverage_threshold }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -58,8 +58,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -87,7 +87,7 @@ jobs:
             --cov-report="xml:artifacts/dbt/coverage-python.xml" | tee artifacts/dbt/pytest-python.log
       - name: Upload dbt Python artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-dbt-python
           path: artifacts/dbt/*
@@ -102,8 +102,8 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.compile_matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -123,7 +123,7 @@ jobs:
             --target "${{ matrix.target }}" | tee "artifacts/dbt/compile-${{ matrix.target }}.log"
       - name: Upload dbt compile artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-dbt-compile-${{ matrix.target }}
           path: artifacts/dbt/compile-${{ matrix.target }}.log
@@ -152,8 +152,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
@@ -182,7 +182,7 @@ jobs:
             --threshold "${{ needs.matrix.outputs.coverage_threshold }}" | tee artifacts/dbt/postgres-coverage.log
       - name: Upload dbt execution artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-dbt-postgres
           path: artifacts/dbt/*

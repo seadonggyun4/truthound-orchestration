@@ -34,8 +34,8 @@ jobs:
       truthound_range: ${{ steps.export.outputs.truthound_range }}
       host_matrix: ${{ steps.export.outputs.host_matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - id: export
@@ -58,8 +58,8 @@ jobs:
     env:
       AIRFLOW_HOME: ${{ github.workspace }}/.airflow
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python_version }}
           cache: pip
@@ -118,7 +118,7 @@ jobs:
             --cov-report="xml:artifacts/airflow/coverage-${{ matrix.version }}.xml" | tee "artifacts/airflow/pytest-${{ matrix.version }}.log"
       - name: Upload Airflow artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: truthound-airflow-${{ matrix.version }}
           path: artifacts/airflow/*

@@ -16,67 +16,22 @@ jobs:
       pull-requests: read
     outputs:
       docs_only: ${{ steps.classify.outputs.docs_only }}
-      all_platforms: ${{ steps.filter.outputs.all_platforms }}
-      airflow: ${{ steps.filter.outputs.airflow }}
-      prefect: ${{ steps.filter.outputs.prefect }}
-      dagster: ${{ steps.filter.outputs.dagster }}
-      mage_kestra: ${{ steps.filter.outputs.mage_kestra }}
-      dbt: ${{ steps.filter.outputs.dbt }}
+      all_platforms: ${{ steps.classify.outputs.all_platforms }}
+      airflow: ${{ steps.classify.outputs.airflow }}
+      prefect: ${{ steps.classify.outputs.prefect }}
+      dagster: ${{ steps.classify.outputs.dagster }}
+      mage_kestra: ${{ steps.classify.outputs.mage_kestra }}
+      dbt: ${{ steps.classify.outputs.dbt }}
     steps:
-      - uses: actions/checkout@v4
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            docs:
-              - "docs/**"
-              - "README.md"
-              - "mkdocs.yml"
-            all_platforms:
-              - ".github/workflows/**"
-              - "ci/**"
-              - "scripts/ci/**"
-              - "common/**"
-              - "tests/common/**"
-              - "pyproject.toml"
-            airflow:
-              - "packages/airflow/**"
-            prefect:
-              - "packages/prefect/**"
-            dagster:
-              - "packages/dagster/**"
-            mage_kestra:
-              - "packages/mage/**"
-              - "packages/kestra/**"
-              - "tests/mage/**"
-              - "tests/kestra/**"
-            dbt:
-              - "packages/dbt/**"
-              - "tests/dbt/**"
+      - uses: actions/checkout@v5
       - id: classify
         env:
-          DOCS: ${{ steps.filter.outputs.docs }}
-          ALL_PLATFORMS: ${{ steps.filter.outputs.all_platforms }}
-          AIRFLOW: ${{ steps.filter.outputs.airflow }}
-          PREFECT: ${{ steps.filter.outputs.prefect }}
-          DAGSTER: ${{ steps.filter.outputs.dagster }}
-          MAGE_KESTRA: ${{ steps.filter.outputs.mage_kestra }}
-          DBT: ${{ steps.filter.outputs.dbt }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import os
-          docs = os.environ["DOCS"] == "true"
-          others = [
-              os.environ["ALL_PLATFORMS"],
-              os.environ["AIRFLOW"],
-              os.environ["PREFECT"],
-              os.environ["DAGSTER"],
-              os.environ["MAGE_KESTRA"],
-              os.environ["DBT"],
-          ]
-          docs_only = docs and all(value != "true" for value in others)
-          print(f"docs_only={'true' if docs_only else 'false'}")
-          PY
+          python3 scripts/ci/pr_change_filter.py \
+            --repository "${{ github.repository }}" \
+            --pull-request-number "${{ github.event.pull_request.number }}" \
+            --github-output "$GITHUB_OUTPUT"
 
   foundation:
     permissions:
