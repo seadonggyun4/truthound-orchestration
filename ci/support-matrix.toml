@@ -20,7 +20,7 @@ constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints
 
 [platforms.airflow.ci.primary]
 python = "3.12"
-constraints = []
+constraints = ["starlette==0.49.1"]
 constraint_urls = []
 
 [platforms.prefect]
@@ -104,8 +104,8 @@ constraint_urls = []
 
 [security.surfaces.airflow]
 extra = "airflow"
-host_requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
-constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
+host_requirements = ["truthound==3.0.0", "apache-airflow==3.1.8", "starlette==0.49.1"]
+constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0", "starlette==0.49.1"]
 constraint_urls = []
 
 [security.surfaces.prefect]

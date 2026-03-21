@@ -28,7 +28,7 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
                 "label": "primary",
                 "version": "3.1.8",
                 "python_version": "3.12",
-                "constraints": [],
+                "constraints": ["starlette==0.49.1"],
                 "constraint_urls": [],
             }
         ]
@@ -118,10 +118,12 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     assert blocking["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
         "apache-airflow==3.1.8",
+        "starlette==0.49.1",
     ]
     assert blocking["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
         "pyjwt>=2.12.0",
+        "starlette==0.49.1",
     ]
     assert blocking["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
