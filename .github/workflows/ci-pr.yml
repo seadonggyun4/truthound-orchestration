@@ -79,6 +79,9 @@ jobs:
           PY
 
   foundation:
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/ci-foundation.yml
     with:
       lane: pr

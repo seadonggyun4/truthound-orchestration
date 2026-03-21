@@ -30,6 +30,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      python_version: ${{ steps.export.outputs.python_version }}
+      blocking_matrix: ${{ steps.export.outputs.blocking_matrix }}
+      canary_matrix: ${{ steps.export.outputs.canary_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - id: export
+        name: Render security audit surfaces
+        run: |
+          python scripts/ci/export_support_matrix.py render-security \
+            --github-output "$GITHUB_OUTPUT"
+
   actionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -40,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: reviewdog/action-actionlint@a5524e1c19e62881d79c1f1b9b6f09f16356e281 # v1.65.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ github.token }}
           reporter: github-check
           fail_level: error
 
@@ -57,78 +77,142 @@ jobs:
 
   pip-audit:
     if: github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')
+    needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.blocking_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - id: export
-        name: Render blocking security audit inputs
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
+      - name: Write blocking security inputs
+        env:
+          REQUIREMENTS_JSON: ${{ toJSON(matrix.requirements) }}
+          CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
         run: |
-          mkdir -p artifacts/security/generated
-          python scripts/ci/export_support_matrix.py render-security \
-            --output-dir artifacts/security/generated \
-            --github-output "$GITHUB_OUTPUT"
-      - name: Install audit dependencies
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+
+          output_dir = Path("artifacts/security/generated")
+          output_dir.mkdir(parents=True, exist_ok=True)
+          requirements = json.loads(os.environ["REQUIREMENTS_JSON"])
+          constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
+          (output_dir / "requirements.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
+          (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          PY
+      - name: Install blocking audit dependencies
+        env:
+          EXTRA: ${{ matrix.extra }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pip-audit
-          python -m pip install \
-            -c "${{ steps.export.outputs.blocking_constraints_path }}" \
-            -r "${{ steps.export.outputs.blocking_requirements_path }}" \
-            -e ".[${{ steps.export.outputs.audit_extras_csv }}]"
+          package_target="."
+          if [ -n "${EXTRA}" ]; then
+            package_target=".[${EXTRA}]"
+          fi
+          if [ -s artifacts/security/generated/constraints.txt ]; then
+            python -m pip install \
+              -c artifacts/security/generated/constraints.txt \
+              -r artifacts/security/generated/requirements.txt \
+              -e "${package_target}"
+          else
+            python -m pip install \
+              -r artifacts/security/generated/requirements.txt \
+              -e "${package_target}"
+          fi
       - name: Run pip-audit
         run: |
           set -euo pipefail
-          pip-audit --local --progress-spinner off | tee artifacts/security/pip-audit-blocking.log
+          mkdir -p artifacts/security
+          pip-audit --local --progress-spinner off | tee "artifacts/security/pip-audit-${{ matrix.label }}.log"
       - name: Upload blocking security artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: truthound-security-blocking
+          name: truthound-security-${{ matrix.label }}
           path: artifacts/security/*
 
   pip-audit-canary:
     if: github.event_name == 'schedule' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') == 'nightly')
+    needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.canary_matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - id: export
-        name: Render canary security audit inputs
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
+      - name: Write canary security inputs
+        env:
+          REQUIREMENTS_JSON: ${{ toJSON(matrix.requirements) }}
+          CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
         run: |
-          mkdir -p artifacts/security/generated
-          python scripts/ci/export_support_matrix.py render-security \
-            --output-dir artifacts/security/generated \
-            --github-output "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+
+          output_dir = Path("artifacts/security/generated")
+          output_dir.mkdir(parents=True, exist_ok=True)
+          requirements = json.loads(os.environ["REQUIREMENTS_JSON"])
+          constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
+          (output_dir / "requirements.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
+          (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          PY
       - name: Install canary audit dependencies
+        env:
+          EXTRA: ${{ matrix.extra }}
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pip-audit
-          python -m pip install \
-            -c "${{ steps.export.outputs.canary_constraints_path }}" \
-            -r "${{ steps.export.outputs.canary_requirements_path }}" \
-            -e ".[${{ steps.export.outputs.audit_extras_csv }}]"
+          package_target="."
+          if [ -n "${EXTRA}" ]; then
+            package_target=".[${EXTRA}]"
+          fi
+          if [ -s artifacts/security/generated/constraints.txt ]; then
+            python -m pip install \
+              -c artifacts/security/generated/constraints.txt \
+              -r artifacts/security/generated/requirements.txt \
+              -e "${package_target}"
+          else
+            python -m pip install \
+              -r artifacts/security/generated/requirements.txt \
+              -e "${package_target}"
+          fi
       - name: Run pip-audit canary
         run: |
           set -euo pipefail
-          pip-audit --local --progress-spinner off | tee artifacts/security/pip-audit-canary.log
+          mkdir -p artifacts/security
+          pip-audit --local --progress-spinner off | tee "artifacts/security/pip-audit-canary-${{ matrix.label }}.log"
       - name: Upload canary security artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: truthound-security-canary
+          name: truthound-security-canary-${{ matrix.label }}
           path: artifacts/security/*
 
   codeql:
@@ -153,6 +237,7 @@ jobs:
   summary:
     if: always()
     needs:
+      - matrix
       - actionlint
       - dependency-review
       - pip-audit

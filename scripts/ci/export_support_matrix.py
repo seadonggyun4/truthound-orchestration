@@ -24,11 +24,6 @@ WHEEL_IMPORTS = {
     "dbt": ["common", "truthound_dbt", "dbt"],
     "opentelemetry": ["common", "opentelemetry"],
 }
-PLATFORM_PACKAGE_NAMES = {
-    "airflow": "apache-airflow",
-    "dagster": "dagster",
-    "prefect": "prefect",
-}
 
 
 def load_support_matrix() -> dict[str, Any]:
@@ -123,83 +118,46 @@ def build_workflow_payload(
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
-def build_security_audit_inputs(data: dict[str, Any]) -> dict[str, Any]:
-    security = data["security"]
-    dbt = data["platforms"]["dbt"]
-    execution_target = dbt["execution_target"]
-    execution_adapter = f"dbt-{execution_target}"
-
-    blocking_requirements = [
-        f"{PLATFORM_PACKAGE_NAMES[platform]}=={data['platforms'][platform]['primary']}"
-        for platform in security["blocking_platforms"]
-        if platform in PLATFORM_PACKAGE_NAMES
-    ]
-    if "dbt" in security["blocking_platforms"]:
-        blocking_requirements.extend(
-            [
-                f"dbt-core=={dbt['execution_core_version']}",
-                f"{execution_adapter}=={dbt['execution_adapter_version']}",
-            ]
-        )
-
-    canary_requirements = [
-        f"{PLATFORM_PACKAGE_NAMES[platform]}>={data['platforms'][platform]['min']}"
-        for platform in security["canary_platforms"]
-        if platform in PLATFORM_PACKAGE_NAMES
-    ]
-    if "dbt" in security["canary_platforms"]:
-        canary_requirements.extend(
-            [
-                dbt["core_range"],
-                data["dbt"]["compile_adapters"][execution_target],
-            ]
-        )
-
+def build_security_surface(
+    data: dict[str, Any],
+    name: str,
+) -> dict[str, Any]:
+    surface = data["security"]["surfaces"][name]
     return {
-        "python_version": data["python"][security["python"]],
-        "audit_extras_csv": ",".join(security["audit_extras"]),
-        "blocking_requirements": blocking_requirements,
-        "blocking_constraints": list(security["blocking_overrides"]),
-        "canary_requirements": canary_requirements,
-        "canary_constraints": list(security["canary_overrides"]),
+        "label": name,
+        "extra": surface["extra"],
+        "requirements": list(surface.get("requirements", [])),
+        "constraints": list(surface.get("constraints", [])),
     }
 
 
-def write_requirement_file(path: Path, lines: list[str]) -> None:
-    content = "\n".join(lines) if lines else "# intentionally empty"
-    path.write_text(f"{content}\n", encoding="utf-8")
-
-
-def render_security_audit_files(
-    data: dict[str, Any],
-    output_dir: Path,
-) -> dict[str, Any]:
-    payload = build_security_audit_inputs(data)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    blocking_requirements = output_dir / "blocking-requirements.txt"
-    blocking_constraints = output_dir / "blocking-constraints.txt"
-    canary_requirements = output_dir / "canary-requirements.txt"
-    canary_constraints = output_dir / "canary-constraints.txt"
-
-    write_requirement_file(blocking_requirements, payload["blocking_requirements"])
-    write_requirement_file(blocking_constraints, payload["blocking_constraints"])
-    write_requirement_file(canary_requirements, payload["canary_requirements"])
-    write_requirement_file(canary_constraints, payload["canary_constraints"])
-
+def build_security_audit_inputs(data: dict[str, Any]) -> dict[str, Any]:
+    security = data["security"]
     return {
-        "python_version": payload["python_version"],
-        "audit_extras_csv": payload["audit_extras_csv"],
-        "blocking_requirements_path": str(blocking_requirements),
-        "blocking_constraints_path": str(blocking_constraints),
-        "canary_requirements_path": str(canary_requirements),
-        "canary_constraints_path": str(canary_constraints),
+        "python_version": data["python"][security["python"]],
+        "blocking_matrix": {
+            "include": [
+                build_security_surface(data, name)
+                for name in security["blocking_surfaces"]
+            ]
+        },
+        "canary_matrix": {
+            "include": [
+                build_security_surface(data, name)
+                for name in security["canary_surfaces"]
+            ]
+        },
     }
 
 
 def render_generated_support_block(data: dict[str, Any]) -> str:
     def join_versions(values: list[str]) -> str:
         return ", ".join(f"`{value}`" for value in values)
+
+    def install_surface(extra: str) -> str:
+        if not extra:
+            return "`truthound-orchestration`"
+        return f"`truthound-orchestration[{extra}]`"
 
     rows = [
         (
@@ -319,6 +277,26 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         f"| {platform} | {minimum} | {primary} |"
         for platform, minimum, primary in platform_rows
     )
+    lines.extend(
+        [
+            "",
+            "## Security Audit Surfaces",
+            "",
+            "| Surface | Install Surface | Release Blocking |",
+            "|---------|-----------------|------------------|",
+        ]
+    )
+    lines.extend(
+        f"| `{name}` | {install_surface(data['security']['surfaces'][name]['extra'])} | {'Yes' if name in data['security']['blocking_surfaces'] else 'Nightly canary only'} |"
+        for name in [*data["security"]["blocking_surfaces"], *data["security"]["canary_surfaces"]]
+    )
+    lines.extend(
+        [
+            "",
+            "First-party release guarantees apply to per-surface installs. "
+            "`truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.",
+        ]
+    )
     return "\n".join(lines).strip()
 
 
@@ -378,9 +356,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
     security = subparsers.add_parser(
         "render-security",
-        help="Render deterministic security audit requirements and constraints.",
+        help="Render deterministic security audit surfaces.",
     )
-    security.add_argument("--output-dir", type=Path, required=True)
     security.add_argument("--github-output", type=Path, default=None)
 
     return parser.parse_args(argv)
@@ -405,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
             print(output)
         return 0
     if args.command == "render-security":
-        payload = render_security_audit_files(load_support_matrix(), args.output_dir)
+        payload = build_security_audit_inputs(load_support_matrix())
         if args.github_output is not None:
             write_github_output(args.github_output, payload)
         else:

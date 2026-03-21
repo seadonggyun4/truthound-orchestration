@@ -43,22 +43,47 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     payload = ci_support_matrix.build_security_audit_inputs(data)
 
     assert payload["python_version"] == "3.12"
-    assert payload["audit_extras_csv"] == "airflow,dagster,prefect,dbt,kestra,opentelemetry"
-    assert payload["blocking_requirements"] == [
+    blocking = {entry["label"]: entry for entry in payload["blocking_matrix"]["include"]}
+    canary = {entry["label"]: entry for entry in payload["canary_matrix"]["include"]}
+
+    assert list(blocking) == [
+        "base",
+        "airflow",
+        "prefect",
+        "dagster",
+        "dbt",
+        "kestra",
+        "opentelemetry",
+    ]
+    assert blocking["base"] == {
+        "label": "base",
+        "extra": "",
+        "requirements": ["truthound==3.0.0"],
+        "constraints": [],
+    }
+    assert blocking["airflow"]["requirements"] == [
+        "truthound==3.0.0",
         "apache-airflow==3.1.8",
+    ]
+    assert blocking["airflow"]["constraints"] == ["starlette>=0.49.1"]
+    assert blocking["prefect"]["requirements"] == [
+        "truthound==3.0.0",
         "prefect==3.6.22",
-        "dagster==1.12.18",
+    ]
+    assert blocking["prefect"]["constraints"] == ["starlette>=0.49.1"]
+    assert blocking["dbt"]["requirements"] == [
+        "truthound==3.0.0",
         "dbt-core==1.9.1",
         "dbt-postgres==1.9.1",
     ]
-    assert payload["blocking_constraints"] == ["starlette>=0.49.1"]
-    assert payload["canary_requirements"] == [
-        "apache-airflow>=2.6.0",
-        "prefect>=2.14.0",
-        "dagster>=1.5.0",
-        "dbt-core>=1.8.0,<2.0.0",
-        "dbt-postgres>=1.8.0,<2.0.0",
-    ]
+    assert canary == {
+        "all": {
+            "label": "all",
+            "extra": "all",
+            "requirements": ["truthound==3.0.0"],
+            "constraints": [],
+        }
+    }
 
 
 def test_docs_support_matrix_block_is_in_sync() -> None:

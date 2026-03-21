@@ -25,9 +25,11 @@ pip install truthound-orchestration[prefect] "truthound>=3.0,<4.0"
 # Core package + Truthound 3.x
 pip install truthound-orchestration "truthound>=3.0,<4.0"
 
-# All supported platform integrations
+# Convenience aggregate for local experiments and nightly CI canary coverage
 pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
+
+First-party release guarantees apply to the per-platform install surfaces such as `[airflow]`, `[dagster]`, `[prefect]`, `[dbt]`, and `[kestra]`. The `[all]` extra remains available as a convenience aggregate and nightly canary surface, not as the primary release-blocked install target.
 
 ```python
 from common.engines import TruthoundEngine
@@ -442,9 +444,11 @@ pip install truthound-orchestration[kestra] "truthound>=3.0,<4.0"
 # Multiple platforms + Truthound 3.x
 pip install truthound-orchestration[airflow,dagster] "truthound>=3.0,<4.0"
 
-# All platforms + Truthound 3.x
+# Convenience aggregate for local experiments and nightly canary coverage
 pip install truthound-orchestration[all] "truthound>=3.0,<4.0"
 ```
+
+Release-blocking compatibility and security validation are anchored to the per-platform extras above. `truthound-orchestration[all]` remains useful for broad local installs, but it is treated as a convenience aggregate rather than the primary first-party guarantee surface.
 
 For Mage, install the adapter inside a Mage runtime or project environment that already provides `mage-ai`.
 

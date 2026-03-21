@@ -24,6 +24,8 @@ title: Compatibility
 | Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
 | dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
 
+Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 
@@ -44,6 +46,21 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` | `3.6.22` |
 | Dagster | `1.5.0` | `1.12.18` |
 | dbt | `dbt-core>=1.8.0,<2.0.0` + `dbt-postgres>=1.8.0,<2.0.0` | `dbt-core 1.9.1` + `dbt-postgres 1.9.1` |
+
+## Security Audit Surfaces
+
+| Surface | Install Surface | Release Blocking |
+|---------|-----------------|------------------|
+| `base` | `truthound-orchestration` | Yes |
+| `airflow` | `truthound-orchestration[airflow]` | Yes |
+| `prefect` | `truthound-orchestration[prefect]` | Yes |
+| `dagster` | `truthound-orchestration[dagster]` | Yes |
+| `dbt` | `truthound-orchestration[dbt]` | Yes |
+| `kestra` | `truthound-orchestration[kestra]` | Yes |
+| `opentelemetry` | `truthound-orchestration[opentelemetry]` | Yes |
+| `all` | `truthound-orchestration[all]` | Nightly canary only |
+
+First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## Supported Scope

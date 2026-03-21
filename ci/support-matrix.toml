@@ -5,6 +5,7 @@ canary = "3.13"
 
 [truthound]
 range = ">=3.0,<4.0"
+primary = "3.0.0"
 
 [platforms.airflow]
 required = true
@@ -32,6 +33,8 @@ runtime_expectation = "Inside a Mage runtime that already provides mage-ai"
 [platforms.kestra]
 required = true
 extra = "kestra"
+min = "0.15.0"
+primary = "0.15.0"
 runtime_expectation = "Kestra runtime with generated scripts and templates"
 
 [platforms.dbt]
@@ -55,11 +58,54 @@ extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
 
 [security]
 python = "primary"
-audit_extras = ["airflow", "dagster", "prefect", "dbt", "kestra", "opentelemetry"]
-blocking_platforms = ["airflow", "prefect", "dagster", "dbt"]
-blocking_overrides = ["starlette>=0.49.1"]
-canary_platforms = ["airflow", "prefect", "dagster", "dbt"]
-canary_overrides = []
+blocking_surfaces = ["base", "airflow", "prefect", "dagster", "dbt", "kestra", "opentelemetry"]
+canary_surfaces = ["all"]
+
+[security.surfaces.base]
+extra = ""
+requirements = ["truthound==3.0.0"]
+constraints = []
+
+[security.surfaces.airflow]
+extra = "airflow"
+requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
+constraints = ["starlette>=0.49.1"]
+
+[security.surfaces.prefect]
+extra = "prefect"
+requirements = ["truthound==3.0.0", "prefect==3.6.22"]
+constraints = ["starlette>=0.49.1"]
+
+[security.surfaces.dagster]
+extra = "dagster"
+requirements = ["truthound==3.0.0", "dagster==1.12.18"]
+constraints = []
+
+[security.surfaces.dbt]
+extra = "dbt"
+requirements = ["truthound==3.0.0", "dbt-core==1.9.1", "dbt-postgres==1.9.1"]
+constraints = []
+
+[security.surfaces.kestra]
+extra = "kestra"
+requirements = ["truthound==3.0.0", "kestra==0.15.0"]
+constraints = []
+
+[security.surfaces.opentelemetry]
+extra = "opentelemetry"
+requirements = [
+    "truthound==3.0.0",
+    "opentelemetry-api==1.20.0",
+    "opentelemetry-sdk==1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc==1.20.0",
+    "opentelemetry-exporter-otlp-proto-http==1.20.0",
+]
+constraints = []
+
+[security.surfaces.all]
+extra = "all"
+requirements = ["truthound==3.0.0"]
+constraints = []
 
 [advanced_tier]
 engines = ["great_expectations", "pandera"]
