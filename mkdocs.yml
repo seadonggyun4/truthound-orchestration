@@ -9,6 +9,7 @@ nav:
   - Getting Started: getting-started.md
   - Architecture: architecture.md
   - Compatibility: compatibility.md
+  - Releasing: releasing.md
   - Zero-Config: zero-config.md
   - Migration:
       - 3.0 Upgrade: migration/3.0.md

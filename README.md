@@ -12,6 +12,8 @@
 
 **Documentation**: [https://truthound.netlify.app](https://truthound.netlify.app/orchestration/)
 
+**Release guide**: [docs/releasing.md](docs/releasing.md)
+
 ---
 
 ## Quick Start
