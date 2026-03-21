@@ -8,7 +8,7 @@ models:
     description: "Model with valid data - all Truthound checks should pass"
     tests:
       # Comprehensive model-level test
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             # Completeness checks
             - column: id
@@ -51,25 +51,25 @@ models:
       - name: id
         description: "Unique identifier"
         tests:
-          - truthound_not_null
-          - truthound_unique
+          - truthound.truthound_not_null
+          - truthound.truthound_unique
 
       - name: email
         description: "User email address"
         tests:
-          - truthound_email_format
+          - truthound.truthound_email_format
 
       - name: age
         description: "User age"
         tests:
-          - truthound_range:
+          - truthound.truthound_range:
               min: 0
               max: 150
 
       - name: amount
         description: "Transaction amount"
         tests:
-          - truthound_positive
+          - truthound.truthound_positive
 
 
   # =========================================================================
@@ -79,7 +79,7 @@ models:
     description: "Model with invalid data - Truthound checks should fail"
     tests:
       # This test should find failures (email format)
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: email
               check: email_format
@@ -87,7 +87,7 @@ models:
             severity: warn  # Don't fail build
 
       # This test should find failures (negative amount)
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: amount
               check: positive
@@ -95,7 +95,7 @@ models:
             severity: warn
 
       # This test should find failures (invalid status)
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: status
               check: in_set
@@ -104,7 +104,7 @@ models:
             severity: warn
 
       # This test should find failures (null email)
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: email
               check: not_null
@@ -112,7 +112,7 @@ models:
             severity: warn
 
       # This test should find failures (invalid UUID)
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: user_uuid
               check: uuid_format
@@ -120,7 +120,7 @@ models:
             severity: warn
 
       # Age out of reasonable range
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: age
               check: range
@@ -137,7 +137,7 @@ models:
     description: "Orders model for testing referential integrity"
     tests:
       # Basic validity checks that should pass
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: order_id
               check: not_null
@@ -150,7 +150,7 @@ models:
               values: ['pending', 'shipped', 'delivered', 'cancelled']
 
       # Referential integrity - should fail for product_id=999
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: product_id
               check: referential_integrity
@@ -162,16 +162,16 @@ models:
     columns:
       - name: order_id
         tests:
-          - truthound_not_null
-          - truthound_unique
+          - truthound.truthound_not_null
+          - truthound.truthound_unique
 
       - name: quantity
         tests:
-          - truthound_positive
+          - truthound.truthound_positive
 
       - name: total_amount
         tests:
-          - truthound_range:
+          - truthound.truthound_range:
               min: 0
 
 
@@ -181,7 +181,7 @@ models:
   - name: test_reference_model
     description: "Reference table for FK testing"
     tests:
-      - truthound_check:
+      - truthound.truthound_check:
           rules:
             - column: id
               check: not_null

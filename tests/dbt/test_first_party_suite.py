@@ -102,3 +102,12 @@ def test_generic_test_definitions_live_in_macro_path() -> None:
     assert "{% test truthound_check(" in text
     assert "{% test truthound_not_null(" in text
     assert not deprecated_location.exists()
+
+
+def test_integration_schema_uses_package_qualified_generic_tests() -> None:
+    schema_path = ROOT / "packages" / "dbt" / "integration_tests" / "tests" / "schema.yml"
+    schema_text = schema_path.read_text(encoding="utf-8")
+
+    assert "truthound.truthound_check" in schema_text
+    assert "truthound.truthound_not_null" in schema_text
+    assert "truthound.truthound_range" in schema_text

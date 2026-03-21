@@ -127,6 +127,7 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.22",
+        "starlette==0.49.1",
     ]
     assert blocking["prefect"]["constraints"] == [
         "cryptography>=46.0.5",
