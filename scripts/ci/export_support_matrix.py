@@ -43,6 +43,29 @@ def expand_platform_versions(
     return [data["platforms"][platform][name] for name in names]
 
 
+def build_host_matrix(
+    data: dict[str, Any],
+    platform: str,
+    names: list[str],
+) -> dict[str, list[dict[str, Any]]]:
+    platform_data = data["platforms"][platform]
+    ci_data = platform_data.get("ci", {})
+    include: list[dict[str, Any]] = []
+
+    for name in names:
+        lane = ci_data.get(name, {})
+        include.append(
+            {
+                "label": name,
+                "version": platform_data[name],
+                "python_version": lane.get("python", data["python"]["primary"]),
+                "constraints": list(lane.get("constraints", [])),
+                "constraint_urls": list(lane.get("constraint_urls", [])),
+            }
+        )
+    return {"include": include}
+
+
 def build_workflow_payload(
     data: dict[str, Any],
     workflow: str,
@@ -83,11 +106,8 @@ def build_workflow_payload(
     if workflow in {"airflow", "prefect", "dagster"}:
         version_key = f"{workflow}_versions"
         return {
-            "python_version": primary_python,
             "truthound_range": truthound_range,
-            "version_matrix": {
-                "version": expand_platform_versions(data, workflow, lane_config[version_key])
-            },
+            "host_matrix": build_host_matrix(data, workflow, lane_config[version_key]),
         }
 
     if workflow == "mage-kestra":
@@ -160,23 +180,30 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             return "`truthound-orchestration`"
         return f"`truthound-orchestration[{extra}]`"
 
+    def format_host_pairs(platform: str, lane_names: list[str]) -> str:
+        platform_data = data["platforms"][platform]
+        ci_data = platform_data.get("ci", {})
+        pairs = []
+        for lane_name in lane_names:
+            python_version = ci_data.get(lane_name, {}).get("python", data["python"]["primary"])
+            pairs.append(f"`{platform_data[lane_name]}` on `Python {python_version}`")
+        return ", ".join(pairs)
+
     rows = [
         (
             "PR",
-            join_versions(expand_python_versions(data, data["lanes"]["pr"]["foundation_python"])),
-            join_versions(expand_platform_versions(data, "airflow", data["lanes"]["pr"]["airflow_versions"])),
-            join_versions(expand_platform_versions(data, "prefect", data["lanes"]["pr"]["prefect_versions"])),
-            join_versions(expand_platform_versions(data, "dagster", data["lanes"]["pr"]["dagster_versions"])),
+            format_host_pairs("airflow", data["lanes"]["pr"]["airflow_versions"]),
+            format_host_pairs("prefect", data["lanes"]["pr"]["prefect_versions"]),
+            format_host_pairs("dagster", data["lanes"]["pr"]["dagster_versions"]),
             "Primary host smoke",
             "`postgres`",
             "No",
         ),
         (
             "Main",
-            join_versions(expand_python_versions(data, data["lanes"]["main"]["foundation_python"])),
-            join_versions(expand_platform_versions(data, "airflow", data["lanes"]["main"]["airflow_versions"])),
-            join_versions(expand_platform_versions(data, "prefect", data["lanes"]["main"]["prefect_versions"])),
-            join_versions(expand_platform_versions(data, "dagster", data["lanes"]["main"]["dagster_versions"])),
+            format_host_pairs("airflow", data["lanes"]["main"]["airflow_versions"]),
+            format_host_pairs("prefect", data["lanes"]["main"]["prefect_versions"]),
+            format_host_pairs("dagster", data["lanes"]["main"]["dagster_versions"]),
             "Primary host smoke",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]
@@ -185,16 +212,9 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ),
         (
             "Release",
-            join_versions(expand_python_versions(data, data["lanes"]["release"]["foundation_python"])),
-            join_versions(
-                expand_platform_versions(data, "airflow", data["lanes"]["release"]["airflow_versions"])
-            ),
-            join_versions(
-                expand_platform_versions(data, "prefect", data["lanes"]["release"]["prefect_versions"])
-            ),
-            join_versions(
-                expand_platform_versions(data, "dagster", data["lanes"]["release"]["dagster_versions"])
-            ),
+            format_host_pairs("airflow", data["lanes"]["release"]["airflow_versions"]),
+            format_host_pairs("prefect", data["lanes"]["release"]["prefect_versions"]),
+            format_host_pairs("dagster", data["lanes"]["release"]["dagster_versions"]),
             "Primary host smoke",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["release"]["dbt_compile_targets"]
@@ -203,18 +223,9 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ),
         (
             "Nightly",
-            join_versions(
-                expand_python_versions(data, data["lanes"]["nightly"]["shared_runtime_python"])
-            ),
-            join_versions(
-                expand_platform_versions(data, "airflow", data["lanes"]["nightly"]["airflow_versions"])
-            ),
-            join_versions(
-                expand_platform_versions(data, "prefect", data["lanes"]["nightly"]["prefect_versions"])
-            ),
-            join_versions(
-                expand_platform_versions(data, "dagster", data["lanes"]["nightly"]["dagster_versions"])
-            ),
+            format_host_pairs("airflow", data["lanes"]["nightly"]["airflow_versions"]),
+            format_host_pairs("prefect", data["lanes"]["nightly"]["prefect_versions"]),
+            format_host_pairs("dagster", data["lanes"]["nightly"]["dagster_versions"]),
             "Primary host smoke + advanced-tier canary",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]
@@ -226,23 +237,23 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
     platform_rows = [
         (
             "Airflow",
-            f"`{data['platforms']['airflow']['min']}`",
-            f"`{data['platforms']['airflow']['primary']}`",
+            format_host_pairs("airflow", ["min"]),
+            format_host_pairs("airflow", ["primary"]),
         ),
         (
             "Prefect",
-            f"`{data['platforms']['prefect']['min']}`",
-            f"`{data['platforms']['prefect']['primary']}`",
+            format_host_pairs("prefect", ["min"]),
+            format_host_pairs("prefect", ["primary"]),
         ),
         (
             "Dagster",
-            f"`{data['platforms']['dagster']['min']}`",
-            f"`{data['platforms']['dagster']['primary']}`",
+            format_host_pairs("dagster", ["min"]),
+            format_host_pairs("dagster", ["primary"]),
         ),
         (
             "Kestra",
-            f"`{data['platforms']['kestra']['min']}`",
-            f"`{data['platforms']['kestra']['primary']}`",
+            f"`{data['platforms']['kestra']['min']}` on `Python {data['python']['primary']}`",
+            f"`{data['platforms']['kestra']['primary']}` on `Python {data['python']['primary']}`",
         ),
         (
             "dbt",
@@ -263,12 +274,12 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         "",
         f"Truthound release line: `{data['truthound']['range']}`",
         "",
-        "| Lane | Python | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |",
-        "|------|--------|---------|---------|---------|----------------|-------------|-------------|",
+        "| Lane | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |",
+        "|------|---------|---------|---------|----------------|-------------|-------------|",
     ]
     lines.extend(
-        f"| {lane} | {python_versions} | {airflow} | {prefect} | {dagster} | {mage_kestra} | {dbt_compile} | {dbt_execute} |"
-        for lane, python_versions, airflow, prefect, dagster, mage_kestra, dbt_compile, dbt_execute in rows
+        f"| {lane} | {airflow} | {prefect} | {dagster} | {mage_kestra} | {dbt_compile} | {dbt_execute} |"
+        for lane, airflow, prefect, dagster, mage_kestra, dbt_compile, dbt_execute in rows
     )
     lines.extend(
         [
@@ -301,6 +312,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             "",
             "First-party release guarantees apply to per-surface installs. "
             "`truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.",
+            "Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.",
             "Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.",
         ]
     )

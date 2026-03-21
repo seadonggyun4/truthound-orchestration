@@ -69,7 +69,7 @@ jobs:
       - name: Install dbt Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "dbt-postgres>=1.8.0,<2.0.0"
+          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
       - name: Run dbt Python suites
         run: |
           set -euo pipefail
@@ -80,6 +80,7 @@ jobs:
             tests/dbt/test_macros.py \
             tests/dbt/test_hooks.py \
             tests/dbt/test_converters.py \
+            tests/dbt/test_first_party_suite.py \
             --junitxml="artifacts/dbt/junit-python.xml" \
             --cov=common \
             --cov=packages/dbt/src/truthound_dbt \

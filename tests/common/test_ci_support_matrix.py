@@ -22,8 +22,61 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
 
     payload = ci_support_matrix.build_workflow_payload(data, "airflow", "pr")
 
-    assert payload["python_version"] == "3.12"
-    assert payload["version_matrix"] == {"version": ["3.1.8"]}
+    assert payload["host_matrix"] == {
+        "include": [
+            {
+                "label": "primary",
+                "version": "3.1.8",
+                "python_version": "3.12",
+                "constraints": [],
+                "constraint_urls": [],
+            }
+        ]
+    }
+
+
+def test_prefect_main_matrix_pairs_minimum_host_with_python_311() -> None:
+    data = ci_support_matrix.load_support_matrix()
+
+    payload = ci_support_matrix.build_workflow_payload(data, "prefect", "main")
+
+    assert payload["host_matrix"] == {
+        "include": [
+            {
+                "label": "min",
+                "version": "2.14.0",
+                "python_version": "3.11",
+                "constraints": [
+                    "anyio<4.0.0",
+                    "griffe<1.0.0",
+                    "pendulum<3.0.0",
+                    "starlette<0.28.0",
+                ],
+                "constraint_urls": [],
+            },
+            {
+                "label": "primary",
+                "version": "3.6.22",
+                "python_version": "3.12",
+                "constraints": [],
+                "constraint_urls": [],
+            },
+        ]
+    }
+
+
+def test_dagster_min_matrix_applies_legacy_pendulum_constraint() -> None:
+    data = ci_support_matrix.load_support_matrix()
+
+    payload = ci_support_matrix.build_workflow_payload(data, "dagster", "main")
+
+    assert payload["host_matrix"]["include"][0] == {
+        "label": "min",
+        "version": "1.5.0",
+        "python_version": "3.11",
+        "constraints": ["pendulum<3.0.0"],
+        "constraint_urls": [],
+    }
 
 
 def test_dbt_main_matrix_includes_all_dispatch_targets() -> None:

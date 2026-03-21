@@ -13,17 +13,52 @@ extra = "airflow"
 min = "2.6.0"
 primary = "3.1.8"
 
+[platforms.airflow.ci.min]
+python = "3.11"
+constraints = []
+constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.11.txt"]
+
+[platforms.airflow.ci.primary]
+python = "3.12"
+constraints = []
+constraint_urls = []
+
 [platforms.prefect]
 required = true
 extra = "prefect"
 min = "2.14.0"
 primary = "3.6.22"
 
+[platforms.prefect.ci.min]
+python = "3.11"
+constraints = [
+    "anyio<4.0.0",
+    "griffe<1.0.0",
+    "pendulum<3.0.0",
+    "starlette<0.28.0",
+]
+constraint_urls = []
+
+[platforms.prefect.ci.primary]
+python = "3.12"
+constraints = []
+constraint_urls = []
+
 [platforms.dagster]
 required = true
 extra = "dagster"
 min = "1.5.0"
 primary = "1.12.18"
+
+[platforms.dagster.ci.min]
+python = "3.11"
+constraints = ["pendulum<3.0.0"]
+constraint_urls = []
+
+[platforms.dagster.ci.primary]
+python = "3.12"
+constraints = []
+constraint_urls = []
 
 [platforms.mage]
 required = true

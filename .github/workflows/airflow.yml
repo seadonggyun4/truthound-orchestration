@@ -31,9 +31,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      python_version: ${{ steps.export.outputs.python_version }}
       truthound_range: ${{ steps.export.outputs.truthound_range }}
-      version_matrix: ${{ steps.export.outputs.version_matrix }}
+      host_matrix: ${{ steps.export.outputs.host_matrix }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -55,14 +54,14 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.matrix.outputs.version_matrix) }}
+      matrix: ${{ fromJSON(needs.matrix.outputs.host_matrix) }}
     env:
       AIRFLOW_HOME: ${{ github.workspace }}/.airflow
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ needs.matrix.outputs.python_version }}
+          python-version: ${{ matrix.python_version }}
           cache: pip
           cache-dependency-path: |
             pyproject.toml
@@ -70,8 +69,36 @@ jobs:
       - name: Install Airflow dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "apache-airflow==${{ matrix.version }}"
-          python -m pip install -e ".[dev,airflow,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          mkdir -p artifacts/airflow/generated
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          constraints = json.loads(r'''${{ toJSON(matrix.constraints) }}''')
+          constraint_urls = json.loads(r'''${{ toJSON(matrix.constraint_urls) }}''')
+          output_dir = Path("artifacts/airflow/generated")
+          output_dir.mkdir(parents=True, exist_ok=True)
+          (output_dir / "constraints.txt").write_text(
+              "\n".join(constraints) + ("\n" if constraints else ""),
+              encoding="utf-8",
+          )
+          (output_dir / "constraint-urls.txt").write_text(
+              "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
+              encoding="utf-8",
+          )
+          PY
+          install_args=()
+          if [ -s artifacts/airflow/generated/constraint-urls.txt ]; then
+            while IFS= read -r constraint_url; do
+              [ -n "${constraint_url}" ] || continue
+              install_args+=(--constraint "${constraint_url}")
+            done < artifacts/airflow/generated/constraint-urls.txt
+          fi
+          if [ -s artifacts/airflow/generated/constraints.txt ]; then
+            install_args+=(-c artifacts/airflow/generated/constraints.txt)
+          fi
+          python -m pip install "${install_args[@]}" "apache-airflow==${{ matrix.version }}"
+          python -m pip install "${install_args[@]}" -e ".[dev,airflow,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
       - name: Run Airflow suites
         run: |
           set -euo pipefail

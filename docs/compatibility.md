@@ -31,21 +31,21 @@ Release-blocking compatibility and security guarantees apply to these per-surfac
 
 Truthound release line: `>=3.0,<4.0`
 
-| Lane | Python | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |
-|------|--------|---------|---------|---------|----------------|-------------|-------------|
-| PR | `3.12` | `3.1.8` | `3.6.22` | `1.12.18` | Primary host smoke | `postgres` | No |
-| Main | `3.12` | `2.6.0`, `3.1.8` | `2.14.0`, `3.6.22` | `1.5.0`, `1.12.18` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Release | `3.12` | `2.6.0`, `3.1.8` | `2.14.0`, `3.6.22` | `1.5.0`, `1.12.18` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.11`, `3.12`, `3.13` | `3.1.8` | `3.6.22` | `1.12.18` | Primary host smoke + advanced-tier canary | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Lane | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |
+|------|---------|---------|---------|----------------|-------------|-------------|
+| PR | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | `postgres` | No |
+| Main | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Release | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + advanced-tier canary | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
-| Airflow | `2.6.0` | `3.1.8` |
-| Prefect | `2.14.0` | `3.6.22` |
-| Dagster | `1.5.0` | `1.12.18` |
-| Kestra | `1.3.0` | `1.3.0` |
+| Airflow | `2.6.0` on `Python 3.11` | `3.1.8` on `Python 3.12` |
+| Prefect | `2.14.0` on `Python 3.11` | `3.6.22` on `Python 3.12` |
+| Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
+| Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
 | dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.15` + `dbt-postgres 1.10.15` |
 
 ## Security Audit Surfaces
@@ -62,6 +62,7 @@ Truthound release line: `>=3.0,<4.0`
 | `all` | `truthound-orchestration[all]` | Nightly canary only |
 
 First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.
 Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.
 <!-- END GENERATED SUPPORT MATRIX -->
 

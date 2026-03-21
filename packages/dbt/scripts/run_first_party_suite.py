@@ -10,14 +10,16 @@ used both locally and from CI. It supports two primary lanes:
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import uuid
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from common.orchestration import (
     OperationEventType,
@@ -121,14 +123,24 @@ def build_commands(
     target: str,
     *,
     macro_smoke: bool,
+    project_dir: Path,
+    profiles_dir: Path,
     dbt_executable: str | None = None,
 ) -> list[SuiteCommand]:
     dbt = dbt_executable or resolve_dbt_executable()
+    base_args = (
+        "--target",
+        target,
+        "--project-dir",
+        str(project_dir),
+        "--profiles-dir",
+        str(profiles_dir),
+    )
     commands: list[SuiteCommand] = [
         SuiteCommand(
             name="deps",
             operation=OperationKind.OBSERVABILITY,
-            argv=(dbt, "deps", "--target", target),
+            argv=(dbt, "deps", *base_args),
             metadata={"phase": "deps"},
         )
     ]
@@ -137,7 +149,7 @@ def build_commands(
             SuiteCommand(
                 name="compile",
                 operation=OperationKind.CHECK,
-                argv=(dbt, "parse", "--target", target),
+                argv=(dbt, "parse", *base_args),
                 metadata={
                     "phase": "compile",
                     "target": target,
@@ -151,19 +163,19 @@ def build_commands(
                 SuiteCommand(
                     name="seed",
                     operation=OperationKind.LEARN,
-                    argv=(dbt, "seed", "--target", target, "--full-refresh"),
+                    argv=(dbt, "seed", *base_args, "--full-refresh"),
                     metadata={"phase": "seed", "target": target},
                 ),
                 SuiteCommand(
                     name="run",
                     operation=OperationKind.LEARN,
-                    argv=(dbt, "run", "--target", target),
+                    argv=(dbt, "run", *base_args),
                     metadata={"phase": "run", "target": target},
                 ),
                 SuiteCommand(
                     name="test",
                     operation=OperationKind.CHECK,
-                    argv=(dbt, "test", "--target", target),
+                    argv=(dbt, "test", *base_args),
                     metadata={"phase": "test", "target": target},
                 ),
             ]
@@ -192,8 +204,7 @@ def build_commands(
                             dbt,
                             "run-operation",
                             "run_truthound_check",
-                            "--target",
-                            target,
+                            *base_args,
                             "--args",
                             rule_args,
                         ),
@@ -210,8 +221,7 @@ def build_commands(
                             dbt,
                             "run-operation",
                             "run_truthound_summary",
-                            "--target",
-                            target,
+                            *base_args,
                             "--args",
                             summary_args,
                         ),
@@ -233,6 +243,55 @@ def build_env(project_dir: Path, profiles_dir: Path) -> dict[str, str]:
     for key, value in DEFAULT_ENV.items():
         env.setdefault(key, value)
     return env
+
+
+def _load_yaml_mapping(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(f"Required dbt configuration file does not exist: {path}")
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a mapping in {path}, got {type(data).__name__}")
+    return data
+
+
+def validate_dbt_configuration(project_dir: Path, profiles_dir: Path, target: str) -> str:
+    project_data = _load_yaml_mapping(project_dir / "dbt_project.yml")
+    profiles_data = _load_yaml_mapping(profiles_dir / "profiles.yml")
+
+    profile_name = project_data.get("profile")
+    if not isinstance(profile_name, str) or not profile_name.strip():
+        raise ValueError(
+            f"dbt_project.yml in {project_dir} must declare a non-empty profile name"
+        )
+    profile_name = profile_name.strip()
+
+    if profile_name not in profiles_data:
+        available = ", ".join(sorted(str(name) for name in profiles_data))
+        raise ValueError(
+            f"Profile '{profile_name}' declared in {project_dir / 'dbt_project.yml'} "
+            f"was not found in {profiles_dir / 'profiles.yml'}; available profiles: {available}"
+        )
+
+    profile_config = profiles_data[profile_name]
+    if not isinstance(profile_config, dict):
+        raise ValueError(
+            f"Profile '{profile_name}' in {profiles_dir / 'profiles.yml'} must be a mapping"
+        )
+
+    outputs = profile_config.get("outputs")
+    if not isinstance(outputs, dict):
+        raise ValueError(
+            f"Profile '{profile_name}' in {profiles_dir / 'profiles.yml'} must define outputs"
+        )
+
+    if target not in outputs:
+        available_targets = ", ".join(sorted(str(name) for name in outputs))
+        raise ValueError(
+            f"Target '{target}' was not found in profile '{profile_name}'; "
+            f"available targets: {available_targets}"
+        )
+
+    return profile_name
 
 
 def build_runtime_context(
@@ -342,11 +401,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     project_dir = Path(args.project_dir).resolve()
     profiles_dir = Path(args.profiles_dir).resolve()
+    profile_name = validate_dbt_configuration(project_dir, profiles_dir, args.target)
     env = build_env(project_dir, profiles_dir)
     commands = build_commands(
         args.mode,
         args.target,
         macro_smoke=not args.skip_macro_smoke,
+        project_dir=project_dir,
+        profiles_dir=profiles_dir,
         dbt_executable=resolve_dbt_executable(),
     )
     observability = build_observability_config(args)
@@ -360,6 +422,7 @@ def main(argv: list[str] | None = None) -> int:
                 "target": args.target,
                 "project_dir": str(project_dir),
                 "profiles_dir": str(profiles_dir),
+                "profile_name": profile_name,
                 "commands": [command.name for command in commands],
             }
         )

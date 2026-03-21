@@ -1,0 +1,91 @@
+"""Tests for the dbt first-party suite runner."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import sys
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT_PATH = ROOT / "packages" / "dbt" / "scripts" / "run_first_party_suite.py"
+
+
+spec = importlib.util.spec_from_file_location("dbt_first_party_suite", SCRIPT_PATH)
+assert spec is not None
+assert spec.loader is not None
+dbt_first_party_suite = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = dbt_first_party_suite
+spec.loader.exec_module(dbt_first_party_suite)
+
+
+def test_build_commands_include_explicit_project_and_profiles_dirs() -> None:
+    project_dir = Path("/tmp/truthound-dbt-project")
+    profiles_dir = Path("/tmp/truthound-dbt-profiles")
+
+    commands = dbt_first_party_suite.build_commands(
+        "compile",
+        "postgres",
+        macro_smoke=False,
+        project_dir=project_dir,
+        profiles_dir=profiles_dir,
+        dbt_executable="dbt",
+    )
+
+    assert [command.name for command in commands] == ["deps", "compile"]
+    assert commands[0].argv == (
+        "dbt",
+        "deps",
+        "--target",
+        "postgres",
+        "--project-dir",
+        str(project_dir),
+        "--profiles-dir",
+        str(profiles_dir),
+    )
+    assert commands[1].argv == (
+        "dbt",
+        "parse",
+        "--target",
+        "postgres",
+        "--project-dir",
+        str(project_dir),
+        "--profiles-dir",
+        str(profiles_dir),
+    )
+
+
+def test_validate_dbt_configuration_passes_for_checked_in_project() -> None:
+    project_dir = ROOT / "packages" / "dbt" / "integration_tests"
+
+    profile_name = dbt_first_party_suite.validate_dbt_configuration(
+        project_dir,
+        project_dir,
+        "postgres",
+    )
+
+    assert profile_name == "integration_tests"
+
+
+def test_validate_dbt_configuration_fails_on_profile_mismatch(tmp_path: Path) -> None:
+    project_dir = tmp_path / "project"
+    profiles_dir = tmp_path / "profiles"
+    project_dir.mkdir()
+    profiles_dir.mkdir()
+    (project_dir / "dbt_project.yml").write_text(
+        "name: broken\nprofile: missing_profile\n",
+        encoding="utf-8",
+    )
+    (profiles_dir / "profiles.yml").write_text(
+        "integration_tests:\n  target: postgres\n  outputs:\n    postgres:\n      type: postgres\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="missing_profile"):
+        dbt_first_party_suite.validate_dbt_configuration(
+            project_dir,
+            profiles_dir,
+            "postgres",
+        )
