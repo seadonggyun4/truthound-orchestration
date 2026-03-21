@@ -161,17 +161,28 @@ class TestConfigRoundtrip:
 class TestAssetCheckBuilders:
     """Tests for first-class asset check builders."""
 
+    @staticmethod
+    def _check_specs(definition):
+        if hasattr(definition, "check_specs"):
+            return list(definition.check_specs)
+        if hasattr(definition, "specs"):
+            return list(definition.specs)
+        by_output_name = getattr(definition, "check_specs_by_output_name", None)
+        if isinstance(by_output_name, dict):
+            return list(by_output_name.values())
+        msg = f"Unable to extract asset check specs from {type(definition).__name__}"
+        raise AssertionError(msg)
+
     def test_quality_asset_check_returns_dagster_definition(self) -> None:
         @quality_asset_check(asset="users")
         def users_quality(context):
             return [{"id": 1}]
 
-        assert hasattr(users_quality, "check_specs")
-        assert users_quality.check_specs is not None
+        assert self._check_specs(users_quality)
 
     def test_create_asset_check_uses_requested_name(self) -> None:
         @create_asset_check(asset="users", name="users_contract")
         def users_contract(context):
             return [{"id": 1}]
 
-        assert any(spec.name == "users_contract" for spec in users_contract.check_specs)
+        assert any(spec.name == "users_contract" for spec in self._check_specs(users_contract))

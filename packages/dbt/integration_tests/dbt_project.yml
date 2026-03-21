@@ -29,3 +29,19 @@ vars:
 seeds:
   truthound_integration_tests:
     +quote_columns: true
+    test_valid_data:
+      +column_types:
+        email: varchar(255)
+        status: varchar(32)
+        created_at: varchar(32)
+        user_uuid: varchar(64)
+        phone: varchar(32)
+        url: varchar(512)
+    test_invalid_data:
+      +column_types:
+        email: varchar(255)
+        status: varchar(32)
+        created_at: varchar(32)
+        user_uuid: varchar(64)
+        phone: varchar(32)
+        url: varchar(512)

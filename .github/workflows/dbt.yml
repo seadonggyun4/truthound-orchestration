@@ -69,7 +69,7 @@ jobs:
       - name: Install dbt Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
+          python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
       - name: Run dbt Python suites
         run: |
           set -euo pipefail
@@ -113,7 +113,7 @@ jobs:
       - name: Install dbt compile dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ matrix.adapter }}"
+          python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ matrix.adapter }}"
       - name: Compile adapter-dispatch lane
         run: |
           set -euo pipefail
@@ -163,7 +163,7 @@ jobs:
       - name: Install dbt execution dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dbt,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
+          python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
       - name: Run dbt PostgreSQL baseline
         env:
           POSTGRES_HOST: 127.0.0.1

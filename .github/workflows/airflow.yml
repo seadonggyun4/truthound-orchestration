@@ -98,7 +98,7 @@ jobs:
             install_args+=(-c artifacts/airflow/generated/constraints.txt)
           fi
           python -m pip install "${install_args[@]}" "apache-airflow==${{ matrix.version }}"
-          python -m pip install "${install_args[@]}" -e ".[airflow,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound${{ needs.matrix.outputs.truthound_range }}"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Airflow suites
         run: |
