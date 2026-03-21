@@ -34,10 +34,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      checks: write
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: rhysd/actionlint@v1
+      - uses: reviewdog/action-actionlint@a5524e1c19e62881d79c1f1b9b6f09f16356e281 # v1.65.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-check
+          fail_level: error
 
   dependency-review:
     if: github.event_name == 'pull_request'
@@ -51,7 +56,7 @@ jobs:
       - uses: actions/dependency-review-action@v4
 
   pip-audit:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -61,14 +66,70 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
+      - id: export
+        name: Render blocking security audit inputs
+        run: |
+          mkdir -p artifacts/security/generated
+          python scripts/ci/export_support_matrix.py render-security \
+            --output-dir artifacts/security/generated \
+            --github-output "$GITHUB_OUTPUT"
       - name: Install audit dependencies
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install pip-audit
-          python -m pip install -e ".[dev,airflow,dagster,prefect,dbt,kestra,opentelemetry]" "truthound>=3.0,<4.0"
+          python -m pip install \
+            -c "${{ steps.export.outputs.blocking_constraints_path }}" \
+            -r "${{ steps.export.outputs.blocking_requirements_path }}" \
+            -e ".[${{ steps.export.outputs.audit_extras_csv }}]"
       - name: Run pip-audit
-        run: pip-audit --progress-spinner off
+        run: |
+          set -euo pipefail
+          pip-audit --local --progress-spinner off | tee artifacts/security/pip-audit-blocking.log
+      - name: Upload blocking security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-security-blocking
+          path: artifacts/security/*
+
+  pip-audit-canary:
+    if: github.event_name == 'schedule' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') == 'nightly')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: export
+        name: Render canary security audit inputs
+        run: |
+          mkdir -p artifacts/security/generated
+          python scripts/ci/export_support_matrix.py render-security \
+            --output-dir artifacts/security/generated \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Install canary audit dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          python -m pip install \
+            -c "${{ steps.export.outputs.canary_constraints_path }}" \
+            -r "${{ steps.export.outputs.canary_requirements_path }}" \
+            -e ".[${{ steps.export.outputs.audit_extras_csv }}]"
+      - name: Run pip-audit canary
+        run: |
+          set -euo pipefail
+          pip-audit --local --progress-spinner off | tee artifacts/security/pip-audit-canary.log
+      - name: Upload canary security artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: truthound-security-canary
+          path: artifacts/security/*
 
   codeql:
     if: github.event_name == 'push' || github.event_name == 'schedule'
@@ -95,6 +156,7 @@ jobs:
       - actionlint
       - dependency-review
       - pip-audit
+      - pip-audit-canary
       - codeql
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -38,6 +38,9 @@ runtime_expectation = "Kestra runtime with generated scripts and templates"
 required = true
 extra = "dbt"
 execution_target = "postgres"
+core_range = "dbt-core>=1.8.0,<2.0.0"
+execution_core_version = "1.9.1"
+execution_adapter_version = "1.9.1"
 coverage_threshold = 0.8
 
 [dbt.compile_adapters]
@@ -49,6 +52,14 @@ databricks = "dbt-databricks>=1.8.0,<2.0.0"
 
 [wheel_smoke]
 extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
+
+[security]
+python = "primary"
+audit_extras = ["airflow", "dagster", "prefect", "dbt", "kestra", "opentelemetry"]
+blocking_platforms = ["airflow", "prefect", "dagster", "dbt"]
+blocking_overrides = ["starlette>=0.49.1"]
+canary_platforms = ["airflow", "prefect", "dagster", "dbt"]
+canary_overrides = []
 
 [advanced_tier]
 engines = ["great_expectations", "pandera"]

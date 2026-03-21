@@ -62,6 +62,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
       - name: Install advanced-tier canary dependencies
         run: |
           python -m pip install --upgrade pip
@@ -90,6 +93,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
       - name: Install Mage host runtime
         run: |
           python -m pip install --upgrade pip

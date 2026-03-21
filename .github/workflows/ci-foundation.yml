@@ -39,7 +39,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
       - id: export
         name: Export support matrix
         run: |
@@ -53,6 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
+      checks: write
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +60,14 @@ jobs:
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
-      - uses: rhysd/actionlint@v1
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
+      - uses: reviewdog/action-actionlint@a5524e1c19e62881d79c1f1b9b6f09f16356e281 # v1.65.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-check
+          fail_level: error
       - name: Install foundation dependencies
         run: |
           python -m pip install --upgrade pip
@@ -103,10 +110,10 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.matrix.outputs.wheel_smoke_matrix) }}
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
-          cache: pip
       - name: Download built distribution
         uses: actions/download-artifact@v4
         with:

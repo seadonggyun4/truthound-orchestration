@@ -37,6 +37,30 @@ def test_dbt_main_matrix_includes_all_dispatch_targets() -> None:
     assert targets == ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
 
 
+def test_security_audit_inputs_are_support_matrix_driven() -> None:
+    data = ci_support_matrix.load_support_matrix()
+
+    payload = ci_support_matrix.build_security_audit_inputs(data)
+
+    assert payload["python_version"] == "3.12"
+    assert payload["audit_extras_csv"] == "airflow,dagster,prefect,dbt,kestra,opentelemetry"
+    assert payload["blocking_requirements"] == [
+        "apache-airflow==3.1.8",
+        "prefect==3.6.22",
+        "dagster==1.12.18",
+        "dbt-core==1.9.1",
+        "dbt-postgres==1.9.1",
+    ]
+    assert payload["blocking_constraints"] == ["starlette>=0.49.1"]
+    assert payload["canary_requirements"] == [
+        "apache-airflow>=2.6.0",
+        "prefect>=2.14.0",
+        "dagster>=1.5.0",
+        "dbt-core>=1.8.0,<2.0.0",
+        "dbt-postgres>=1.8.0,<2.0.0",
+    ]
+
+
 def test_docs_support_matrix_block_is_in_sync() -> None:
     data = ci_support_matrix.load_support_matrix()
     text = (ROOT / "docs" / "compatibility.md").read_text(encoding="utf-8")

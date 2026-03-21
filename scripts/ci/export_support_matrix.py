@@ -24,6 +24,11 @@ WHEEL_IMPORTS = {
     "dbt": ["common", "truthound_dbt", "dbt"],
     "opentelemetry": ["common", "opentelemetry"],
 }
+PLATFORM_PACKAGE_NAMES = {
+    "airflow": "apache-airflow",
+    "dagster": "dagster",
+    "prefect": "prefect",
+}
 
 
 def load_support_matrix() -> dict[str, Any]:
@@ -118,6 +123,80 @@ def build_workflow_payload(
     raise ValueError(f"Unsupported workflow: {workflow}")
 
 
+def build_security_audit_inputs(data: dict[str, Any]) -> dict[str, Any]:
+    security = data["security"]
+    dbt = data["platforms"]["dbt"]
+    execution_target = dbt["execution_target"]
+    execution_adapter = f"dbt-{execution_target}"
+
+    blocking_requirements = [
+        f"{PLATFORM_PACKAGE_NAMES[platform]}=={data['platforms'][platform]['primary']}"
+        for platform in security["blocking_platforms"]
+        if platform in PLATFORM_PACKAGE_NAMES
+    ]
+    if "dbt" in security["blocking_platforms"]:
+        blocking_requirements.extend(
+            [
+                f"dbt-core=={dbt['execution_core_version']}",
+                f"{execution_adapter}=={dbt['execution_adapter_version']}",
+            ]
+        )
+
+    canary_requirements = [
+        f"{PLATFORM_PACKAGE_NAMES[platform]}>={data['platforms'][platform]['min']}"
+        for platform in security["canary_platforms"]
+        if platform in PLATFORM_PACKAGE_NAMES
+    ]
+    if "dbt" in security["canary_platforms"]:
+        canary_requirements.extend(
+            [
+                dbt["core_range"],
+                data["dbt"]["compile_adapters"][execution_target],
+            ]
+        )
+
+    return {
+        "python_version": data["python"][security["python"]],
+        "audit_extras_csv": ",".join(security["audit_extras"]),
+        "blocking_requirements": blocking_requirements,
+        "blocking_constraints": list(security["blocking_overrides"]),
+        "canary_requirements": canary_requirements,
+        "canary_constraints": list(security["canary_overrides"]),
+    }
+
+
+def write_requirement_file(path: Path, lines: list[str]) -> None:
+    content = "\n".join(lines) if lines else "# intentionally empty"
+    path.write_text(f"{content}\n", encoding="utf-8")
+
+
+def render_security_audit_files(
+    data: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, Any]:
+    payload = build_security_audit_inputs(data)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    blocking_requirements = output_dir / "blocking-requirements.txt"
+    blocking_constraints = output_dir / "blocking-constraints.txt"
+    canary_requirements = output_dir / "canary-requirements.txt"
+    canary_constraints = output_dir / "canary-constraints.txt"
+
+    write_requirement_file(blocking_requirements, payload["blocking_requirements"])
+    write_requirement_file(blocking_constraints, payload["blocking_constraints"])
+    write_requirement_file(canary_requirements, payload["canary_requirements"])
+    write_requirement_file(canary_constraints, payload["canary_constraints"])
+
+    return {
+        "python_version": payload["python_version"],
+        "audit_extras_csv": payload["audit_extras_csv"],
+        "blocking_requirements_path": str(blocking_requirements),
+        "blocking_constraints_path": str(blocking_constraints),
+        "canary_requirements_path": str(canary_requirements),
+        "canary_constraints_path": str(canary_constraints),
+    }
+
+
 def render_generated_support_block(data: dict[str, Any]) -> str:
     def join_versions(values: list[str]) -> str:
         return ", ".join(f"`{value}`" for value in values)
@@ -203,8 +282,15 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ),
         (
             "dbt",
-            "`postgres` execution baseline",
-            "`postgres` compile baseline + full adapter dispatch matrix",
+            (
+                f"`{data['platforms']['dbt']['core_range']}` + "
+                f"`{data['dbt']['compile_adapters'][data['platforms']['dbt']['execution_target']]}`"
+            ),
+            (
+                f"`dbt-core {data['platforms']['dbt']['execution_core_version']}` + "
+                f"`dbt-{data['platforms']['dbt']['execution_target']} "
+                f"{data['platforms']['dbt']['execution_adapter_version']}`"
+            ),
         ),
     ]
 
@@ -290,6 +376,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     render = subparsers.add_parser("render-docs", help="Render the generated docs support matrix.")
     render.add_argument("--path", type=Path, default=None)
 
+    security = subparsers.add_parser(
+        "render-security",
+        help="Render deterministic security audit requirements and constraints.",
+    )
+    security.add_argument("--output-dir", type=Path, required=True)
+    security.add_argument("--github-output", type=Path, default=None)
+
     return parser.parse_args(argv)
 
 
@@ -310,6 +403,13 @@ def main(argv: list[str] | None = None) -> int:
             args.path.write_text(output, encoding="utf-8")
         else:
             print(output)
+        return 0
+    if args.command == "render-security":
+        payload = render_security_audit_files(load_support_matrix(), args.output_dir)
+        if args.github_output is not None:
+            write_github_output(args.github_output, payload)
+        else:
+            print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     raise AssertionError("unreachable")
 

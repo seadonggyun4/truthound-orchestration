@@ -43,7 +43,7 @@ Truthound release line: `>=3.0,<4.0`
 | Airflow | `2.6.0` | `3.1.8` |
 | Prefect | `2.14.0` | `3.6.22` |
 | Dagster | `1.5.0` | `1.12.18` |
-| dbt | `postgres` execution baseline | `postgres` compile baseline + full adapter dispatch matrix |
+| dbt | `dbt-core>=1.8.0,<2.0.0` + `dbt-postgres>=1.8.0,<2.0.0` | `dbt-core 1.9.1` + `dbt-postgres 1.9.1` |
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## Supported Scope
