@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
 from dagster import ConfigurableResource, InitResourceContext
+from pydantic import PrivateAttr
 
 from common.engines import normalize_runtime_context
 from common.orchestration import (
@@ -436,7 +437,7 @@ class DataQualityResource(ConfigurableResource):
     observability: Optional[Dict[str, Any]] = None
 
     # Internal state (not configurable)
-    _engine: Optional["DataQualityEngine"] = None
+    _engine: Optional["DataQualityEngine"] = PrivateAttr(default=None)
 
     def setup_for_execution(self, context: InitResourceContext) -> None:
         """Set up the resource for execution.

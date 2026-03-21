@@ -96,7 +96,8 @@ jobs:
             install_args+=(-c artifacts/dagster/generated/constraints.txt)
           fi
           python -m pip install "${install_args[@]}" "dagster==${{ matrix.version }}"
-          python -m pip install "${install_args[@]}" -e ".[dev,dagster,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install "${install_args[@]}" -e ".[dagster,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Dagster suites
         run: |
           set -euo pipefail

@@ -9,7 +9,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from prefect.blocks.core import Block
-from pydantic import Field
+
+try:
+    from pydantic.v1 import Field, PrivateAttr
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    from pydantic import Field, PrivateAttr
 
 from truthound_prefect.sla.config import (
     AlertLevel,
@@ -95,8 +99,16 @@ class SLABlock(Block):
         description="Raise exception on SLA violation",
     )
 
-    _monitor: SLAMonitor | None = None
-    _metrics_hook: MetricsSLAHook | None = None
+    _monitor: SLAMonitor | None = PrivateAttr(default=None)
+    _metrics_hook: MetricsSLAHook | None = PrivateAttr(default=None)
+
+    def _current_monitor(self) -> SLAMonitor | None:
+        monitor = getattr(self, "_monitor", None)
+        return monitor if isinstance(monitor, SLAMonitor) else None
+
+    def _current_metrics_hook(self) -> MetricsSLAHook | None:
+        metrics_hook = getattr(self, "_metrics_hook", None)
+        return metrics_hook if isinstance(metrics_hook, MetricsSLAHook) else None
 
     def _get_config(self) -> SLAConfig:
         """Build SLA config from block settings."""
@@ -114,7 +126,8 @@ class SLABlock(Block):
 
     def _get_monitor(self) -> SLAMonitor:
         """Get or create the SLA monitor."""
-        if self._monitor is None:
+        monitor = self._current_monitor()
+        if monitor is None:
             config = self._get_config()
             hooks = []
 
@@ -122,17 +135,19 @@ class SLABlock(Block):
                 hooks.append(LoggingSLAHook())
 
             if self.enable_metrics:
-                self._metrics_hook = MetricsSLAHook()
-                hooks.append(self._metrics_hook)
+                metrics_hook = MetricsSLAHook()
+                self._metrics_hook = metrics_hook
+                hooks.append(metrics_hook)
 
             composite_hook = CompositeSLAHook(hooks) if hooks else None
-            self._monitor = SLAMonitor(
+            monitor = SLAMonitor(
                 config,
                 name=self._block_document_name or "sla-block",
                 hooks=[composite_hook] if composite_hook else None,
             )
+            self._monitor = monitor
 
-        return self._monitor
+        return monitor
 
     def check(
         self,
@@ -201,8 +216,9 @@ class SLABlock(Block):
         Returns:
             Dictionary of metrics or empty dict if metrics disabled.
         """
-        if self._metrics_hook:
-            return self._metrics_hook.get_summary()
+        metrics_hook = self._current_metrics_hook()
+        if metrics_hook is not None:
+            return metrics_hook.get_summary()
         return {}
 
     def get_summary(self) -> dict[str, Any]:
@@ -216,10 +232,12 @@ class SLABlock(Block):
 
     def reset(self) -> None:
         """Reset monitor state."""
-        if self._monitor:
-            self._monitor.reset()
-        if self._metrics_hook:
-            self._metrics_hook.reset()
+        monitor = self._current_monitor()
+        if monitor is not None:
+            monitor.reset()
+        metrics_hook = self._current_metrics_hook()
+        if metrics_hook is not None:
+            metrics_hook.reset()
 
 
 __all__ = [

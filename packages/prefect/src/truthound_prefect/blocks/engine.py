@@ -11,7 +11,11 @@ import inspect
 from typing import TYPE_CHECKING, Any, Sequence
 
 from prefect.blocks.core import Block
-from pydantic import Field
+
+try:
+    from pydantic.v1 import Field, PrivateAttr
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    from pydantic import Field, PrivateAttr
 
 from common.engines import normalize_runtime_context
 from common.orchestration import (
@@ -553,11 +557,16 @@ class DataQualityBlock(Block):
         description="Shared observability configuration for runtime events",
     )
 
-    _engine_block: EngineBlock | None = None
+    _engine_block: EngineBlock | None = PrivateAttr(default=None)
+
+    def _current_engine_block(self) -> EngineBlock | None:
+        engine_block = getattr(self, "_engine_block", None)
+        return engine_block if isinstance(engine_block, EngineBlock) else None
 
     def _get_engine_block(self) -> EngineBlock:
         """Get or create the engine block."""
-        if self._engine_block is None:
+        engine_block = self._current_engine_block()
+        if engine_block is None:
             config = EngineBlockConfig(
                 engine_name=self.engine_name,
                 parallel=self.parallel,
@@ -567,9 +576,10 @@ class DataQualityBlock(Block):
                 timeout_seconds=self.timeout_seconds,
                 observability=self.observability,
             )
-            self._engine_block = EngineBlock(config)
-            self._engine_block.setup()
-        return self._engine_block
+            engine_block = EngineBlock(config)
+            engine_block.setup()
+            self._engine_block = engine_block
+        return engine_block
 
     def check(
         self,
@@ -678,8 +688,9 @@ class DataQualityBlock(Block):
 
     def __del__(self) -> None:
         """Clean up resources."""
-        if self._engine_block is not None:
-            self._engine_block.teardown()
+        engine_block = self._current_engine_block()
+        if engine_block is not None:
+            engine_block.teardown()
 
 
 def create_ephemeral_truthound_block(

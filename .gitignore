@@ -244,6 +244,7 @@ logs/
 .user.yml
 profiles.yml
 !profiles.yml.example
+!packages/dbt/integration_tests/profiles.yml
 packages/dbt/integration_tests/package-lock.yml
 
 # =============================================================================

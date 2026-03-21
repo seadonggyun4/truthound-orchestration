@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Any, Callable, Sequence
 
 from dagster import AssetCheckResult, asset_check
+
+_SUPPORTS_BLOCKING = "blocking" in inspect.signature(asset_check).parameters
 
 
 def create_asset_check(
@@ -20,12 +23,17 @@ def create_asset_check(
     """Create a first-class Dagster asset check backed by Truthound."""
 
     def decorator(fn: Callable[..., Any]) -> Any:
+        asset_check_kwargs: dict[str, Any] = {
+            "asset": asset,
+            "name": name,
+            "description": description or f"Truthound asset check for {name}",
+            "required_resource_keys": {"data_quality"},
+        }
+        if _SUPPORTS_BLOCKING:
+            asset_check_kwargs["blocking"] = fail_on_error
+
         @asset_check(
-            asset=asset,
-            name=name,
-            description=description or f"Truthound asset check for {name}",
-            required_resource_keys={"data_quality"},
-            blocking=fail_on_error,
+            **asset_check_kwargs,
         )
         def _asset_check(context, **kwargs: Any) -> AssetCheckResult:
             data = fn(context, **kwargs)
