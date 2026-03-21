@@ -67,6 +67,7 @@ jobs:
       actions: read
       checks: write
       contents: read
+      pull-requests: read
       security-events: write
     uses: ./.github/workflows/security.yml
     with:
