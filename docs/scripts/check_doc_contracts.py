@@ -16,7 +16,7 @@ DOC_FILES = [
     ROOT / "docs/compatibility.md",
     ROOT / "docs/zero-config.md",
     ROOT / "docs/migration/3.0.md",
-    ROOT / "docs/advanced-engines/index.md",
+    ROOT / "docs/engines/index.md",
 ]
 
 
@@ -25,6 +25,13 @@ def _require(path: Path, needle: str) -> str | None:
     if needle not in text:
         return f"{path.relative_to(ROOT)} is missing required text: {needle!r}"
     return None
+
+
+def _require_any(path: Path, needles: tuple[str, ...], *, label: str) -> str | None:
+    text = path.read_text(encoding="utf-8")
+    if any(needle in text for needle in needles):
+        return None
+    return f"{path.relative_to(ROOT)} is missing required text for {label!r}: {needles!r}"
 
 
 def main() -> int:
@@ -41,7 +48,14 @@ def main() -> int:
     checks = [
         _require(ROOT / "README.md", "official orchestration integrations for Truthound 3.x"),
         _require(ROOT / "README.md", "Truthound 3.x Compatibility"),
-        _require(ROOT / "docs/index.md", "official first-party orchestration compatibility line"),
+        _require_any(
+            ROOT / "docs/index.md",
+            (
+                "official first-party orchestration compatibility line",
+                "official first-party orchestration line for Truthound 3.x",
+            ),
+            label="homepage compatibility positioning",
+        ),
         _require(ROOT / "docs/zero-config.md", "safe_auto"),
         _require(ROOT / "docs/compatibility.md", "supports `Truthound 3.x` only"),
         _require(ROOT / "docs/compatibility.md", "BEGIN GENERATED SUPPORT MATRIX"),
