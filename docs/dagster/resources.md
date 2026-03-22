@@ -4,102 +4,74 @@ title: Dagster Resources
 
 # Dagster Resources
 
-Provides data quality engines as Dagster resources.
+`DataQualityResource` is the canonical Dagster boundary for Truthound orchestration. It is the best choice when you want consistent engine behavior across assets, ops, and asset checks without repeating configuration everywhere.
 
 ## DataQualityResource
 
 ```python
-from dagster import Definitions, job, op
-from packages.dagster.resources import DataQualityResource
+from truthound_dagster.resources import DataQualityResource
 
-@op(required_resource_keys={"data_quality"})
-def check_op(context):
-    engine = context.resources.data_quality.get_engine()
-    data = load_data()
-    result = engine.check(data, auto_schema=True)
-    return result
-
-@job(resource_defs={"data_quality": DataQualityResource()})
-def quality_job():
-    check_op()
-```
-
-### Configuration
-
-```python
-from packages.dagster.resources import DataQualityResource, EngineResourceConfig
-
-config = EngineResourceConfig(
+resource = DataQualityResource(
     engine_name="truthound",
-    auto_start=True,
-    parallel=True,
-    max_workers=4,
+    timeout_seconds=300.0,
 )
-
-resource = DataQualityResource(config=config)
 ```
 
-## EngineResource
+The resource exposes the shared runtime through host-native methods:
 
-Engine-specific resource:
+| Method | Purpose |
+|--------|---------|
+| `check(...)` | validation |
+| `profile(...)` | profiling |
+| `learn(...)` | rule learning |
+| `stream_check(...)` | bounded-memory streaming validation |
 
-```python
-from packages.dagster.resources import EngineResource
+## Configuration
 
-resource = EngineResource(engine_name="truthound")
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `engine_name` | str | `"truthound"` | engine choice |
+| `timeout_seconds` | float | `300.0` | default operation timeout |
+| `fail_on_error` | bool | `True` | hard-fail check behavior |
+| `warning_threshold` | float \| None | `None` | warning threshold instead of fail |
+| `parallel` | bool | `False` | parallel Truthound execution |
+| `max_workers` | int \| None | `None` | worker limit for parallel execution |
+| `observability` | dict \| None | `None` | shared observability settings |
 
-@op(required_resource_keys={"engine"})
-def my_op(context):
-    engine = context.resources.engine
-    result = engine.check(data, auto_schema=True)
-```
+## When To Use EngineResource
+
+`EngineResource` is the lower-level boundary when you want more direct control of engine lifecycle or configuration than the higher-level `DataQualityResource` surface.
 
 ## Preset Configurations
 
-```python
-from packages.dagster.resources import (
-    DEFAULT_ENGINE_CONFIG,      # Default settings
-    PARALLEL_ENGINE_CONFIG,     # Parallel processing
-    PRODUCTION_ENGINE_CONFIG,   # Production optimized
-)
-
-resource = DataQualityResource(config=PRODUCTION_ENGINE_CONFIG)
-```
+Use preset configuration constants when you want a named configuration style instead of repeating field values.
 
 ## Resource Methods
 
-| Method | Description |
-|--------|-------------|
-| `get_engine()` | Return engine instance |
-| `check(data, ...)` | Data validation |
-| `profile(data)` | Data profiling |
-| `learn(data)` | Schema learning |
+```python
+result = resource.check(data, rules=[{"column": "id", "type": "not_null"}])
+profile = resource.profile(data)
+learned = resource.learn(data)
+```
 
 ## Lifecycle
 
-Resources are automatically started and stopped during job execution:
-
-```python
-@op(required_resource_keys={"data_quality"})
-def my_op(context):
-    # Resource is already started
-    engine = context.resources.data_quality.get_engine()
-    # Automatically cleaned up when job ends
-```
+The resource initializes the underlying engine during setup and stops it during teardown. That keeps lifecycle behavior aligned with Dagster's resource model instead of hiding it inside random user code.
 
 ## Usage in Definitions
 
 ```python
 from dagster import Definitions
-from packages.dagster.resources import DataQualityResource
-from packages.dagster.ops import data_quality_check_op
+from truthound_dagster.resources import DataQualityResource
 
 defs = Definitions(
-    resources={
-        "data_quality": DataQualityResource(
-            engine_name="truthound",
-        ),
-    },
-    jobs=[my_quality_job],
+    resources={"data_quality": DataQualityResource()},
+    assets=[users_asset],
 )
 ```
+
+## Related Reading
+
+- [Dagster Overview](index.md)
+- [Ops](ops.md)
+- [Assets and Asset Checks](assets.md)

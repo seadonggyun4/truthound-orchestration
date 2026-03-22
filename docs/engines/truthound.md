@@ -1,166 +1,57 @@
 ---
-title: TruthoundEngine
+title: Truthound Engine
 ---
 
-# TruthoundEngine
+# Truthound Engine
 
-Truthound serves as the default data quality engine, employing **schema-based validation** methodology.
+`TruthoundEngine` is the default engine for the orchestration stack. It is the best
+fit for teams that want Truthound-first zero-config behavior and the broadest alignment
+with the rest of the adapter family in this repository.
 
-## Basic Usage
+## When To Use It
 
-```python
-from common.engines import TruthoundEngine
-import polars as pl
+Use `TruthoundEngine` when:
 
-engine = TruthoundEngine()
+- you want the default and best-supported path
+- you are onboarding to Truthound 3.x for the first time
+- you want rule vocabulary and runtime semantics to match the shipped adapters closely
 
-# Context manager usage (recommended)
-with engine:
-    df = pl.read_csv("data.csv")
-
-    # Schema learning
-    schema = engine.get_schema(df)
-
-    # Validation execution
-    result = engine.check(df, schema=schema)
-
-    print(f"Status: {result.status.name}")
-    print(f"Passed: {result.passed_count}")
-    print(f"Failed: {result.failed_count}")
-```
-
-## Schema-Based Validation
-
-Truthound employs schema-based validation rather than conventional rules-based approaches:
-
-```python
-# Step 1: Learn schema from baseline data
-schema = engine.get_schema(baseline_df)
-
-# Step 2: Validate new data against learned schema
-result = engine.check(new_df, schema=schema)
-
-# Alternatively, use auto_schema (automatic schema generation from data)
-result = engine.check(df, auto_schema=True)
-```
-
-## Truthound-Specific Parameters
-
-```python
-result = engine.check(
-    data=df,
-    schema=learned_schema,      # Schema object obtained from learn()
-    auto_schema=True,           # Automatic schema generation from data
-    parallel=True,              # Enable parallel validation
-    max_workers=4,              # Maximum parallel worker count
-    min_severity="medium",      # Minimum severity level to report
-)
-```
-
-## Profiling
-
-```python
-profile = engine.profile(df)
-
-for col in profile.columns:
-    print(f"{col.column_name}: {col.dtype}")
-    print(f"  Null: {col.null_percentage}%")
-    print(f"  Unique: {col.unique_count}")
-```
-
-## Schema Learning
-
-```python
-learn_result = engine.learn(df)
-
-for rule in learn_result.rules:
-    print(f"{rule.column}: {rule.rule_type} (confidence={rule.confidence})")
-```
-
-## Engine Information
-
-```python
-info = engine.get_info()
-print(f"Engine: {info.name} v{info.version}")
-
-caps = engine.get_capabilities()
-print(f"Streaming support: {caps.supports_streaming}")
-```
-
-## Severity Mapping
-
-| Truthound Severity | Framework Severity |
-|--------------------|--------------------|
-| `critical` | `Severity.CRITICAL` |
-| `high` | `Severity.ERROR` |
-| `medium` | `Severity.WARNING` |
-| `low` | `Severity.INFO` |
-
-## Supported Data Types
-
-| Data Type | Support |
-|-----------|---------|
-| Polars DataFrame | Native |
-| Pandas DataFrame | Auto-conversion |
-| CSV file path | Direct support |
-| Parquet file path | Direct support |
-| SQL connection | Direct support |
-
-## Lifecycle Management
+## Basic Pattern
 
 ```python
 from common.engines import TruthoundEngine
 
-engine = TruthoundEngine()
-
-# Explicit lifecycle management
-engine.start()
-try:
-    result = engine.check(data)
-    health = engine.health_check()
-    print(f"Health: {health.status.name}")
-finally:
-    engine.stop()
-
-# Or automatic management via context manager
 with TruthoundEngine() as engine:
     result = engine.check(data, auto_schema=True)
 ```
 
-## Configuration
+## Main Operations
 
-```python
-from common.engines import TruthoundEngineConfig
+- `check`: run rules or auto-schema-backed validation
+- `profile`: inspect shape and quality characteristics
+- `learn`: infer rules or baseline expectations from data
 
-config = TruthoundEngineConfig(
-    auto_start=True,
-    parallel=True,
-    max_workers=4,
-    min_severity="medium",
-    cache_schemas=True,
-    infer_constraints=True,
-    categorical_threshold=20,
-)
+## Why It Is The Recommended Default
 
-engine = TruthoundEngine(config=config)
-```
+- closest alignment with the shared runtime layer
+- strong zero-config behavior
+- best coverage in the repository's adapter examples and CI
+- natural fit for teams using Truthound as the primary quality system rather than as an
+  adapter for an older investment
 
-## Thread Safety
+## Production Pattern
 
-TruthoundEngine is thread-safe:
+- use `auto_schema=True` for fast onboarding or exploratory flows
+- promote learned or explicit rules for datasets with production contracts
+- keep lifecycle and metrics hooks enabled in long-running orchestrators
 
-```python
-from concurrent.futures import ThreadPoolExecutor
+## Failure Modes
 
-engine = TruthoundEngine()
-engine.start()
+- preflight failures usually mean runtime compatibility issues, not engine bugs
+- inconsistent source shapes often belong in source resolution or serialization, not in
+  the engine itself
 
-with ThreadPoolExecutor(max_workers=4) as executor:
-    futures = [
-        executor.submit(engine.check, data, auto_schema=True)
-        for data in data_batches
-    ]
-    results = [f.result() for f in futures]
+## Related Pages
 
-engine.stop()
-```
+- [Batch Processing](batch.md)
+- [Lifecycle Management](lifecycle.md)

@@ -1,23 +1,32 @@
-# Drift & Anomaly Config (설정 타입)
+# Drift and Anomaly Config
 
-Drift Detection과 Anomaly Detection을 위한 설정 타입입니다. 모든 Config는 불변 dataclass이며 빌더 패턴을 지원합니다.
+This page describes the configuration objects used by advanced drift, anomaly, and
+streaming workflows.
 
-## DriftConfig
+## Who This Is For
+
+- operators enabling advanced quality monitoring beyond deterministic checks
+- maintainers wiring platform-specific drift or anomaly tasks
+- teams standardizing reusable config objects across orchestration hosts
+
+## `DriftConfig`
+
+`DriftConfig` controls how a baseline is compared with a current dataset.
 
 ```python
 from common.base import DriftConfig
 
 config = DriftConfig(
-    method="ks",                    # 통계 방법 (기본: "auto")
-    columns=("revenue", "count"),   # 대상 컬럼 (기본: None=전체)
-    threshold=0.05,                 # 판정 임계값
-    min_severity="medium",          # 최소 보고 심각도
-    timeout_seconds=60,             # 타임아웃
-    extra={"n_permutations": 1000}, # 엔진별 추가 파라미터
+    method="ks",
+    columns=("revenue", "count"),
+    threshold=0.05,
+    min_severity="medium",
+    timeout_seconds=60,
+    extra={"n_permutations": 1000},
 )
 ```
 
-### 빌더 패턴
+### Builder Pattern
 
 ```python
 config = DriftConfig()
@@ -26,29 +35,24 @@ config = config.with_columns(("revenue", "user_count"))
 config = config.with_threshold(0.1)
 ```
 
-### 직렬화
+## `AnomalyConfig`
 
-```python
-d = config.to_dict()
-restored = DriftConfig.from_dict(d)
-```
-
-## AnomalyConfig
+`AnomalyConfig` controls detector choice and sensitivity for anomaly-oriented workflows.
 
 ```python
 from common.base import AnomalyConfig
 
 config = AnomalyConfig(
-    detector="isolation_forest",    # 탐지기 (기본: "isolation_forest")
-    columns=("amount",),            # 대상 컬럼 (기본: None=전체)
-    contamination=0.05,             # 예상 이상치 비율 (0 < x < 0.5)
-    threshold=None,                 # 판정 임계값
-    timeout_seconds=120,            # 타임아웃
-    extra={"n_estimators": 200},    # 엔진별 추가 파라미터
+    detector="isolation_forest",
+    columns=("amount",),
+    contamination=0.05,
+    threshold=None,
+    timeout_seconds=120,
+    extra={"n_estimators": 200},
 )
 ```
 
-### 빌더 패턴
+### Builder Pattern
 
 ```python
 config = AnomalyConfig()
@@ -57,24 +61,22 @@ config = config.with_columns(("amount", "frequency"))
 config = config.with_contamination(0.03)
 ```
 
-### 검증
+## `StreamConfig`
 
-`contamination`은 `__post_init__`에서 `0 < x < 0.5` 범위로 검증됩니다.
-
-## StreamConfig
+`StreamConfig` is used when validation happens incrementally or in chunks.
 
 ```python
 from common.base import StreamConfig
 
 config = StreamConfig(
-    batch_size=5000,                    # 배치당 레코드 수 (기본: 1000)
-    max_batches=100,                    # 최대 배치 수 (기본: None=무제한)
-    timeout_per_batch_seconds=30.0,     # 배치별 타임아웃
-    fail_fast=True,                     # 첫 실패시 중단 (기본: False)
+    batch_size=5000,
+    max_batches=100,
+    timeout_per_batch_seconds=30.0,
+    fail_fast=True,
 )
 ```
 
-### 빌더 패턴
+### Builder Pattern
 
 ```python
 config = StreamConfig()
@@ -82,15 +84,24 @@ config = config.with_batch_size(10000)
 config = config.with_fail_fast(True)
 ```
 
-## 플랫폼별 Config
+## Platform-Specific Config Surfaces
 
-각 플랫폼 패키지는 자체 Config 타입을 제공합니다:
+Individual adapters expose platform-native config types on top of the shared concepts:
 
-| 플랫폼 | Drift Config | Anomaly Config |
-|--------|-------------|----------------|
+| Platform | Drift Config | Anomaly Config |
+|----------|--------------|----------------|
 | Dagster | `DriftOpConfig` | `AnomalyOpConfig` |
 | Prefect | `DriftTaskConfig` | `AnomalyTaskConfig` |
 | Mage | `DriftBlockConfig` | `AnomalyBlockConfig` |
 | Kestra | `DriftScriptConfig` | `AnomalyScriptConfig` |
 
-모든 플랫폼 Config는 동일한 빌더 패턴과 직렬화 인터페이스를 제공합니다.
+## Operational Guidance
+
+- keep thresholds explicit and documented
+- treat anomaly configs as monitoring policy, not only as model settings
+- prefer shared config builders when multiple pipelines should behave consistently
+
+## Related Pages
+
+- [Drift Detection](../engines/drift-detection.md)
+- [Anomaly Detection](../engines/anomaly-detection.md)

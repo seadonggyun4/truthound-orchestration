@@ -4,190 +4,50 @@ title: Dagster Ops
 
 # Dagster Ops
 
-Ops for data quality validation, profiling, and schema learning.
+Prebuilt ops are the right choice when you want Dagster jobs to compose explicit validation stages instead of putting all behavior inside assets.
 
 ## Pre-built Ops
 
-### data_quality_check_op
+### `data_quality_check_op`
 
-Data validation Op:
+Use it for standard validation steps inside jobs and graphs.
 
-```python
-from dagster import job
-from packages.dagster.ops import data_quality_check_op
+### `data_quality_profile_op`
 
-@job(resource_defs={"data_quality": DataQualityResource()})
-def check_job():
-    data_quality_check_op()
-```
+Use it when the job needs descriptive profile output.
 
-### data_quality_profile_op
+### `data_quality_learn_op`
 
-Profiling Op:
-
-```python
-from packages.dagster.ops import data_quality_profile_op
-
-@job
-def profile_job():
-    data_quality_profile_op()
-```
-
-### data_quality_learn_op
-
-Schema learning Op:
-
-```python
-from packages.dagster.ops import data_quality_learn_op
-
-@job
-def learn_job():
-    data_quality_learn_op()
-```
+Use it when the job should infer candidate rules from baseline data.
 
 ## Op Factories
 
-### create_check_op
-
-Create custom validation Op:
-
-```python
-from packages.dagster.ops import create_check_op, CheckOpConfig
-
-config = CheckOpConfig(
-    auto_schema=True,
-    fail_on_error=True,
-)
-
-my_check_op = create_check_op(
-    name="my_check",
-    config=config,
-)
-
-@job
-def my_job():
-    my_check_op()
-```
-
-### create_profile_op
-
-Create custom profiling Op:
-
-```python
-from packages.dagster.ops import create_profile_op, ProfileOpConfig
-
-config = ProfileOpConfig(
-    include_statistics=True,
-)
-
-my_profile_op = create_profile_op(
-    name="my_profile",
-    config=config,
-)
-```
-
-### create_learn_op
-
-Create custom learning Op:
-
-```python
-from packages.dagster.ops import create_learn_op, LearnOpConfig
-
-config = LearnOpConfig(
-    min_confidence=0.8,
-)
-
-my_learn_op = create_learn_op(
-    name="my_learn",
-    config=config,
-)
-```
+Use `create_check_op`, `create_profile_op`, and `create_learn_op` when you want preconfigured ops without rewriting boilerplate.
 
 ## Op Configuration
 
-### CheckOpConfig
-
-```python
-from packages.dagster.ops import CheckOpConfig
-
-config = CheckOpConfig(
-    auto_schema=True,
-    rules=[
-        {"type": "not_null", "column": "id"},
-    ],
-    fail_on_error=True,
-    timeout_seconds=3600,
-)
-```
-
-### ProfileOpConfig
-
-```python
-from packages.dagster.ops import ProfileOpConfig
-
-config = ProfileOpConfig(
-    include_statistics=True,
-)
-```
-
-### LearnOpConfig
-
-```python
-from packages.dagster.ops import LearnOpConfig
-
-config = LearnOpConfig(
-    min_confidence=0.8,
-)
-```
+`CheckOpConfig`, `ProfileOpConfig`, and `LearnOpConfig` expose operation-level configuration surfaces for explicit job composition.
 
 ## Preset Configurations
 
-```python
-from packages.dagster.ops import (
-    STRICT_CHECK_CONFIG,    # Strict validation
-    LENIENT_CHECK_CONFIG,   # Lenient validation
-)
-
-strict_op = create_check_op("strict", config=STRICT_CHECK_CONFIG)
-lenient_op = create_check_op("lenient", config=LENIENT_CHECK_CONFIG)
-```
+`STRICT_CHECK_CONFIG` and `LENIENT_CHECK_CONFIG` are useful when teams want named policy modes inside job code.
 
 ## Op Chaining
 
-```python
-from dagster import job, op
-from packages.dagster.ops import data_quality_check_op, data_quality_profile_op
+Ops are a strong fit when you want separate stages for:
 
-@op
-def load_data():
-    return pl.read_parquet("data.parquet")
+- load
+- validate
+- profile
+- decide
+- notify or persist
 
-@op
-def process_result(check_result, profile_result):
-    if check_result.status.name == "FAILED":
-        raise Exception("Quality check failed")
-    return {"check": check_result, "profile": profile_result}
+## Inputs And Outputs
 
-@job
-def quality_pipeline():
-    data = load_data()
-    check = data_quality_check_op(data)
-    profile = data_quality_profile_op(data)
-    process_result(check, profile)
-```
+The op outputs follow the same shared result contract used across the repository, with Dagster-native wrapping where appropriate.
 
-## Inputs and Outputs
+## Related Reading
 
-Ops use `In` and `Out` to exchange data:
-
-```python
-from dagster import In, Out, op
-from packages.dagster.ops import data_quality_check_op
-
-# check_op receives DataFrame as input and outputs CheckResult
-@job
-def my_job():
-    data = load_data()
-    result = data_quality_check_op(data)
-    # result is of type CheckResult
-```
+- [Resources](resources.md)
+- [Assets and Asset Checks](assets.md)
+- [Recipes](recipes.md)

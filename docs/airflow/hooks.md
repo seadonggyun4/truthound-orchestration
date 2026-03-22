@@ -4,137 +4,70 @@ title: Airflow Hooks
 
 # Airflow Hooks
 
-Hooks for connection management and data loading.
+Hooks are the right place for source loading, connection handling, and reusable Airflow-side data access patterns. They are especially important when the execution path is not a pure local-file zero-config workflow.
 
 ## DataQualityHook
 
-Manages connections with data quality engines.
+`DataQualityHook` is the general-purpose Airflow hook for first-party quality execution.
 
 ```python
-from packages.airflow.hooks import DataQualityHook
+from truthound_airflow import DataQualityHook
 
-hook = DataQualityHook(conn_id="my_data_connection")
-
-# Data loading
-data = hook.load_data("s3://bucket/data.parquet")
-
-# Validation execution
-result = hook.check(data, auto_schema=True)
-
-# Profiling
-profile = hook.profile(data)
-
-# Schema learning
-learn_result = hook.learn(data)
+hook = DataQualityHook(connection_id="warehouse")
 ```
 
-### Parameters
+Use it when:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `conn_id` | str | Airflow Connection ID |
-| `engine_name` | str | Engine name to use |
-
-### Methods
-
-| Method | Description |
-|--------|-------------|
-| `load_data(source)` | Load data |
-| `check(data, ...)` | Data validation |
-| `profile(data)` | Data profiling |
-| `learn(data)` | Schema learning |
-| `get_engine()` | Return engine instance |
+- the DAG already models source access through Airflow connections
+- you want to reuse connection-aware logic across operators
+- you need a hook boundary that can normalize sources before execution
 
 ## TruthoundHook
 
-Truthound-specific Hook:
+`TruthoundHook` is the explicit Truthound-first hook path for teams that want the engine choice to be visible in code.
 
-```python
-from packages.airflow.hooks import TruthoundHook
+## DataLoader And DataWriter
 
-hook = TruthoundHook(conn_id="my_connection")
+`DataLoader` and `DataWriter` are useful when you want source access or result persistence patterns to stay hook-level and reusable instead of being embedded into individual tasks.
 
-# Use Truthound-specific features
-data = hook.load_data("s3://bucket/data.parquet")
-result = hook.check(data, auto_schema=True, parallel=True)
-```
+## Common Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `connection_id` | str | Airflow connection ID for SQL or credential-backed sources |
+| `engine_name` | str | explicit engine override when not using the default Truthound path |
+| `timeout` | int | hook-level timeout for source access or execution |
+| `retries` | int | hook-level retry policy |
 
 ## ConnectionConfig
 
-Connection configuration class:
+Use `ConnectionConfig` when you want to centralize connection metadata instead of scattering connection details across DAG code.
+
+## How Hooks Fit With Operators
 
 ```python
-from packages.airflow.hooks import ConnectionConfig
+from truthound_airflow import DataQualityCheckOperator, DataQualityHook
 
-config = ConnectionConfig(
-    host="localhost",
-    port=5432,
-    login="user",
-    password="pass",
-    schema="database",
-    extra={"ssl": True},
+hook = DataQualityHook(connection_id="warehouse")
+
+check = DataQualityCheckOperator(
+    task_id="quality_check",
+    sql="select * from analytics.users",
+    hook=hook,
+    rules=[{"column": "id", "type": "not_null"}],
 )
 ```
 
-## DataLoader
+Use hooks when the source contract belongs to Airflow. Use the operator alone when a simple local-path or already-normalized source is enough.
 
-Data loading utility:
+## Connection Setup Guidance
 
-```python
-from packages.airflow.hooks import DataLoader
+- create or reuse a standard Airflow connection
+- keep credentials in Airflow-managed storage
+- let the hook mediate data access rather than embedding credentials into DAG code
 
-loader = DataLoader()
+## Related Reading
 
-# Load data from various sources
-df = loader.load("s3://bucket/data.parquet")
-df = loader.load("gs://bucket/data.csv")
-df = loader.load("/path/to/local/file.parquet")
-```
-
-## DataWriter
-
-Data saving utility:
-
-```python
-from packages.airflow.hooks import DataWriter
-
-writer = DataWriter()
-
-# Save data to various destinations
-writer.write(df, "s3://bucket/output.parquet")
-writer.write(df, "/path/to/local/output.csv")
-```
-
-## Using Hooks in Operators
-
-```python
-from packages.airflow.operators import BaseDataQualityOperator
-from packages.airflow.hooks import DataQualityHook
-
-class MyOperator(BaseDataQualityOperator):
-    def __init__(self, conn_id, **kwargs):
-        super().__init__(**kwargs)
-        self.conn_id = conn_id
-
-    def execute(self, context):
-        hook = DataQualityHook(conn_id=self.conn_id)
-        data = hook.load_data(self.data_source)
-        result = hook.check(data, auto_schema=True)
-        return self.serialize_result(result)
-```
-
-## Connection Setup
-
-Configure Connection via Airflow UI or CLI:
-
-```bash
-airflow connections add 'my_data_connection' \
-    --conn-type 's3' \
-    --conn-extra '{"aws_access_key_id": "...", "aws_secret_access_key": "..."}'
-```
-
-Or via environment variable:
-
-```bash
-export AIRFLOW_CONN_MY_DATA_CONNECTION='s3://?aws_access_key_id=...&aws_secret_access_key=...'
-```
+- [Airflow Overview](index.md)
+- [Install and Compatibility](install-compatibility.md)
+- [Troubleshooting](troubleshooting.md)

@@ -2,20 +2,20 @@
 title: Airflow Sensors
 ---
 
-# Airflow Sensors
+# Airflow Sensors And Triggers
 
-Sensors that wait until data quality conditions are met.
+Sensors are for waiting on a quality condition before a downstream task is allowed to continue. In this integration, they stay Airflow-native while leaning on the shared runtime for validation semantics.
 
 ## DataQualitySensor
 
-Waits until data quality threshold is satisfied.
+`DataQualitySensor` re-checks a source until the quality threshold is met or the timeout expires.
 
 ```python
-from packages.airflow.sensors import DataQualitySensor
+from truthound_airflow import DataQualitySensor
 
 sensor = DataQualitySensor(
     task_id="wait_for_quality",
-    data_source="s3://bucket/data.parquet",
+    data_path="/opt/airflow/data/upstream_users.parquet",
     quality_threshold=0.95,
     poke_interval=60,
     timeout=3600,
@@ -23,113 +23,77 @@ sensor = DataQualitySensor(
 )
 ```
 
-### Parameters
+## Common Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `task_id` | str | - | Task ID |
-| `data_source` | str | - | Data source path |
-| `quality_threshold` | float | 0.95 | Pass rate threshold (0.0-1.0) |
-| `poke_interval` | int | 60 | Retry interval (seconds) |
-| `timeout` | int | 3600 | Timeout (seconds) |
-| `mode` | str | "poke" | Sensor mode ("poke" or "reschedule") |
-| `engine_name` | str | "truthound" | Engine name to use |
+| `data_path` / source input | str | - | path, URI, or other supported source |
+| `quality_threshold` | float | 0.95 | pass rate threshold |
+| `poke_interval` | int | 60 | polling interval |
+| `timeout` | int | 3600 | total wait time |
+| `mode` | str | `"poke"` | `poke` or `reschedule` |
+| `engine_name` | str | `"truthound"` | explicit engine override |
 
-### Usage Example
+## DeferrableDataQualitySensor
+
+Use `DeferrableDataQualitySensor` when long waits would otherwise waste worker slots.
+
+## TruthoundSensor
+
+Use `TruthoundSensor` when you want the Truthound-first engine choice to be explicit.
+
+## Triggers
+
+The Airflow package also includes trigger support so deferrable sensor behavior can stay aligned with the same first-party quality semantics. Treat triggers as the deferrable execution mechanism and sensors as the DAG authoring surface.
+
+## Usage Example
 
 ```python
 from airflow import DAG
-from packages.airflow.sensors import DataQualitySensor
-from packages.airflow.operators import DataQualityCheckOperator
+from truthound_airflow import DataQualitySensor, DataQualityCheckOperator
 from datetime import datetime
 
 with DAG(
     dag_id="quality_pipeline",
     start_date=datetime(2024, 1, 1),
-    schedule_interval="@daily",
+    schedule="@daily",
 ) as dag:
-
-    # Wait for data quality condition
     wait_for_quality = DataQualitySensor(
         task_id="wait_for_quality",
-        data_source="s3://bucket/upstream_data.parquet",
+        data_path="/opt/airflow/data/upstream_users.parquet",
         quality_threshold=0.99,
-        poke_interval=300,  # Check every 5 minutes
-        timeout=7200,  # 2 hour timeout
+        poke_interval=300,
+        timeout=7200,
     )
 
-    # Process downstream after quality condition met
     process_data = DataQualityCheckOperator(
         task_id="process_data",
-        data_source="s3://bucket/upstream_data.parquet",
-        auto_schema=True,
+        data_path="/opt/airflow/data/upstream_users.parquet",
+        rules=[{"column": "user_id", "type": "not_null"}],
     )
 
     wait_for_quality >> process_data
 ```
 
-## TruthoundSensor
-
-Truthound-specific Sensor:
-
-```python
-from packages.airflow.sensors import TruthoundSensor
-
-sensor = TruthoundSensor(
-    task_id="truthound_sensor",
-    data_source="s3://bucket/data.parquet",
-    quality_threshold=0.95,
-    auto_schema=True,
-    parallel=True,
-)
-```
-
 ## SensorConfig
 
-Sensor configuration class:
-
-```python
-from packages.airflow.sensors import SensorConfig
-
-config = SensorConfig(
-    quality_threshold=0.95,
-    poke_interval=60,
-    timeout=3600,
-    mode="reschedule",
-    engine_name="truthound",
-)
-
-sensor = DataQualitySensor(
-    task_id="sensor",
-    data_source="s3://bucket/data.parquet",
-    config=config,
-)
-```
+Use `SensorConfig` when you want reusable defaults across several DAGs or sensors.
 
 ## Sensor Behavior
 
-1. `poke()` method is called at `poke_interval` intervals
-2. Data quality validation is executed
-3. Returns `True` if pass rate meets or exceeds `quality_threshold`
-4. Waits until next poke if condition not met
-5. Task fails if `timeout` is exceeded
+1. Airflow calls the sensor on the configured schedule.
+2. The source is normalized through the shared runtime.
+3. Validation executes against the configured threshold.
+4. The sensor returns success only when the threshold is satisfied.
+5. Timeout or repeated failure stays visible to the DAG like any other Airflow sensor failure.
 
 ## Modes
 
-| Mode | Description |
-|------|-------------|
-| `poke` | Occupies worker slot while waiting |
-| `reschedule` | Releases slot and reschedules |
+`reschedule` mode is recommended for long wait times and worker efficiency.
 
-`reschedule` mode is recommended for long wait times:
+## Related Reading
 
-```python
-sensor = DataQualitySensor(
-    task_id="long_wait_sensor",
-    data_source="s3://bucket/data.parquet",
-    quality_threshold=0.95,
-    poke_interval=600,  # 10 minutes
-    timeout=86400,  # 24 hours
-    mode="reschedule",  # Efficient slot usage
-)
-```
+- [Operators](operators.md)
+- [SLA and Callbacks](sla.md)
+- [Recipes](recipes.md)

@@ -4,202 +4,107 @@ title: Airflow Operators
 
 # Airflow Operators
 
-Airflow Operators for data quality validation, profiling, and schema learning.
+Airflow operators are the main execution boundary for Truthound in DAGs. They keep scheduling, retries, task IDs, and XCom behavior inside Airflow while delegating source normalization, engine resolution, and result semantics to the shared runtime.
 
 ## DataQualityCheckOperator
 
-Executes data validation.
+Use `DataQualityCheckOperator` when a task should validate a dataset and either continue, warn, or fail based on the configured policy.
 
 ```python
-from packages.airflow.operators import DataQualityCheckOperator
+from truthound_airflow import DataQualityCheckOperator
 
 check = DataQualityCheckOperator(
     task_id="quality_check",
-    data_source="s3://bucket/data.parquet",
-    auto_schema=True,
+    data_path="/opt/airflow/data/users.parquet",
     fail_on_error=True,
-    engine_name="truthound",
+    rules=[
+        {"column": "user_id", "type": "not_null"},
+        {"column": "email", "type": "unique"},
+    ],
 )
 ```
 
-### Parameters
+Typical uses:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `task_id` | str | Task ID |
-| `data_source` | str | Data source path |
-| `auto_schema` | bool | Automatic schema generation |
-| `rules` | list | List of validation rules |
-| `fail_on_error` | bool | Raise exception on failure |
-| `engine_name` | str | Engine name to use |
-
-### XCom Output
-
-Validation results are pushed to XCom:
-
-```python
-# Use results in subsequent task
-def process_result(**context):
-    result = context["ti"].xcom_pull(task_ids="quality_check")
-    print(f"Status: {result['status']}")
-    print(f"Passed: {result['passed_count']}")
-```
+- gate downstream tasks
+- publish structured validation results to XCom
+- wrap a connection-backed source in a first-class Airflow task
+- run Truthound auto-schema validation for a fast smoke check
 
 ## DataQualityProfileOperator
 
-Performs data profiling.
+Use `DataQualityProfileOperator` when the DAG needs descriptive profile output instead of strict pass/fail validation.
 
 ```python
-from packages.airflow.operators import DataQualityProfileOperator
+from truthound_airflow import DataQualityProfileOperator
 
 profile = DataQualityProfileOperator(
-    task_id="profile_data",
-    data_source="s3://bucket/data.parquet",
-    engine_name="truthound",
+    task_id="profile_users",
+    data_path="/opt/airflow/data/users.parquet",
 )
-```
-
-### Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `task_id` | str | Task ID |
-| `data_source` | str | Data source path |
-| `engine_name` | str | Engine name to use |
-
-### XCom Output
-
-Profile results are pushed to XCom:
-
-```python
-def analyze_profile(**context):
-    profile = context["ti"].xcom_pull(task_ids="profile_data")
-    for col in profile["columns"]:
-        print(f"{col['column_name']}: {col['null_percentage']}% null")
 ```
 
 ## DataQualityLearnOperator
 
-Learns schemas.
+Use `DataQualityLearnOperator` when you need to infer a candidate rule set from baseline data.
 
 ```python
-from packages.airflow.operators import DataQualityLearnOperator
+from truthound_airflow import DataQualityLearnOperator
 
 learn = DataQualityLearnOperator(
-    task_id="learn_schema",
-    data_source="s3://bucket/baseline.parquet",
-    engine_name="truthound",
+    task_id="learn_users",
+    data_path="/opt/airflow/data/baseline_users.parquet",
 )
 ```
 
-### Parameters
+Common pattern:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `task_id` | str | Task ID |
-| `data_source` | str | Baseline data path |
-| `engine_name` | str | Engine name to use |
+- baseline learn task
+- reviewed rule set
+- later `DataQualityCheckOperator` using the reviewed rules
 
-### XCom Output
+## DataQualityStreamOperator
 
-Learned rules are pushed to XCom:
+Use `DataQualityStreamOperator` when the source is large or incremental enough that bounded-memory execution matters.
 
 ```python
-def use_learned_schema(**context):
-    learn_result = context["ti"].xcom_pull(task_ids="learn_schema")
-    for rule in learn_result["rules"]:
-        print(f"{rule['column']}: {rule['rule_type']}")
-```
+from truthound_airflow import DataQualityStreamOperator
 
-## TruthoundCheckOperator
-
-Truthound-specific Operator:
-
-```python
-from packages.airflow.operators import TruthoundCheckOperator
-
-check = TruthoundCheckOperator(
-    task_id="truthound_check",
-    data_source="s3://bucket/data.parquet",
-    auto_schema=True,
-    parallel=True,
-    max_workers=4,
+stream_check = DataQualityStreamOperator(
+    task_id="stream_users",
+    data_path="/opt/airflow/data/users.parquet",
+    rules=[{"column": "user_id", "type": "not_null"}],
 )
 ```
 
-## BaseDataQualityOperator
+Streaming support still depends on the selected engine capability. Use preflight when you need to validate that path explicitly.
 
-Base class for custom Operator implementation:
+## Truthound-Specific Variants
 
-```python
-from packages.airflow.operators import BaseDataQualityOperator
+`TruthoundCheckOperator`, `TruthoundProfileOperator`, and `TruthoundLearnOperator` exist for teams that want the Truthound-first path to be explicit in DAG code. Use them when that clarity is more valuable than host-neutral operator naming.
 
-class MyCustomOperator(BaseDataQualityOperator):
-    def execute(self, context):
-        engine = self.get_engine()
-        data = self.load_data()
-        result = engine.check(data, auto_schema=True)
-        return self.serialize_result(result)
-```
+## XCom Contract
 
-## Configuration Classes
+Operators publish structured results that should be treated as shared runtime payloads with Airflow metadata around them. Downstream tasks should read documented result fields rather than inventing their own parser assumptions.
 
-### OperatorConfig
+## Configuration Guidance
 
-```python
-from packages.airflow.operators import OperatorConfig
+Make behavior explicit when:
 
-config = OperatorConfig(
-    engine_name="truthound",
-    fail_on_error=True,
-    timeout_seconds=3600,
-)
-```
+- the source needs an Airflow connection
+- you want `warning_threshold` rather than a hard fail
+- parallel Truthound execution matters
+- you need to tune timeout behavior for long-running validation
 
-### CheckOperatorConfig
+## Recommended Usage Pattern
 
-```python
-from packages.airflow.operators import CheckOperatorConfig
+1. Use local paths first when onboarding.
+2. Move to hooks or connection-backed sources once the DAG path is proven.
+3. Push alerting and SLA logic into callbacks or downstream tasks rather than hand-parsing operator internals.
 
-config = CheckOperatorConfig(
-    auto_schema=True,
-    rules=[
-        {"type": "not_null", "column": "id"},
-    ],
-    fail_on_error=True,
-)
-```
+## Related Reading
 
-### ProfileOperatorConfig
-
-```python
-from packages.airflow.operators import ProfileOperatorConfig
-
-config = ProfileOperatorConfig(
-    include_statistics=True,
-)
-```
-
-### LearnOperatorConfig
-
-```python
-from packages.airflow.operators import LearnOperatorConfig
-
-config = LearnOperatorConfig(
-    min_confidence=0.8,
-)
-```
-
-## Result Handlers
-
-Custom processing of validation results:
-
-```python
-from packages.airflow.operators import ResultHandler
-
-class MyResultHandler(ResultHandler):
-    def handle(self, result, context):
-        if result.status.name == "FAILED":
-            send_alert(result)
-        return result
-```
+- [Hooks](hooks.md)
+- [Sensors and Triggers](sensors.md)
+- [SLA and Callbacks](sla.md)
+- [Recipes](recipes.md)

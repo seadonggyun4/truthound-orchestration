@@ -1,115 +1,85 @@
 ---
-title: Engines
+title: Engines Overview
 ---
 
 # Data Quality Engines
 
-The `DataQualityEngine` Protocol enables the use of various data quality engines through a unified interface.
+The orchestration adapters in this repository are host-specific, but the engine layer
+is host-agnostic. It lets the same orchestration surface run on top of Truthound,
+Pandera, Great Expectations, and custom engine implementations.
 
-## Supported Engines
+## What The Engine Layer Does
 
-| Engine | Status | Characteristics |
-|--------|--------|-----------------|
-| TruthoundEngine | Default Engine | Schema-based validation, automatic learning, Polars native |
-| GreatExpectationsAdapter | Adapter | Expectation-based validation |
-| PanderaAdapter | Adapter | Type-safe schema validation |
+- normalizes validation capabilities behind shared protocols
+- resolves and creates engines through a registry and resolver
+- runs preflight compatibility checks before execution
+- exposes optional advanced features such as batch execution, lifecycle hooks, and
+  capability-aware routing
 
-## DataQualityEngine Protocol
+## Core Concepts
 
-The core Protocol implemented by all engines:
+### Protocols
 
-```python
-from typing import Protocol, Any, Sequence, Mapping
+The shared contract starts with `DataQualityEngine` and related capability metadata in
+`common/engines/base.py`.
 
-class DataQualityEngine(Protocol):
-    @property
-    def engine_name(self) -> str: ...
+### Registry And Resolver
 
-    @property
-    def engine_version(self) -> str: ...
-
-    def check(
-        self,
-        data: Any,
-        rules: Sequence[Mapping[str, Any]] | None = None,
-        **kwargs: Any,
-    ) -> CheckResult: ...
-
-    def profile(self, data: Any, **kwargs: Any) -> ProfileResult: ...
-
-    def learn(self, data: Any, **kwargs: Any) -> LearnResult: ...
-```
-
-## Engine Registry
+Use the registry when you need to list, fetch, or override engines by name:
 
 ```python
-from common.engines import (
-    get_engine,
-    register_engine,
-    list_engines,
-    get_default_engine,
-    set_default_engine,
-)
-
-# Get engine by name
-engine = get_engine("truthound")
-engine = get_engine("great_expectations")
-engine = get_engine("pandera")
-
-# List available engines
-for name in list_engines():
-    print(name)
-
-# Change default engine
-set_default_engine("great_expectations")
-default = get_default_engine()
-```
-
-## Engine Capabilities
-
-```python
-from common.engines import get_engine
+from common.engines import get_engine, list_engines, register_engine
 
 engine = get_engine("truthound")
-caps = engine.get_capabilities()
-
-print(f"Check support: {caps.supports_check}")
-print(f"Profile support: {caps.supports_profile}")
-print(f"Learn support: {caps.supports_learn}")
-print(f"Async support: {caps.supports_async}")
-print(f"Streaming support: {caps.supports_streaming}")
-print(f"Drift support: {caps.supports_drift}")
-print(f"Anomaly support: {caps.supports_anomaly}")
-print(f"Data types: {caps.supported_data_types}")
-print(f"Rule types: {caps.supported_rule_types}")
+available = list_engines()
 ```
 
-## Extended Protocols
+Use the resolver when you need a runtime-aware engine creation path:
 
-Optional protocols for advanced engine capabilities:
+```python
+from common.engines import EngineCreationRequest, create_engine, run_preflight
+from common.runtime import normalize_runtime_context
 
-| Protocol | Description | Documentation |
-|----------|-------------|---------------|
-| `DriftDetectionEngine` | Data drift detection (14 methods) | [drift-detection.md](drift-detection.md) |
-| `AnomalyDetectionEngine` | ML anomaly detection (4 detectors) | [anomaly-detection.md](anomaly-detection.md) |
-| `StreamingEngine` | Streaming validation | [streaming.md](streaming.md) |
+runtime_context = normalize_runtime_context(platform="prefect")
+request = EngineCreationRequest(engine_name="truthound", runtime_context=runtime_context)
+preflight = run_preflight(request)
 
-## Advanced Features
+if preflight.compatible:
+    engine = create_engine(request)
+```
 
-Advanced features for engine management:
+## When To Change Engines
 
-| Feature | Description | Documentation |
-|---------|-------------|---------------|
-| Lifecycle | Engine start/stop/health check | [lifecycle.md](lifecycle.md) |
-| Batch Processing | Large data chunking | [batch.md](batch.md) |
-| Engine Chain | Fallback/load balancing | [chain.md](chain.md) |
+Most teams should stay on the default Truthound engine unless they already have a
+strong Pandera or Great Expectations investment. Switching engines is valuable when:
 
-## Navigation
+- a team wants to preserve existing schema assets
+- a project needs a stricter contract-first workflow
+- a migration is happening gradually across multiple validation stacks
 
-- [TruthoundEngine](truthound.md) - Default engine
-- [GreatExpectationsAdapter](great-expectations.md) - GE adapter
-- [PanderaAdapter](pandera.md) - Pandera adapter
-- [Lifecycle Management](lifecycle.md) - Engine lifecycle
-- [Drift Detection](drift-detection.md) - Data drift detection
-- [Anomaly Detection](anomaly-detection.md) - ML anomaly detection
-- [Streaming Validation](streaming.md) - Streaming validation
+## Advanced Capabilities
+
+The engine layer also includes:
+
+- [Truthound Engine](truthound.md)
+- [Pandera](pandera.md)
+- [Great Expectations](great-expectations.md)
+- [Batch Processing](batch.md)
+- [Streaming Validation](streaming.md)
+- [Engine Chains](chain.md)
+- [Lifecycle Management](lifecycle.md)
+- [Drift Detection](drift-detection.md)
+- [Anomaly Detection](anomaly-detection.md)
+
+## Production Guidance
+
+- treat preflight failures as configuration or compatibility failures, not just runtime
+  noise
+- keep engine selection explicit in production environments
+- use host-level docs for orchestration patterns and engine docs for validation
+  semantics
+
+## Related Pages
+
+- [Shared Runtime Overview](../common/index.md)
+- [Preflight and Compatibility](../common/preflight-compatibility.md)

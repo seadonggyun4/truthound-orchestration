@@ -2,59 +2,54 @@
 title: Common Module
 ---
 
-# Common Module
+# Shared Runtime
 
-The `common` module provides core utilities shared across all platform integrations.
+The shared runtime is the contract that keeps every first-party host integration aligned. Airflow, Dagster, Prefect, Mage, Kestra, and dbt all wrap different host primitives, but they rely on the same runtime for engine resolution, source normalization, compatibility checks, and result serialization.
 
-## Components
+## What Lives Here
 
-### Core Types
+The shared runtime provides:
 
-| Module | Description |
-|--------|-------------|
-| `base.py` | Protocol, Config, and Result type definitions |
-| `exceptions.py` | Exception hierarchy definition |
-| `config.py` | Configuration loading and validation |
-| `serializers.py` | Platform-specific serialization |
+- engine creation and engine registry behavior
+- host/runtime context normalization
+- source resolution for DataFrames, paths, URIs, SQL, streams, and callables
+- preflight and compatibility reports
+- shared wire serialization
+- operational helpers such as logging, retries, circuit breakers, health checks, metrics, rate limiting, and caching
 
-### Utilities
+## Start Here
 
-| Module | Description |
-|--------|-------------|
-| `logging.py` | Structured logging with sensitive data masking |
-| `retry.py` | Retry decorators with backoff strategies |
-| `circuit_breaker.py` | Circuit breaker pattern implementation |
-| `health.py` | Health check system |
-| `metrics.py` | Metrics collection and distributed tracing |
-| `rate_limiter.py` | Rate limiting utilities |
-| `cache.py` | Caching (LRU, LFU, TTL) |
-| `rule_validation.py` | Rule validation |
-| `testing.py` | Test utilities |
+- [Source Resolution](source-resolution.md) explains how host inputs are normalized.
+- [Preflight and Compatibility](preflight-compatibility.md) explains capability checks and failure reporting.
+- [Result Serialization](result-serialization.md) explains the shared result contract.
+- [Observability and Resilience](observability-resilience.md) explains how retries, health checks, metrics, rate limiting, and cache fit together.
 
-### Engines
+## Runtime Primitives
 
-| Module | Description |
-|--------|-------------|
-| `engines/` | Data quality engine implementations |
+These types show up repeatedly across the platform packages:
 
-## Core Types
+| Primitive | Why It Matters |
+|-----------|----------------|
+| `EngineCreationRequest` | declares which engine to build and which runtime context applies |
+| `PlatformRuntimeContext` | captures platform identity, host metadata, and zero-config policy |
+| `ResolvedDataSource` | describes the normalized source and whether it requires a connection |
+| `CompatibilityReport` | summarizes host, engine, and capability checks |
+| `PreflightReport` | adds source and serializer readiness to the compatibility story |
 
-### CheckResult
+## Runtime Responsibilities
 
-Represents the result of data validation:
+The shared runtime is responsible for answering questions that should not vary by host:
 
-```python
-from common.base import CheckResult, CheckStatus
+- what engine should this name resolve to?
+- does the selected engine support this operation?
+- is the input a file path, SQL string, remote URI, DataFrame, or stream?
+- can the source be executed without a host connection or profile?
+- what is the canonical serialized result shape?
+- which operational helpers are safe to reuse across hosts?
 
-result = CheckResult(
-    status=CheckStatus.PASSED,
-    passed_count=100,
-    failed_count=0,
-    metadata={"rows": 1000},
-)
-```
+## Core Result Types
 
-### CheckStatus
+The core result family remains shared even when the host wraps it with metadata:
 
 | Status | Description |
 |--------|-------------|
@@ -64,85 +59,18 @@ result = CheckResult(
 | `SKIPPED` | Validation skipped |
 | `ERROR` | Error occurred |
 
-### ProfileResult
+Shared operations commonly emit:
 
-Data profiling result:
+- `CheckResult`
+- `ProfileResult`
+- `LearnResult`
+- drift and anomaly result types for advanced engine paths
 
-```python
-from common.base import ProfileResult, ColumnProfile
+The important rule is that hosts can wrap these results, but should not redefine their meaning.
 
-profile = ProfileResult(
-    columns=[
-        ColumnProfile(
-            column_name="id",
-            dtype="Int64",
-            null_count=0,
-            null_percentage=0.0,
-            unique_count=1000,
-        ),
-    ],
-    row_count=1000,
-)
-```
+## Operational Helpers
 
-### LearnResult
-
-Schema learning result:
-
-```python
-from common.base import LearnResult, LearnedRule
-
-learn = LearnResult(
-    rules=[
-        LearnedRule(
-            column="email",
-            rule_type="not_null",
-            confidence=0.99,
-        ),
-    ],
-)
-```
-
-### DriftResult / AnomalyResult
-
-See [drift-config.md](drift-config.md) for DriftConfig, AnomalyConfig, StreamConfig types.
-
-See [drift-detection.md](../engines/drift-detection.md) and [anomaly-detection.md](../engines/anomaly-detection.md) for result types.
-
-## Exceptions
-
-### Exception Hierarchy
-
-```
-TruthoundIntegrationError (base)
-├── ConfigurationError
-│   ├── InvalidConfigValueError
-│   └── MissingConfigError
-├── ValidationExecutionError
-│   ├── RuleExecutionError
-│   └── DataAccessError
-├── SerializationError
-│   ├── SerializeError
-│   └── DeserializeError
-├── PlatformConnectionError
-│   └── AuthenticationError
-├── IntegrationTimeoutError
-└── QualityGateError
-    └── ThresholdExceededError
-```
-
-### Exception Wrapping
-
-```python
-from common.exceptions import wrap_exception, ConfigurationError
-
-try:
-    load_config()
-except ValueError as e:
-    raise wrap_exception(e, ConfigurationError, "Configuration loading failed")
-```
-
-## Navigation
+These modules are shared because the same production concerns show up in every host:
 
 - [Logging](logging.md)
 - [Retry](retry.md)
@@ -151,3 +79,13 @@ except ValueError as e:
 - [Metrics](metrics.md)
 - [Rate Limiting](rate-limiter.md)
 - [Caching](cache.md)
+
+## How To Use This Section
+
+Read the overview pages first, then the specific helper or primitive you need:
+
+1. source resolution
+2. preflight and compatibility
+3. serialization
+4. observability and resilience
+5. helper-level detail pages

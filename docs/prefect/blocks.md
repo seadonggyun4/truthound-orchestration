@@ -4,157 +4,69 @@ title: Prefect Blocks
 
 # Prefect Blocks
 
-Blocks for storing and reusing data quality engines and configurations.
+Blocks are the persisted configuration boundary for the Prefect integration. Use them when configuration should be named, saved, loaded, and reused across flows or deployments.
 
 ## DataQualityBlock
 
-Data quality engine Block:
+`DataQualityBlock` is the main high-level block.
 
 ```python
-from packages.prefect.blocks import DataQualityBlock
+from truthound_prefect.blocks import DataQualityBlock
 
-# Create and save Block
-block = DataQualityBlock(
-    engine_name="truthound",
-    auto_schema=True,
-)
-block.save("my-quality-block")
-
-# Load and use Block
-block = DataQualityBlock.load("my-quality-block")
-result = block.check(data)
+block = DataQualityBlock(engine_name="truthound", auto_schema=True)
 ```
 
-### Parameters
+It exposes `check`, `profile`, `learn`, and streaming helpers while hiding the lower-level engine block details.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `engine_name` | str | Name of the engine to use |
-| `auto_schema` | bool | Automatic schema generation |
-| `fail_on_error` | bool | Raise exception on failure |
+## Main Fields
 
-### Methods
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `engine_name` | str | `"truthound"` | engine to use |
+| `parallel` | bool | `False` | enable parallel Truthound execution |
+| `max_workers` | int \| None | `None` | worker limit for parallel execution |
+| `auto_schema` | bool | `False` | Truthound auto-schema behavior |
+| `fail_on_error` | bool | `True` | raise on hard failures |
+| `warning_threshold` | float \| None | `None` | warn instead of fail when below threshold |
+| `timeout_seconds` | float | `300.0` | default operation timeout |
 
-| Method | Description |
-|--------|-------------|
-| `check(data, ...)` | Data validation |
-| `profile(data)` | Data profiling |
-| `learn(data)` | Schema learning |
-| `get_engine()` | Return engine instance |
-
-## EngineBlock
-
-Engine-specific Block:
-
-```python
-from packages.prefect.blocks import EngineBlock, EngineBlockConfig
-
-config = EngineBlockConfig(
-    engine_name="truthound",
-    parallel=True,
-    max_workers=4,
-)
-
-block = EngineBlock(config=config)
-block.save("my-engine-block")
-```
-
-## SLABlock
-
-SLA configuration Block:
-
-```python
-from packages.prefect.blocks import SLABlock
-
-block = SLABlock(
-    min_pass_rate=0.95,
-    max_duration_seconds=3600,
-)
-block.save("my-sla-block")
-
-# Usage
-block = SLABlock.load("my-sla-block")
-is_compliant = block.check_compliance(metrics)
-```
-
-## Block Configuration
-
-### BlockConfig
-
-```python
-from packages.prefect.blocks import BlockConfig
-
-config = BlockConfig(
-    engine_name="truthound",
-    auto_schema=True,
-    fail_on_error=True,
-    timeout_seconds=3600,
-)
-
-block = DataQualityBlock(config=config)
-```
-
-### EngineBlockConfig
-
-```python
-from packages.prefect.blocks import EngineBlockConfig
-
-config = EngineBlockConfig(
-    engine_name="truthound",
-    parallel=True,
-    max_workers=4,
-    cache_schemas=True,
-)
-```
-
-## Preset Configurations
-
-```python
-from packages.prefect.blocks import (
-    DEFAULT_BLOCK_CONFIG,
-    STRICT_BLOCK_CONFIG,
-    LENIENT_BLOCK_CONFIG,
-    PARALLEL_BLOCK_CONFIG,
-    PRODUCTION_BLOCK_CONFIG,
-    TESTING_BLOCK_CONFIG,
-)
-
-block = DataQualityBlock(config=PRODUCTION_BLOCK_CONFIG)
-```
-
-## Using Blocks in Flows
+## Common Pattern
 
 ```python
 from prefect import flow
-from packages.prefect.blocks import DataQualityBlock
+from truthound_prefect.blocks import DataQualityBlock
+from truthound_prefect.tasks import data_quality_check_task
 
 @flow
-def quality_flow():
-    block = DataQualityBlock.load("my-quality-block")
-    data = load_data()
-    result = block.check(data)
-    return result
+async def validate_users(data):
+    block = DataQualityBlock(engine_name="truthound")
+    return await data_quality_check_task(data, block=block)
 ```
 
-## Updating Blocks
+## EngineBlock
 
-```python
-block = DataQualityBlock.load("my-quality-block")
-block.auto_schema = False
-block.save("my-quality-block", overwrite=True)
-```
+`EngineBlock` is the lower-level engine wrapper. Most users should start with `DataQualityBlock`.
 
-## Deleting Blocks
+## SLABlock
 
-```python
-DataQualityBlock.delete("my-quality-block")
-```
+`SLABlock` is the persisted boundary for SLA configuration and evaluation.
 
-## Managing in Prefect UI
+## Using Blocks In Flows
 
-Blocks can also be created and managed from the Prefect UI:
+Blocks work best when:
 
-1. Prefect UI → Blocks
-2. Click "+" button
-3. Select "DataQualityBlock"
-4. Enter configuration and save
+- the same configuration is reused across several flows
+- the deployment surface needs explicit saved configuration
+- you want to separate reusable policy from one-off flow code
+
+## Managing Blocks
+
+- update blocks through the normal Prefect block lifecycle
+- delete blocks only after flows and deployments no longer reference them
+- name blocks by environment and intent so they are easy to locate in the Prefect UI
+
+## Related Reading
+
+- [Tasks](tasks.md)
+- [Flows](flows.md)
+- [Deployment Patterns](deployment-patterns.md)

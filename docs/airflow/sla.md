@@ -1,183 +1,83 @@
 ---
-title: Airflow SLA
+title: Airflow SLA Monitoring
 ---
 
-# Airflow SLA Monitoring
+# Airflow SLA And Callbacks
 
-Data quality SLA monitoring and alerting system.
+Airflow is a natural place to attach SLA and alerting behavior to quality checks. The first-party package keeps the metric definitions and violation semantics shared, while leaving callback wiring and DAG behavior inside Airflow.
 
 ## SLAConfig
 
-Defines SLA configuration:
+Use `SLAConfig` to define acceptable latency and failure envelopes for quality tasks or quality-gated DAG steps.
 
 ```python
-from packages.airflow.sla import SLAConfig
+from truthound_airflow import SLAConfig
 
 config = SLAConfig(
-    min_pass_rate=0.95,           # Minimum pass rate
-    max_duration_seconds=3600,     # Maximum execution time
-    max_failed_count=10,           # Maximum failure count
-    alert_level="warning",         # Alert level
+    max_failure_rate=0.01,
+    max_execution_time_seconds=300.0,
 )
 ```
 
-### Parameters
+Typical questions this answers:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `min_pass_rate` | float | Minimum pass rate (0.0-1.0) |
-| `max_duration_seconds` | float | Maximum execution time |
-| `max_failed_count` | int | Maximum allowed failure count |
-| `alert_level` | str | Alert level (info, warning, error, critical) |
+- when should a quality task be considered degraded?
+- when should a callback warn versus fail loudly?
+- how do we route high-severity quality regressions?
 
 ## SLAMetrics
 
-SLA metric collection:
-
-```python
-from packages.airflow.sla import SLAMetrics
-
-metrics = SLAMetrics(
-    pass_rate=0.98,
-    duration_seconds=1200,
-    failed_count=5,
-    passed_count=245,
-)
-
-# Check SLA compliance
-is_compliant = metrics.check_compliance(config)
-```
+`SLAMetrics` is the shared metric payload that the monitor evaluates. It keeps the same core logic available across Airflow and other hosts.
 
 ## SLAViolation
 
-SLA violation information:
-
-```python
-from packages.airflow.sla import SLAViolation, SLAViolationType
-
-violation = SLAViolation(
-    violation_type=SLAViolationType.PASS_RATE_LOW,
-    expected=0.95,
-    actual=0.90,
-    message="Pass rate below threshold",
-)
-```
-
-### Violation Types
-
-| Type | Description |
-|------|-------------|
-| `PASS_RATE_LOW` | Pass rate below threshold |
-| `DURATION_EXCEEDED` | Execution time exceeded |
-| `FAILED_COUNT_EXCEEDED` | Failure count exceeded |
+`SLAViolation` and `SLAViolationType` are the structured outputs that callbacks and monitors consume.
 
 ## SLAMonitor
 
-SLA monitoring:
+`SLAMonitor` evaluates recorded results against the configured SLA contract.
 
 ```python
-from packages.airflow.sla import SLAMonitor, SLAConfig
+from truthound_airflow import SLAMonitor, SLAConfig
 
-config = SLAConfig(min_pass_rate=0.95)
-monitor = SLAMonitor(config)
-
-# Record results
-monitor.record(check_result)
-
-# Check for SLA violations
-violations = monitor.check_violations()
-for v in violations:
-    print(f"Violation: {v.violation_type.name}")
-```
-
-## DataQualitySLACallback
-
-Connect SLA callback to DAG:
-
-```python
-from airflow import DAG
-from packages.airflow.sla import SLAConfig, DataQualitySLACallback
-from datetime import datetime
-
-config = SLAConfig(
-    min_pass_rate=0.95,
-    max_duration_seconds=3600,
-)
-
-callback = DataQualitySLACallback(config)
-
-with DAG(
-    dag_id="sla_monitored_dag",
-    start_date=datetime(2024, 1, 1),
-    sla_miss_callback=callback,
-) as dag:
-    ...
-```
-
-## QualityAlertCallback
-
-Quality alert callback:
-
-```python
-from packages.airflow.sla import QualityAlertCallback
-
-def send_slack_alert(violation):
-    # Send Slack alert
-    pass
-
-callback = QualityAlertCallback(
-    on_violation=send_slack_alert,
+monitor = SLAMonitor(
+    config=SLAConfig(
+        max_failure_rate=0.05,
+        max_execution_time_seconds=600.0,
+    )
 )
 ```
 
-## CallbackChain
+## Callback Types
 
-Chain multiple callbacks:
+The Airflow package exposes several callback helpers:
 
-```python
-from packages.airflow.sla import CallbackChain
+- `DataQualitySLACallback`
+- `QualityAlertCallback`
+- `CallbackChain`
 
-chain = CallbackChain([
-    DataQualitySLACallback(config),
-    QualityAlertCallback(on_violation=send_alert),
-])
+Use them to map structured violation information into Airflow-native alerting behavior.
 
-with DAG(
-    dag_id="chained_callbacks_dag",
-    sla_miss_callback=chain,
-) as dag:
-    ...
-```
+## Registry Support
 
-## SLARegistry
+`SLARegistry` is useful when you want several DAGs to share named SLA definitions instead of re-declaring them inline.
 
-SLA registration and management:
+## Recommended Airflow Pattern
 
 ```python
-from packages.airflow.sla import SLARegistry, SLAConfig
+from truthound_airflow import DataQualityCheckOperator, DataQualitySLACallback, SLAConfig
 
-registry = SLARegistry()
-
-# Register SLA
-registry.register(
-    name="critical_data",
-    config=SLAConfig(min_pass_rate=0.99),
+sla_callback = DataQualitySLACallback(
+    sla_config=SLAConfig(max_failure_rate=0.02, max_execution_time_seconds=300),
 )
 
-# Retrieve SLA
-config = registry.get("critical_data")
-
-# List all SLAs
-all_slas = registry.list_all()
+check = DataQualityCheckOperator(task_id="quality_check", data_path="users.parquet")
 ```
 
-## AlertLevel
+The important design rule is to keep rule execution in operators and policy escalation in callbacks or monitors.
 
-Alert levels:
+## Related Reading
 
-| Level | Description |
-|-------|-------------|
-| `INFO` | Informational alert |
-| `WARNING` | Warning |
-| `ERROR` | Error |
-| `CRITICAL` | Critical |
+- [Operators](operators.md)
+- [Recipes](recipes.md)
+- [Troubleshooting](troubleshooting.md)

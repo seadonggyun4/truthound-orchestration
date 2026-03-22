@@ -4,6 +4,8 @@ title: Compatibility
 
 # Compatibility
 
+This page defines the official compatibility contract for `truthound-orchestration 3.x`: what Truthound line it supports, which host versions are exercised in CI, and how to interpret "minimum supported" versus "primary supported" host lanes.
+
 ## Version Line
 
 `truthound-orchestration 3.x` supports `Truthound 3.x` only.
@@ -12,6 +14,13 @@ title: Compatibility
 |--------------|---------------------------|--------|
 | `truthound-orchestration 3.x` | `>=3.0,<4.0` | Active first-party line |
 | `truthound-orchestration 1.x` | Pre-Truthound-3 lines | Legacy |
+
+## How To Read This Contract
+
+- "minimum supported" means a release-blocking host-plus-Python tuple still exercised in CI
+- "primary supported" means the main documentation and default examples track that tuple
+- compatibility is defined at the surface level, not only by package version names
+- convenience aggregates such as `truthound-orchestration[all]` are useful for canaries but are not the primary release contract
 
 ## Platform Expectations
 
@@ -66,6 +75,20 @@ Minimum compatibility guarantees are validated as tested host-plus-Python tuples
 Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.
 <!-- END GENERATED SUPPORT MATRIX -->
 
+## What This Means In Practice
+
+Before rollout:
+
+- pin the host package to one of the documented tuples
+- test the same tuple in your deployment environment
+- use the host-specific install guidance in each platform section rather than assuming the latest upstream release is supported
+
+When upgrading:
+
+- upgrade the host runtime and Python version as a tested pair
+- keep dbt adapter versions aligned with the supported core line
+- treat minimum lanes as compatibility anchors, not as a suggestion that every newer transitive dependency is safe
+
 ## Supported Scope
 
 This release line is intentionally scoped to:
@@ -82,17 +105,32 @@ It does not promise:
 
 ## Compatibility APIs
 
-Use the shared runtime helpers when you need explicit validation:
+Use the shared runtime helpers when you need explicit validation inside platform code or deployment checks:
 
 ```python
-from common.engines import EngineCreationRequest, normalize_runtime_context, run_preflight
+from common.engines import (
+    EngineCreationRequest,
+    normalize_runtime_context,
+    resolve_data_source,
+    run_preflight,
+)
+
+runtime_context = normalize_runtime_context(platform="prefect")
+resolved_source = resolve_data_source("users.parquet")
 
 report = run_preflight(
     EngineCreationRequest(
         engine_name="truthound",
-        runtime_context=normalize_runtime_context(platform="prefect"),
+        runtime_context=runtime_context.with_source(resolved_source),
     )
 )
 ```
 
-`run_preflight(...)` checks engine resolution, serializer readiness, and whether the normalized source needs a connection or profile.
+`run_preflight(...)` checks engine resolution, serializer readiness, source normalization, and whether the normalized source needs a connection or profile.
+
+## Related Reading
+
+- [Getting Started](getting-started.md)
+- [Choose a Platform](choose-a-platform.md)
+- [Shared Runtime: Preflight and Compatibility](common/preflight-compatibility.md)
+- platform-specific install and compatibility pages

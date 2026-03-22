@@ -1,130 +1,39 @@
 ---
-title: GreatExpectationsAdapter
+title: Great Expectations Adapter
 ---
 
-# GreatExpectationsAdapter
+# Great Expectations Adapter
 
-The Great Expectations adapter employs **rules-based** validation methodology.
+`GreatExpectationsAdapter` exists for teams that need to preserve prior Great
+Expectations investment while moving orchestration and runtime handling toward the
+Truthound 3.x model.
 
-## Basic Usage
+## When To Use It
 
-```python
-from common.engines import GreatExpectationsAdapter
+Use the Great Expectations adapter when:
 
-engine = GreatExpectationsAdapter()
+- expectations already exist and cannot be replaced immediately
+- the organization wants shared orchestration semantics before fully migrating rule
+  assets
 
-# Using common rule format (automatically converted to GE expectations)
-result = engine.check(
-    data=df,
-    rules=[
-        {"type": "not_null", "column": "id"},
-        {"type": "unique", "column": "email"},
-        {"type": "in_range", "column": "age", "min": 0, "max": 150},
-        {"type": "in_set", "column": "status", "values": ["active", "inactive"]},
-    ],
-)
-```
+## Strengths
 
-## Rule Type Conversion
+- lets existing expectation work participate in the same host integrations
+- creates a migration bridge instead of forcing a hard cutover
 
-Common rule types are automatically converted to GE Expectations:
+## Tradeoffs
 
-| Common Rule Type | GE Expectation |
-|------------------|----------------|
-| `not_null` | `expect_column_values_to_not_be_null` |
-| `unique` | `expect_column_values_to_be_unique` |
-| `in_set` | `expect_column_values_to_be_in_set` |
-| `in_range` | `expect_column_values_to_be_between` |
-| `regex` | `expect_column_values_to_match_regex` |
-| `dtype` | `expect_column_values_to_be_of_type` |
-| `min_length` / `max_length` | `expect_column_value_lengths_to_be_between` |
-| `column_exists` | `expect_column_to_exist` |
+- adapter behavior may not expose every Truthound-native capability the same way
+- teams should expect some conceptual mismatch between expectation-first and
+  Truthound-first validation styles
 
-## Direct GE Expectation Usage
+## Production Guidance
 
-```python
-result = engine.check(
-    data=df,
-    rules=[
-        {"type": "expect_column_to_exist", "column": "id"},
-        {
-            "type": "expect_column_mean_to_be_between",
-            "column": "value",
-            "min_value": 0,
-            "max_value": 100,
-        },
-    ],
-)
-```
+- use it as a managed transition path, not only as a permanent abstraction layer
+- keep shared runtime behavior explicit so operators understand which parts come from
+  the host adapter and which come from the underlying engine
 
-## GE-Specific Parameters
+## Related Pages
 
-```python
-result = engine.check(
-    data=df,
-    rules=rules,
-    result_format="COMPLETE",  # BOOLEAN_ONLY, BASIC, COMPLETE
-    fail_on_error=True,
-)
-```
-
-## Data Conversion
-
-GE requires Pandas DataFrames. Polars DataFrames are automatically converted:
-
-```python
-import polars as pl
-
-polars_df = pl.read_csv("data.csv")
-result = engine.check(polars_df, rules)  # Operates transparently
-```
-
-## Profiling
-
-```python
-profile = engine.profile(df)
-
-for col in profile.columns:
-    print(f"{col.column_name}: {col.dtype}")
-    print(f"  Null: {col.null_percentage}%")
-```
-
-## Schema Learning
-
-```python
-learn_result = engine.learn(df)
-
-for rule in learn_result.rules:
-    print(f"{rule.column}: {rule.rule_type}")
-```
-
-## Lifecycle Management
-
-```python
-with GreatExpectationsAdapter() as engine:
-    result = engine.check(df, rules)
-    health = engine.health_check()
-```
-
-## Configuration
-
-```python
-from common.engines import GreatExpectationsConfig
-
-config = GreatExpectationsConfig(
-    result_format="COMPLETE",
-    context_root_dir=None,
-    include_profiling=True,
-    catch_exceptions=True,
-    enable_data_docs=False,
-)
-
-engine = GreatExpectationsAdapter(config=config)
-```
-
-## Supported Data Types
-
-| Data Type | Support |
-|-----------|---------|
-| Pandas DataFrame | Native |
-| Polars DataFrame | Auto-conversion |
+- [Truthound Engine](truthound.md)
+- [Pandera Adapter](pandera.md)

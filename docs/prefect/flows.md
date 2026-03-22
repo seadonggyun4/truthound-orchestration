@@ -4,205 +4,79 @@ title: Prefect Flows
 
 # Prefect Flows
 
-Flow templates and configurations for data quality pipelines.
+Flows are where Prefect teams usually assemble the real user experience: load, validate, profile, learn, notify, and publish. The Truthound package gives you decorators, factories, and task helpers so those flows stay readable.
 
 ## Flow Configuration
 
-### FlowConfig
+The package exposes flow-oriented config types such as:
 
-```python
-from packages.prefect.flows import FlowConfig
+- `FlowConfig`
+- `QualityFlowConfig`
+- `PipelineFlowConfig`
 
-config = FlowConfig(
-    name="quality_flow",
-    timeout_seconds=3600,
-    retries=3,
-    retry_delay_seconds=60,
-)
-```
-
-### QualityFlowConfig
-
-```python
-from packages.prefect.flows import QualityFlowConfig
-
-config = QualityFlowConfig(
-    auto_schema=True,
-    fail_on_error=True,
-    engine_name="truthound",
-    parallel=True,
-)
-```
-
-### PipelineFlowConfig
-
-```python
-from packages.prefect.flows import PipelineFlowConfig
-
-config = PipelineFlowConfig(
-    stages=["load", "validate", "transform", "save"],
-    fail_fast=True,
-)
-```
-
-## Flow Examples
-
-### Basic Quality Validation Flow
+## Basic Quality Validation Flow
 
 ```python
 from prefect import flow, task
-from packages.prefect.tasks import data_quality_check_task
+from truthound_prefect.tasks import data_quality_check_task
 
 @task
 def load_data():
-    return pl.read_parquet("data.parquet")
-
-@task
-def save_result(result):
-    # Result saving logic
-    pass
+    return ...
 
 @flow(name="basic_quality_flow")
-def basic_quality_flow():
+async def basic_quality_flow():
     data = load_data()
-    result = data_quality_check_task(data, auto_schema=True)
-    save_result(result)
+    result = await data_quality_check_task(
+        data,
+        rules=[{"column": "id", "type": "not_null"}],
+    )
     return result
 ```
 
-### Flow with Profiling
+## Flow With Profiling
 
 ```python
 from prefect import flow
-from packages.prefect.tasks import (
-    data_quality_check_task,
-    data_quality_profile_task,
-)
+from truthound_prefect.tasks import data_quality_check_task, data_quality_profile_task
 
 @flow(name="full_quality_flow")
-def full_quality_flow():
-    data = load_data()
-
-    # Parallel execution
-    check_future = data_quality_check_task.submit(data, auto_schema=True)
+async def full_quality_flow():
+    data = ...
+    check_future = data_quality_check_task.submit(data, rules=[{"column": "id", "type": "not_null"}])
     profile_future = data_quality_profile_task.submit(data)
-
-    # Collect results
-    check_result = check_future.result()
-    profile_result = profile_future.result()
-
-    return {
-        "check": check_result,
-        "profile": profile_result,
-    }
+    return {"check": check_future.result(), "profile": profile_future.result()}
 ```
 
-### Conditional Validation Flow
+## Flow Decorators And Factories
 
-```python
-from prefect import flow, task
-from packages.prefect.tasks import (
-    strict_check_task,
-    lenient_check_task,
-)
+Use these when you want reusable patterns instead of rebuilding the same orchestration shape repeatedly:
 
-@task
-def determine_mode(data):
-    # Determine validation mode based on data size
-    return "strict" if len(data) < 10000 else "lenient"
+- `quality_checked_flow`
+- `profiled_flow`
+- `validated_flow`
+- `create_quality_flow`
+- `create_validation_flow`
+- `create_pipeline_flow`
 
-@flow(name="conditional_quality_flow")
-def conditional_quality_flow():
-    data = load_data()
-    mode = determine_mode(data)
+## Recommended Usage Pattern
 
-    if mode == "strict":
-        result = strict_check_task(data)
-    else:
-        result = lenient_check_task(data)
+- start with explicit task calls
+- move to a saved block when configuration should be shared
+- adopt flow decorators or factories when the same orchestration pattern repeats across teams or datasets
 
-    return result
-```
+## Deployment Guidance
 
-### Learn and Validate Flow
+Keep deployment concerns separate from validation semantics:
 
-```python
-from prefect import flow
-from packages.prefect.tasks import (
-    data_quality_learn_task,
-    data_quality_check_task,
-)
+- flows define orchestration
+- blocks define reusable config
+- Prefect deployments define schedule, work pool, and environment bindings
 
-@flow(name="learn_and_check_flow")
-def learn_and_check_flow():
-    # Learn schema from baseline data
-    baseline = load_baseline_data()
-    learn_result = data_quality_learn_task(baseline)
+See [Deployment Patterns](deployment-patterns.md) for the operational details.
 
-    # Validate new data
-    new_data = load_new_data()
-    check_result = data_quality_check_task(
-        new_data,
-        rules=learn_result.rules,
-    )
+## Related Reading
 
-    return check_result
-```
-
-## Subflows
-
-```python
-from prefect import flow
-from packages.prefect.tasks import data_quality_check_task
-
-@flow(name="quality_subflow")
-def quality_subflow(data):
-    return data_quality_check_task(data, auto_schema=True)
-
-@flow(name="main_flow")
-def main_flow():
-    data1 = load_data("source1")
-    data2 = load_data("source2")
-
-    # Call subflows
-    result1 = quality_subflow(data1)
-    result2 = quality_subflow(data2)
-
-    return [result1, result2]
-```
-
-## Scheduling
-
-```python
-from prefect import flow
-from prefect.server.schemas.schedules import CronSchedule
-
-@flow(name="scheduled_quality_flow")
-def scheduled_quality_flow():
-    data = load_data()
-    result = data_quality_check_task(data, auto_schema=True)
-    return result
-
-# Schedule configuration during deployment
-# prefect deployment build ./flow.py:scheduled_quality_flow \
-#     --cron "0 0 * * *" \
-#     --name "daily-quality-check"
-```
-
-## Notifications
-
-```python
-from prefect import flow
-from prefect.blocks.notifications import SlackWebhook
-
-@flow(name="flow_with_notification")
-def flow_with_notification():
-    data = load_data()
-    result = data_quality_check_task(data, auto_schema=True)
-
-    if result.status.name == "FAILED":
-        slack = SlackWebhook.load("my-slack-webhook")
-        slack.notify(f"Quality check failed: {result.failed_count} failures")
-
-    return result
-```
+- [Tasks](tasks.md)
+- [SLA and Hooks](sla.md)
+- [Deployment Patterns](deployment-patterns.md)

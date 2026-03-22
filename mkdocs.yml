@@ -7,18 +7,93 @@ theme:
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
+  - Choose a Platform: choose-a-platform.md
   - Architecture: architecture.md
-  - Compatibility: compatibility.md
-  - Releasing: releasing.md
   - Zero-Config: zero-config.md
+  - Compatibility: compatibility.md
+  - Troubleshooting: troubleshooting.md
   - Migration:
       - 3.0 Upgrade: migration/3.0.md
+  - Shared Runtime:
+      - Overview: common/index.md
+      - Source Resolution: common/source-resolution.md
+      - Preflight and Compatibility: common/preflight-compatibility.md
+      - Result Serialization: common/result-serialization.md
+      - Observability and Resilience: common/observability-resilience.md
+      - Logging: common/logging.md
+      - Retry: common/retry.md
+      - Circuit Breaker: common/circuit-breaker.md
+      - Health Checks: common/health.md
+      - Metrics: common/metrics.md
+      - Rate Limiting: common/rate-limiter.md
+      - Caching: common/cache.md
+      - Drift and Anomaly Config: common/drift-config.md
   - Platforms:
-      - Airflow: airflow/index.md
-      - Dagster: dagster/index.md
-      - Prefect: prefect/index.md
-      - dbt: dbt/index.md
-      - Mage: mage/index.md
-      - Kestra: kestra/index.md
-  - Advanced Engines: advanced-engines/index.md
-  - API Reference: api-reference/index.md
+      - Airflow:
+          - Overview: airflow/index.md
+          - Install and Compatibility: airflow/install-compatibility.md
+          - Operators: airflow/operators.md
+          - Hooks: airflow/hooks.md
+          - Sensors and Triggers: airflow/sensors.md
+          - SLA and Callbacks: airflow/sla.md
+          - Recipes: airflow/recipes.md
+          - Troubleshooting: airflow/troubleshooting.md
+      - Dagster:
+          - Overview: dagster/index.md
+          - Install and Compatibility: dagster/install-compatibility.md
+          - Resources: dagster/resources.md
+          - Ops: dagster/ops.md
+          - Assets and Asset Checks: dagster/assets.md
+          - SLA and Hooks: dagster/sla-hooks.md
+          - Recipes: dagster/recipes.md
+          - Troubleshooting: dagster/troubleshooting.md
+      - Prefect:
+          - Overview: prefect/index.md
+          - Install and Compatibility: prefect/install-compatibility.md
+          - Blocks: prefect/blocks.md
+          - Tasks: prefect/tasks.md
+          - Flows: prefect/flows.md
+          - SLA and Hooks: prefect/sla.md
+          - Deployment Patterns: prefect/deployment-patterns.md
+          - Troubleshooting: prefect/troubleshooting.md
+      - dbt:
+          - Overview: dbt/index.md
+          - Package Setup and Profiles: dbt/package-setup.md
+          - Generic Tests: dbt/generic-tests.md
+          - Macros and Operations: dbt/macros.md
+          - Adapter Behavior: dbt/adapter-behavior.md
+          - CI and First-Party Suite: dbt/ci-first-party-suite.md
+          - Troubleshooting: dbt/troubleshooting.md
+      - Mage:
+          - Overview: mage/index.md
+          - Project Layout and Blocks: mage/project-layout.md
+          - io_config Discovery: mage/io-config.md
+          - Recipes: mage/recipes.md
+          - Troubleshooting: mage/troubleshooting.md
+      - Kestra:
+          - Overview: kestra/index.md
+          - Scripts and Flow Templates: kestra/scripts-templates.md
+          - Recipes: kestra/recipes.md
+          - Troubleshooting: kestra/troubleshooting.md
+  - Engines:
+      - Overview: engines/index.md
+      - Truthound Engine: engines/truthound.md
+      - Great Expectations: engines/great-expectations.md
+      - Pandera: engines/pandera.md
+      - Batch Processing: engines/batch.md
+      - Streaming Validation: engines/streaming.md
+      - Engine Chain: engines/chain.md
+      - Lifecycle: engines/lifecycle.md
+      - Drift Detection: engines/drift-detection.md
+      - Anomaly Detection: engines/anomaly-detection.md
+  - Enterprise and Operations:
+      - Overview: enterprise/index.md
+      - Multi-Tenant: enterprise/multi-tenant.md
+      - Secrets: enterprise/secrets.md
+      - Notifications: enterprise/notifications.md
+      - CI/CD and Production Rollout: enterprise/ci-cd-production.md
+  - API Reference:
+      - Overview: api-reference/index.md
+      - Common Runtime APIs: api-reference/common.md
+      - Engine APIs: api-reference/engines.md
+  - Releasing: releasing.md

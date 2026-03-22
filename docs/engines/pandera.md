@@ -1,112 +1,39 @@
 ---
-title: PanderaAdapter
+title: Pandera Adapter
 ---
 
-# PanderaAdapter
+# Pandera Adapter
 
-The Pandera adapter supports **hybrid schema-based and rules-based** validation.
+`PanderaAdapter` is the contract-first option for teams that already rely on Pandera
+schemas and want to orchestrate them through the shared Truthound runtime surface.
 
-## Basic Usage
+## When To Use It
 
-```python
-from common.engines import PanderaAdapter
+Use Pandera when:
 
-engine = PanderaAdapter()
+- schema definitions already exist in Pandera and should remain canonical
+- data typing and dataframe schema guarantees are more important than migrating to a
+  fully Truthound-native rule store immediately
 
-result = engine.check(
-    data=df,
-    rules=[
-        {"type": "not_null", "column": "id"},
-        {"type": "dtype", "column": "value", "dtype": "float64"},
-        {"type": "in_range", "column": "percentage", "min": 0, "max": 100},
-        {"type": "regex", "column": "email", "pattern": r"^[\w\.-]+@[\w\.-]+\.\w+$"},
-    ],
-)
-```
+## Strengths
 
-## Rule Type Conversion
+- strong dataframe schema semantics
+- familiar workflow for teams already invested in Pandera
+- fits well into gradual migrations
 
-Common rule types are automatically converted to Pandera Checks:
+## Tradeoffs
 
-| Common Rule Type | Pandera Check |
-|------------------|---------------|
-| `not_null` | `nullable=False` |
-| `unique` | `pa.Check.unique()` |
-| `in_set` | `pa.Check.isin(values)` |
-| `in_range` | `pa.Check.in_range(min, max)` |
-| `regex` | `pa.Check.str_matches(pattern)` |
-| `dtype` | `pa.Column(dtype=...)` |
-| `greater_than` | `pa.Check.greater_than(value)` |
-| `less_than` | `pa.Check.less_than(value)` |
+- less Truthound-first than the default engine
+- some advanced capability areas may not map one-to-one with the default engine
 
-## Pandera-Specific Parameters
+## Operational Guidance
 
-```python
-result = engine.check(
-    data=df,
-    rules=rules,
-    lazy=True,          # Collect all errors (True) vs stop at first error (False)
-    fail_on_error=True,
-)
-```
+- treat Pandera as a compatibility bridge when the team is already committed to it
+- use the shared runtime and preflight layer the same way as the default engine
+- document where Pandera remains canonical versus where Truthound-native rules take
+  over
 
-## Dtype Mapping
+## Related Pages
 
-| Common Dtype | Pandera Dtype |
-|--------------|---------------|
-| `int`, `int32`, `int64` | `pa.Int`, `pa.Int32`, `pa.Int64` |
-| `float`, `float32`, `float64` | `pa.Float`, `pa.Float32`, `pa.Float64` |
-| `str`, `string` | `pa.String` |
-| `bool`, `boolean` | `pa.Bool` |
-| `datetime` | `pa.DateTime` |
-
-## Profiling
-
-```python
-profile = engine.profile(df)
-
-for col in profile.columns:
-    print(f"{col.column_name}: {col.dtype}")
-    print(f"  Null: {col.null_percentage}%")
-    print(f"  Unique: {col.unique_count}")
-```
-
-## Schema Learning
-
-```python
-learn_result = engine.learn(df)
-
-for rule in learn_result.rules:
-    print(f"{rule.column}: {rule.rule_type}")
-```
-
-## Lifecycle Management
-
-```python
-with PanderaAdapter() as engine:
-    result = engine.check(df, rules)
-    health = engine.health_check()
-```
-
-## Configuration
-
-```python
-from common.engines import PanderaConfig
-
-config = PanderaConfig(
-    lazy=True,                  # Collect all errors
-    strict=False,               # Strict mode
-    coerce=False,               # Type coercion
-    unique_column_names=False,  # Column name uniqueness check
-    report_duplicates="all",    # Duplicate reporting mode
-)
-
-engine = PanderaAdapter(config=config)
-```
-
-## Supported Data Types
-
-| Data Type | Support |
-|-----------|---------|
-| Pandas DataFrame | Native |
-| Polars DataFrame | Auto-conversion |
+- [Engines Overview](index.md)
+- [Preflight and Compatibility](../common/preflight-compatibility.md)

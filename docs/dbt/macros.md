@@ -1,216 +1,150 @@
 ---
-title: dbt Macros
+title: dbt Macros and Operations
 ---
 
-# dbt Macros
+# dbt Macros and Operations
 
-SQL macros for data quality validation.
+Truthound ships both generic tests and callable macros. The generic tests are the
+normal entry point for models and sources. The macros are most useful for smoke tests,
+debugging, operational summaries, and ad hoc execution in CI or local development.
 
-## truthound_check
+## Who Should Use This Page
 
-Data quality validation macro for tables/models:
+- analytics engineers who need `dbt run-operation` workflows
+- maintainers debugging compiled SQL or warehouse-specific behavior
+- CI operators wiring first-party dbt smoke checks
 
-```sql
-{{ truthound_check(
-    table='my_table',
-    rules=[
-        {'type': 'not_null', 'column': 'id'},
-        {'type': 'unique', 'column': 'id'},
-    ]
-) }}
-```
+## Core Macros
 
-### Parameters
+The package exposes three primary macros in `packages/dbt/macros/truthound_check.sql`.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `table` | string | Table or model name |
-| `rules` | list | List of validation rules |
+### `truthound_check(model, rules, options={})`
 
-### Rule Format
-
-```sql
-{
-    'type': 'rule_type',
-    'column': 'column_name',
-    -- Additional parameters vary by rule type
-}
-```
-
-## Rule Types
-
-### not_null
-
-NULL value check:
+Runs grouped validation rules against a relation.
 
 ```sql
 {{ truthound_check(
-    table='orders',
-    rules=[{'type': 'not_null', 'column': 'order_id'}]
+    ref('dim_users'),
+    [
+      {"column": "id", "check": "not_null"},
+      {"column": "id", "check": "unique"},
+      {"column": "email", "check": "email_format"}
+    ],
+    {"limit": 100}
 ) }}
 ```
 
-### unique
+Use this when you want one model-level quality gate that bundles multiple rules.
 
-Uniqueness check:
+### `truthound_summary(model, rules, options={})`
+
+Produces summary-style output for one or more rules, which is useful for operator
+smokes and human inspection.
 
 ```sql
-{{ truthound_check(
-    table='orders',
-    rules=[{'type': 'unique', 'column': 'order_id'}]
+{{ truthound_summary(
+    ref('dim_users'),
+    [
+      {"column": "email", "check": "not_null"}
+    ],
+    {"limit": 50}
 ) }}
 ```
 
-### in_range
+### `truthound_profile(model, columns=none, options={})`
 
-Range check:
+Builds profile-style output for a relation or a selected column set.
 
 ```sql
-{{ truthound_check(
-    table='orders',
-    rules=[{
-        'type': 'in_range',
-        'column': 'amount',
-        'min': 0,
-        'max': 1000000
-    }]
+{{ truthound_profile(
+    ref('fct_orders'),
+    columns=["order_id", "status", "total_amount"],
+    options={"limit": 100}
 ) }}
 ```
 
-### in_set
+## `run-operation` Entry Points
 
-Value set check:
+These macros are intended for operational smoke tests.
 
-```sql
-{{ truthound_check(
-    table='orders',
-    rules=[{
-        'type': 'in_set',
-        'column': 'status',
-        'values': ['pending', 'completed', 'cancelled']
-    }]
-) }}
+### `run_truthound_check`
+
+```bash
+dbt run-operation run_truthound_check --args '{
+  "model_name": "dim_users",
+  "rules": [{"column": "email", "check": "email_format"}],
+  "options": {"limit": 50}
+}'
 ```
 
-### regex
+### `run_truthound_summary`
 
-Regex pattern check:
-
-```sql
-{{ truthound_check(
-    table='customers',
-    rules=[{
-        'type': 'regex',
-        'column': 'email',
-        'pattern': '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
-    }]
-) }}
+```bash
+dbt run-operation run_truthound_summary --args '{
+  "model_name": "dim_users",
+  "rules": [{"column": "email", "check": "not_null"}],
+  "options": {"limit": 50}
+}'
 ```
 
-## Database-Specific Adapters
+The first-party suite uses these macros to prove that package logic works in a real
+warehouse, not only in compilation.
 
-Handles SQL syntax differences across databases.
+## Windowed And Incremental Helpers
 
-### BigQuery
+The package also exposes window helpers in `truthound_window.sql`.
 
-```sql
--- adapters/bigquery.sql
-{% macro bigquery_regex_check(column, pattern) %}
-    REGEXP_CONTAINS({{ column }}, r'{{ pattern }}')
-{% endmacro %}
-```
+- `truthound_window_predicate(options={})`
+- `truthound_windowed_check(model, rules, options={})`
+- `truthound_incremental_check(model, rules, options={})`
 
-### Snowflake
+These helpers are for projects that want to validate only a bounded time window or a
+subset of recent rows instead of the full relation every time.
 
-```sql
--- adapters/snowflake.sql
-{% macro snowflake_regex_check(column, pattern) %}
-    REGEXP_LIKE({{ column }}, '{{ pattern }}')
-{% endmacro %}
-```
+## Options You Will Commonly Pass
 
-### Redshift
+Exact option handling depends on the target macro, but the most common patterns are:
 
-```sql
--- adapters/redshift.sql
-{% macro redshift_regex_check(column, pattern) %}
-    {{ column }} ~ '{{ pattern }}'
-{% endmacro %}
-```
+- `limit`: cap result output
+- `where`: validate only a filtered slice
+- `sample_size`: sample a subset for large relations
+- `fail_on_first`: short-circuit on early failures
 
-### Databricks
+Keep options deterministic in CI so that validation is reproducible.
 
-```sql
--- adapters/databricks.sql
-{% macro databricks_regex_check(column, pattern) %}
-    REGEXP({{ column }}, '{{ pattern }}')
-{% endmacro %}
-```
+## Adapter Dispatch
 
-## Utility Macros
+Truthound uses `adapter.dispatch` heavily inside `truthound_utils.sql` and related
+macros. This matters because SQL details vary by warehouse:
 
-### truthound_utils.sql
+- regex functions differ
+- safe casts differ
+- percentage rounding differs
+- sampling and limiting differ
 
-```sql
--- Check if column exists
-{% macro column_exists(table, column) %}
-    ...
-{% endmacro %}
+As a result, the public macro names stay stable while the compiled SQL changes by
+adapter.
 
--- Get table row count
-{% macro row_count(table) %}
-    ...
-{% endmacro %}
-```
+## Production Guidance
 
-## Rule Definition Macros
+- Prefer generic tests in `schema.yml` for ordinary project authoring.
+- Use `run-operation` macros for operator smoke checks, scheduled summaries, and
+  CI proof-of-life runs.
+- Keep rule dictionaries close to the relation they validate; avoid burying business
+  critical rules in deeply indirect macro chains.
 
-Reusable rule definitions:
+## Failure Modes To Watch
 
-```sql
--- macros/truthound_rules.sql
+- `test_truthound_* is undefined`
+  The package was not installed or the test was not package-qualified consistently.
+- compilation succeeds but execution fails
+  The warehouse-specific SQL path compiled but hit adapter-specific runtime behavior.
+- summary or profile SQL fails on one warehouse only
+  Check the adapter-dispatched utility macro, not just the top-level macro.
 
-{% macro common_id_rules(column='id') %}
-    {{ return([
-        {'type': 'not_null', 'column': column},
-        {'type': 'unique', 'column': column},
-    ]) }}
-{% endmacro %}
+## Related Pages
 
-{% macro common_email_rules(column='email') %}
-    {{ return([
-        {'type': 'not_null', 'column': column},
-        {'type': 'regex', 'column': column, 'pattern': '^.*@.*$'},
-    ]) }}
-{% endmacro %}
-```
-
-Usage:
-
-```sql
-{{ truthound_check(
-    table='users',
-    rules=common_id_rules('user_id') + common_email_rules()
-) }}
-```
-
-## Test Models
-
-Example test model:
-
-```sql
--- tests/models/test_orders.sql
-
-with validation as (
-    {{ truthound_check(
-        table=ref('stg_orders'),
-        rules=[
-            {'type': 'not_null', 'column': 'order_id'},
-            {'type': 'unique', 'column': 'order_id'},
-            {'type': 'in_range', 'column': 'amount', 'min': 0},
-        ]
-    ) }}
-)
-
-select * from validation where passed = false
-```
+- [Package Setup](package-setup.md)
+- [Generic Tests](generic-tests.md)
+- [Adapter Behavior](adapter-behavior.md)
+- [CI and First-Party Suite](ci-first-party-suite.md)
