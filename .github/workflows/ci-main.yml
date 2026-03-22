@@ -42,9 +42,15 @@ jobs:
     with:
       lane: main
 
-  mage-kestra:
+  mage:
     needs: foundation
-    uses: ./.github/workflows/mage-kestra.yml
+    uses: ./.github/workflows/mage.yml
+    with:
+      lane: main
+
+  kestra:
+    needs: foundation
+    uses: ./.github/workflows/kestra.yml
     with:
       lane: main
 
@@ -62,7 +68,8 @@ jobs:
       - airflow
       - prefect
       - dagster
-      - mage-kestra
+      - mage
+      - kestra
       - dbt
     runs-on: ubuntu-latest
     timeout-minutes: 5

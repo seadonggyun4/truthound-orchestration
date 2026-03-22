@@ -13,6 +13,7 @@ nav:
   - Compatibility: compatibility.md
   - Adoption Playbook: adoption-playbook.md
   - Production Readiness: production-readiness.md
+  - Testing and CI Ownership: testing-ci-ownership.md
   - Troubleshooting: troubleshooting.md
   - Migration:
       - 3.0 Upgrade: migration/3.0.md

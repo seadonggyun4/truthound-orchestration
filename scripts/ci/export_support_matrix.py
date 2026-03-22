@@ -110,9 +110,9 @@ def build_workflow_payload(
             "host_matrix": build_host_matrix(data, workflow, lane_config[version_key]),
         }
 
-    if workflow == "mage-kestra":
+    if workflow in {"mage", "kestra"}:
         return {
-            "python_version": data["python"][lane_config["mage_kestra_python"][0]],
+            "python_version": data["python"][lane_config[f"{workflow}_python"][0]],
             "truthound_range": truthound_range,
         }
 
@@ -197,6 +197,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("prefect", data["lanes"]["pr"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["pr"]["dagster_versions"]),
             "Primary host smoke",
+            "Primary host smoke",
             "`postgres`",
             "No",
         ),
@@ -205,6 +206,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["main"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["main"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["main"]["dagster_versions"]),
+            "Primary host smoke",
             "Primary host smoke",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]
@@ -217,6 +219,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("prefect", data["lanes"]["release"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["release"]["dagster_versions"]),
             "Primary host smoke",
+            "Primary host smoke",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["release"]["dbt_compile_targets"]
             ),
@@ -227,7 +230,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["nightly"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["nightly"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["nightly"]["dagster_versions"]),
-            "Primary host smoke + advanced-tier canary",
+            "Primary host smoke + `mage-ai` runtime canary",
+            "Primary host smoke",
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]
             ),
@@ -275,12 +279,12 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         "",
         f"Truthound release line: `{data['truthound']['range']}`",
         "",
-        "| Lane | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |",
-        "|------|---------|---------|---------|----------------|-------------|-------------|",
+        "| Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |",
+        "|------|---------|---------|---------|------|--------|-------------|-------------|",
     ]
     lines.extend(
-        f"| {lane} | {airflow} | {prefect} | {dagster} | {mage_kestra} | {dbt_compile} | {dbt_execute} |"
-        for lane, airflow, prefect, dagster, mage_kestra, dbt_compile, dbt_execute in rows
+        f"| {lane} | {airflow} | {prefect} | {dagster} | {mage} | {kestra} | {dbt_compile} | {dbt_execute} |"
+        for lane, airflow, prefect, dagster, mage, kestra, dbt_compile, dbt_execute in rows
     )
     lines.extend(
         [

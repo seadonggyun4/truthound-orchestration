@@ -29,10 +29,12 @@ FILTERS: dict[str, tuple[str, ...]] = {
     "airflow": ("packages/airflow/**",),
     "prefect": ("packages/prefect/**",),
     "dagster": ("packages/dagster/**",),
-    "mage_kestra": (
+    "mage": (
         "packages/mage/**",
-        "packages/kestra/**",
         "tests/mage/**",
+    ),
+    "kestra": (
+        "packages/kestra/**",
         "tests/kestra/**",
     ),
     "dbt": (
@@ -70,7 +72,7 @@ def classify_changed_files(paths: Iterable[str]) -> dict[str, bool]:
     }
     outputs["docs_only"] = outputs["docs"] and not any(
         outputs[name]
-        for name in ("all_platforms", "airflow", "prefect", "dagster", "mage_kestra", "dbt")
+        for name in ("all_platforms", "airflow", "prefect", "dagster", "mage", "kestra", "dbt")
     )
     return outputs
 

@@ -1,4 +1,4 @@
-name: Shared Runtime
+name: Mage
 
 on:
   workflow_call:
@@ -21,7 +21,7 @@ on:
           - nightly
 
 concurrency:
-  group: shared-runtime-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: mage-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
   cancel-in-progress: true
 
 jobs:
@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      python_matrix: ${{ steps.export.outputs.python_matrix }}
+      python_version: ${{ steps.export.outputs.python_version }}
       truthound_range: ${{ steps.export.outputs.truthound_range }}
     steps:
       - uses: actions/checkout@v5
@@ -42,66 +42,56 @@ jobs:
         name: Export support matrix
         run: |
           python scripts/ci/export_support_matrix.py workflow \
-            --workflow shared-runtime \
+            --workflow mage \
             --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
             --github-output "$GITHUB_OUTPUT"
 
-  shared-runtime:
+  mage:
     needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.matrix.outputs.python_matrix) }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python_version }}
+          python-version: ${{ needs.matrix.outputs.python_version }}
           cache: pip
           cache-dependency-path: |
             pyproject.toml
             ci/support-matrix.toml
-      - name: Install shared runtime dependencies
+      - name: Install Mage dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
-      - name: Run shared runtime suites
+          python -m pip install -e ".[dev,mage,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+      - name: Run Mage suites
         run: |
           set -euo pipefail
-          mkdir -p artifacts/shared-runtime
+          mkdir -p artifacts/mage
           python -m pytest -q \
-            tests/common/test_ci_support_matrix.py \
-            tests/common/test_ci_workflow_actions.py \
-            tests/common/test_adapter_test_layout.py \
-            tests/common/test_runtime_contracts.py \
-            tests/common/test_platform_boundaries.py \
-            tests/common/test_truthound_capabilities.py \
-            tests/common/test_truthound_streaming.py \
-            tests/common/test_truthound_v3_contract.py \
-            tests/opentelemetry/test_config.py \
-            --junitxml="artifacts/shared-runtime/junit-${{ matrix.python_version }}.xml" \
+            packages/mage/tests \
+            --junitxml="artifacts/mage/junit.xml" \
             --cov=common \
-            --cov-report="xml:artifacts/shared-runtime/coverage-${{ matrix.python_version }}.xml" | tee "artifacts/shared-runtime/pytest-${{ matrix.python_version }}.log"
-      - name: Upload shared runtime artifacts
+            --cov=packages/mage/src/truthound_mage \
+            --cov-report="xml:artifacts/mage/coverage.xml" | tee artifacts/mage/pytest.log
+      - name: Upload Mage artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-shared-runtime-${{ matrix.python_version }}
-          path: artifacts/shared-runtime/*
+          name: truthound-mage
+          path: artifacts/mage/*
 
   summary:
     if: always()
     needs:
-      - shared-runtime
+      - mage
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
-      - name: Validate shared runtime results
+      - name: Validate Mage results
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
@@ -115,6 +105,6 @@ jobs:
               if details["result"] not in {"success", "skipped"}
           }
           if failures:
-              raise SystemExit(f"Shared runtime failed: {failures}")
-          print("Shared runtime summary passed")
+              raise SystemExit(f"Mage CI failed: {failures}")
+          print("Mage summary passed")
           PY

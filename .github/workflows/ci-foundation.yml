@@ -79,7 +79,9 @@ jobs:
           ruff check --config ruff.toml \
             scripts/ci \
             docs/scripts \
-            tests/common/test_ci_support_matrix.py | tee artifacts/foundation/ruff.log
+            tests/common/test_ci_support_matrix.py \
+            tests/common/test_ci_workflow_actions.py \
+            tests/common/test_adapter_test_layout.py | tee artifacts/foundation/ruff.log
           mypy scripts/ci docs/scripts | tee artifacts/foundation/mypy.log
           python -m build --outdir dist | tee artifacts/foundation/build.log
           python -m twine check dist/* | tee artifacts/foundation/twine.log

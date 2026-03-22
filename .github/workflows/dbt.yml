@@ -75,11 +75,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/dbt
           python -m pytest -q \
-            tests/dbt/test_adapters.py \
-            tests/dbt/test_parsers.py \
-            tests/dbt/test_macros.py \
-            tests/dbt/test_hooks.py \
-            tests/dbt/test_converters.py \
+            packages/dbt/tests \
             tests/dbt/test_first_party_suite.py \
             --junitxml="artifacts/dbt/junit-python.xml" \
             --cov=common \

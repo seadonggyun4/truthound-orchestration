@@ -50,9 +50,15 @@ jobs:
     with:
       lane: release
 
-  mage-kestra:
+  mage:
     needs: foundation
-    uses: ./.github/workflows/mage-kestra.yml
+    uses: ./.github/workflows/mage.yml
+    with:
+      lane: release
+
+  kestra:
+    needs: foundation
+    uses: ./.github/workflows/kestra.yml
     with:
       lane: release
 
@@ -81,7 +87,8 @@ jobs:
       - airflow
       - prefect
       - dagster
-      - mage-kestra
+      - mage
+      - kestra
       - dbt
       - security
     runs-on: ubuntu-latest

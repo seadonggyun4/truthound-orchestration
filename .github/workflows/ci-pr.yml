@@ -20,7 +20,8 @@ jobs:
       airflow: ${{ steps.classify.outputs.airflow }}
       prefect: ${{ steps.classify.outputs.prefect }}
       dagster: ${{ steps.classify.outputs.dagster }}
-      mage_kestra: ${{ steps.classify.outputs.mage_kestra }}
+      mage: ${{ steps.classify.outputs.mage }}
+      kestra: ${{ steps.classify.outputs.kestra }}
       dbt: ${{ steps.classify.outputs.dbt }}
     steps:
       - uses: actions/checkout@v5
@@ -77,12 +78,21 @@ jobs:
     with:
       lane: pr
 
-  mage-kestra:
-    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage_kestra == 'true'
+  mage:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'
     needs:
       - changes
       - foundation
-    uses: ./.github/workflows/mage-kestra.yml
+    uses: ./.github/workflows/mage.yml
+    with:
+      lane: pr
+
+  kestra:
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'
+    needs:
+      - changes
+      - foundation
+    uses: ./.github/workflows/kestra.yml
     with:
       lane: pr
 
@@ -103,7 +113,8 @@ jobs:
       - airflow
       - prefect
       - dagster
-      - mage-kestra
+      - mage
+      - kestra
       - dbt
     runs-on: ubuntu-latest
     timeout-minutes: 5

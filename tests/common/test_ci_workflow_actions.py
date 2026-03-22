@@ -49,7 +49,8 @@ def test_pr_change_filter_classifies_docs_only_changes() -> None:
         "airflow": False,
         "prefect": False,
         "dagster": False,
-        "mage_kestra": False,
+        "mage": False,
+        "kestra": False,
         "dbt": False,
         "docs_only": True,
     }
@@ -63,6 +64,28 @@ def test_pr_change_filter_classifies_platform_and_package_changes() -> None:
     assert outputs["all_platforms"] is True
     assert outputs["dbt"] is True
     assert outputs["docs_only"] is False
+
+
+def test_pr_change_filter_routes_mage_and_kestra_changes_independently() -> None:
+    mage_outputs = pr_change_filter.classify_changed_files(
+        ["packages/mage/src/truthound_mage/blocks/transformer.py"]
+    )
+    kestra_outputs = pr_change_filter.classify_changed_files(
+        ["packages/kestra/src/truthound_kestra/scripts/check.py"]
+    )
+
+    assert mage_outputs["mage"] is True
+    assert mage_outputs["kestra"] is False
+    assert kestra_outputs["mage"] is False
+    assert kestra_outputs["kestra"] is True
+
+
+def test_mage_and_kestra_workflows_are_independent() -> None:
+    workflows_dir = ROOT / ".github" / "workflows"
+
+    assert (workflows_dir / "mage.yml").exists()
+    assert (workflows_dir / "kestra.yml").exists()
+    assert not (workflows_dir / "mage-kestra.yml").exists()
 
 
 def test_pr_change_filter_collects_previous_filenames_for_renames() -> None:

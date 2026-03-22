@@ -90,6 +90,22 @@ def test_dbt_main_matrix_includes_all_dispatch_targets() -> None:
     assert targets == ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
 
 
+def test_mage_and_kestra_payloads_export_independent_python_lanes() -> None:
+    data = ci_support_matrix.load_support_matrix()
+
+    mage_payload = ci_support_matrix.build_workflow_payload(data, "mage", "main")
+    kestra_payload = ci_support_matrix.build_workflow_payload(data, "kestra", "main")
+
+    assert mage_payload == {
+        "python_version": "3.12",
+        "truthound_range": ">=3.0,<4.0",
+    }
+    assert kestra_payload == {
+        "python_version": "3.12",
+        "truthound_range": ">=3.0,<4.0",
+    }
+
+
 def test_security_audit_inputs_are_support_matrix_driven() -> None:
     data = ci_support_matrix.load_support_matrix()
 

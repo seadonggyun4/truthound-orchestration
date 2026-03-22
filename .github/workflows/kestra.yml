@@ -1,4 +1,4 @@
-name: Mage Kestra
+name: Kestra
 
 on:
   workflow_call:
@@ -21,7 +21,7 @@ on:
           - nightly
 
 concurrency:
-  group: mage-kestra-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: kestra-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
   cancel-in-progress: true
 
 jobs:
@@ -42,11 +42,11 @@ jobs:
         name: Export support matrix
         run: |
           python scripts/ci/export_support_matrix.py workflow \
-            --workflow mage-kestra \
+            --workflow kestra \
             --lane "${{ inputs.lane || github.event.inputs.lane || 'pr' }}" \
             --github-output "$GITHUB_OUTPUT"
 
-  mage-kestra:
+  kestra:
     needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -61,41 +61,37 @@ jobs:
           cache-dependency-path: |
             pyproject.toml
             ci/support-matrix.toml
-      - name: Install Mage and Kestra dependencies
+      - name: Install Kestra dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,kestra,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
-      - name: Run Mage and Kestra suites
+      - name: Run Kestra suites
         run: |
           set -euo pipefail
-          mkdir -p artifacts/mage-kestra
+          mkdir -p artifacts/kestra
           python -m pytest -q \
-            tests/mage/test_blocks_transformer.py \
-            tests/mage/test_io_config.py \
-            tests/kestra/test_scripts.py \
-            tests/kestra/test_flows.py \
-            --junitxml="artifacts/mage-kestra/junit.xml" \
+            packages/kestra/tests \
+            --junitxml="artifacts/kestra/junit.xml" \
             --cov=common \
-            --cov=packages/mage/src/truthound_mage \
             --cov=packages/kestra/src/truthound_kestra \
-            --cov-report="xml:artifacts/mage-kestra/coverage.xml" | tee artifacts/mage-kestra/pytest.log
-      - name: Upload Mage Kestra artifacts
+            --cov-report="xml:artifacts/kestra/coverage.xml" | tee artifacts/kestra/pytest.log
+      - name: Upload Kestra artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-mage-kestra
-          path: artifacts/mage-kestra/*
+          name: truthound-kestra
+          path: artifacts/kestra/*
 
   summary:
     if: always()
     needs:
-      - mage-kestra
+      - kestra
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
-      - name: Validate Mage Kestra results
+      - name: Validate Kestra results
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
         run: |
@@ -109,6 +105,6 @@ jobs:
               if details["result"] not in {"success", "skipped"}
           }
           if failures:
-              raise SystemExit(f"Mage Kestra CI failed: {failures}")
-          print("Mage Kestra summary passed")
+              raise SystemExit(f"Kestra CI failed: {failures}")
+          print("Kestra summary passed")
           PY

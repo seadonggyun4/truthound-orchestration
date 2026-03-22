@@ -3,8 +3,11 @@
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[3]
+
+
 def test_window_macro_file_exports_incremental_surface() -> None:
-    macro_file = Path("packages/dbt/macros/truthound_window.sql")
+    macro_file = ROOT / "packages" / "dbt" / "macros" / "truthound_window.sql"
     content = macro_file.read_text()
 
     assert "macro truthound_window_predicate" in content
@@ -14,8 +17,8 @@ def test_window_macro_file_exports_incremental_surface() -> None:
 
 
 def test_summary_macros_use_numeric_percentage_rounding() -> None:
-    utils_file = Path("packages/dbt/macros/truthound_utils.sql")
-    check_file = Path("packages/dbt/macros/truthound_check.sql")
+    utils_file = ROOT / "packages" / "dbt" / "macros" / "truthound_utils.sql"
+    check_file = ROOT / "packages" / "dbt" / "macros" / "truthound_check.sql"
 
     utils_content = utils_file.read_text()
     check_content = check_file.read_text()

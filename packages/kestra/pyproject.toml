@@ -72,6 +72,13 @@ Issues = "https://github.com/truthound/truthound-orchestration/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/truthound_kestra"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

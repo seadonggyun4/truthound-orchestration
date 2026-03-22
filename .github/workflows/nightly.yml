@@ -42,9 +42,15 @@ jobs:
     with:
       lane: nightly
 
-  mage-kestra:
+  mage:
     needs: foundation
-    uses: ./.github/workflows/mage-kestra.yml
+    uses: ./.github/workflows/mage.yml
+    with:
+      lane: nightly
+
+  kestra:
+    needs: foundation
+    uses: ./.github/workflows/kestra.yml
     with:
       lane: nightly
 
@@ -108,8 +114,8 @@ jobs:
         run: |
           mkdir -p artifacts/nightly
           python -m pytest -q \
-            tests/mage/test_blocks_transformer.py \
-            tests/mage/test_io_config.py \
+            packages/mage/tests/test_blocks_transformer.py \
+            packages/mage/tests/test_io_config.py \
             --junitxml=artifacts/nightly/mage-host.junit.xml | tee artifacts/nightly/mage-host.log
       - name: Upload Mage host artifacts
         if: always()
@@ -126,7 +132,8 @@ jobs:
       - airflow
       - prefect
       - dagster
-      - mage-kestra
+      - mage
+      - kestra
       - dbt
       - advanced-tier
       - mage-host-runtime

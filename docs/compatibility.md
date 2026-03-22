@@ -40,12 +40,12 @@ Release-blocking compatibility and security guarantees apply to these per-surfac
 
 Truthound release line: `>=3.0,<4.0`
 
-| Lane | Airflow | Prefect | Dagster | Mage / Kestra | dbt Compile | dbt Execute |
-|------|---------|---------|---------|----------------|-------------|-------------|
-| PR | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | `postgres` | No |
-| Main | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Release | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + advanced-tier canary | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
+|------|---------|---------|---------|------|--------|-------------|-------------|
+| PR | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Main | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Release | `2.6.0` on `Python 3.11`, `3.1.8` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.1.8` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 

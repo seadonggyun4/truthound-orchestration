@@ -799,12 +799,26 @@ PYTHONPATH=. pytest --import-mode=importlib
 PYTHONPATH=. pytest --import-mode=importlib tests/common
 
 # Run platform package tests with explicit src paths
+PYTHONPATH=.:packages/dbt/src pytest --import-mode=importlib packages/dbt/tests
 PYTHONPATH=.:packages/prefect/src pytest --import-mode=importlib packages/prefect/tests
 PYTHONPATH=.:packages/dagster/src pytest --import-mode=importlib packages/dagster/tests
+PYTHONPATH=.:packages/mage/src pytest --import-mode=importlib packages/mage/tests
+PYTHONPATH=.:packages/kestra/src pytest --import-mode=importlib packages/kestra/tests
+
+# Run repo-level dbt contract tests that exercise the first-party suite wiring
+PYTHONPATH=. pytest --import-mode=importlib tests/dbt/test_first_party_suite.py
 
 # Run all pre-commit checks
 pre-commit run --all-files
 ```
+
+### Test Ownership And CI Routing
+
+Adapter-native tests now live next to adapter code under `packages/<adapter>/tests`, while
+root `tests/<adapter>` is reserved for repo-level contracts, CI harness checks, and other
+cross-package behavior. Use [Testing and CI Ownership](docs/testing-ci-ownership.md) as the
+canonical guide when you add or move tests, choose fixture placement, or decide which adapter
+workflow should run for a change.
 
 ### Repository Structure
 
