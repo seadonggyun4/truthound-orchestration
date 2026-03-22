@@ -11,13 +11,18 @@ nav:
   - Architecture: architecture.md
   - Zero-Config: zero-config.md
   - Compatibility: compatibility.md
+  - Adoption Playbook: adoption-playbook.md
+  - Production Readiness: production-readiness.md
   - Troubleshooting: troubleshooting.md
   - Migration:
       - 3.0 Upgrade: migration/3.0.md
   - Shared Runtime:
       - Overview: common/index.md
+      - Engine Resolution and Selection: common/engine-resolution-selection.md
       - Source Resolution: common/source-resolution.md
+      - Source Resolution Cookbook: common/source-resolution-cookbook.md
       - Preflight and Compatibility: common/preflight-compatibility.md
+      - Failure Catalog: common/failure-catalog.md
       - Result Serialization: common/result-serialization.md
       - Observability and Resilience: common/observability-resilience.md
       - Logging: common/logging.md
@@ -32,19 +37,27 @@ nav:
       - Airflow:
           - Overview: airflow/index.md
           - Install and Compatibility: airflow/install-compatibility.md
+          - Connections and Secrets: airflow/connections-secrets.md
+          - DAG Patterns: airflow/dag-patterns.md
           - Operators: airflow/operators.md
           - Hooks: airflow/hooks.md
           - Sensors and Triggers: airflow/sensors.md
+          - XCom and Result Payloads: airflow/xcom-result-payloads.md
           - SLA and Callbacks: airflow/sla.md
+          - Observability and Alerting: airflow/observability-alerting.md
           - Recipes: airflow/recipes.md
           - Troubleshooting: airflow/troubleshooting.md
       - Dagster:
           - Overview: dagster/index.md
           - Install and Compatibility: dagster/install-compatibility.md
+          - Jobs and Schedules: dagster/jobs-schedules.md
+          - Partitions and Automation: dagster/partitions-automation.md
           - Resources: dagster/resources.md
           - Ops: dagster/ops.md
           - Assets and Asset Checks: dagster/assets.md
+          - Metadata and Result Payloads: dagster/metadata-results.md
           - SLA and Hooks: dagster/sla-hooks.md
+          - Alerting and Automation: dagster/alerting-automation.md
           - Recipes: dagster/recipes.md
           - Troubleshooting: dagster/troubleshooting.md
       - Prefect:
@@ -53,45 +66,67 @@ nav:
           - Blocks: prefect/blocks.md
           - Tasks: prefect/tasks.md
           - Flows: prefect/flows.md
+          - Artifacts and Result Payloads: prefect/artifacts-results.md
+          - Retries, Caching, and Concurrency: prefect/retries-caching-concurrency.md
           - SLA and Hooks: prefect/sla.md
+          - Work Pools and Workers: prefect/work-pools-workers.md
           - Deployment Patterns: prefect/deployment-patterns.md
+          - Rollout Playbooks: prefect/rollout-playbooks.md
           - Troubleshooting: prefect/troubleshooting.md
       - dbt:
           - Overview: dbt/index.md
           - Package Setup and Profiles: dbt/package-setup.md
+          - Singular vs Generic Tests: dbt/singular-vs-generic-tests.md
           - Generic Tests: dbt/generic-tests.md
           - Macros and Operations: dbt/macros.md
           - Adapter Behavior: dbt/adapter-behavior.md
+          - Warehouse Runtime Behavior: dbt/warehouse-runtime-behavior.md
+          - Result Materialization: dbt/result-materialization.md
           - CI and First-Party Suite: dbt/ci-first-party-suite.md
+          - Package Upgrade Guidance: dbt/package-upgrades.md
           - Troubleshooting: dbt/troubleshooting.md
       - Mage:
           - Overview: mage/index.md
           - Project Layout and Blocks: mage/project-layout.md
+          - Block Types and Runtime Context: mage/block-runtime-context.md
           - io_config Discovery: mage/io-config.md
+          - Variables, Secrets, and Profiles: mage/variables-secrets.md
           - Recipes: mage/recipes.md
+          - Production Rollout: mage/production-rollout.md
           - Troubleshooting: mage/troubleshooting.md
       - Kestra:
           - Overview: kestra/index.md
           - Scripts and Flow Templates: kestra/scripts-templates.md
+          - Outputs and Metrics: kestra/outputs-metrics.md
+          - Input and Output Files: kestra/input-output-files.md
+          - Task Runners and Retries: kestra/task-runner-retries.md
+          - Namespaces and Secrets: kestra/namespace-secrets.md
           - Recipes: kestra/recipes.md
           - Troubleshooting: kestra/troubleshooting.md
   - Engines:
       - Overview: engines/index.md
+      - Capability Matrix: engines/capability-matrix.md
+      - Engine Selection Guide: engines/selection-guide.md
       - Truthound Engine: engines/truthound.md
       - Great Expectations: engines/great-expectations.md
       - Pandera: engines/pandera.md
+      - Custom Engine Authoring: engines/custom-engines.md
       - Batch Processing: engines/batch.md
       - Streaming Validation: engines/streaming.md
       - Engine Chain: engines/chain.md
       - Lifecycle: engines/lifecycle.md
       - Drift Detection: engines/drift-detection.md
       - Anomaly Detection: engines/anomaly-detection.md
+      - Error Reporting: engines/error-reporting.md
   - Enterprise and Operations:
       - Overview: enterprise/index.md
+      - Rollout Topologies: enterprise/rollout-topologies.md
       - Multi-Tenant: enterprise/multi-tenant.md
       - Secrets: enterprise/secrets.md
       - Notifications: enterprise/notifications.md
+      - Governance and Audit: enterprise/governance-audit.md
       - CI/CD and Production Rollout: enterprise/ci-cd-production.md
+      - Rollback Playbooks: enterprise/rollback-playbooks.md
   - API Reference:
       - Overview: api-reference/index.md
       - Common Runtime APIs: api-reference/common.md
