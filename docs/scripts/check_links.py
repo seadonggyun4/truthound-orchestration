@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+
 LINK_PATTERN = re.compile(r'!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 SKIP_PREFIXES = ("http://", "https://", "mailto:", "tel:", "data:")
 
