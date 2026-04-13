@@ -128,3 +128,17 @@ def test_dependency_review_only_flags_vulnerable_added_packages() -> None:
 
     assert findings == [changes[2]]
     assert "risky-new 3.0.0 via requirements.txt: GHSA-risk (critical)" in dependency_review.format_findings(findings)
+
+
+def test_foundation_workflow_checks_version_surfaces() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "ci-foundation.yml").read_text(encoding="utf-8")
+
+    assert "python scripts/ci/sync_version_surfaces.py check" in workflow_text
+    assert "tests/common/test_version_surfaces.py" in workflow_text
+
+
+def test_release_gate_passes_expected_tag_to_foundation() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(encoding="utf-8")
+
+    assert "expected_tag:" in workflow_text
+    assert "github.ref_name" in workflow_text

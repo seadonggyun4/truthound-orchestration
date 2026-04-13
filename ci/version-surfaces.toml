@@ -1,0 +1,9 @@
+[release]
+package_version = "3.0.0"
+line = "3.x"
+tag = "v3.0.0"
+
+[truthound]
+primary_version = "3.0.0"
+install_range = ">=3.0,<4.0"
+runtime_requirement = ">=3.0.0,<4.0.0"

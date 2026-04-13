@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      expected_tag:
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       lane:
@@ -19,6 +23,11 @@ on:
           - main
           - release
           - nightly
+      expected_tag:
+        description: Expected release tag, for example v3.0.0
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: ci-foundation-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
@@ -81,8 +90,20 @@ jobs:
             docs/scripts \
             tests/common/test_ci_support_matrix.py \
             tests/common/test_ci_workflow_actions.py \
-            tests/common/test_adapter_test_layout.py | tee artifacts/foundation/ruff.log
+            tests/common/test_adapter_test_layout.py \
+            tests/common/test_version_surfaces.py | tee artifacts/foundation/ruff.log
           mypy scripts/ci docs/scripts | tee artifacts/foundation/mypy.log
+          if [ -n "${{ inputs.expected_tag || github.event.inputs.expected_tag || '' }}" ]; then
+            python scripts/ci/sync_version_surfaces.py check \
+              --expected-tag "${{ inputs.expected_tag || github.event.inputs.expected_tag || '' }}" | tee artifacts/foundation/version-surfaces.log
+          else
+            python scripts/ci/sync_version_surfaces.py check | tee artifacts/foundation/version-surfaces.log
+          fi
+          python -m pytest -q \
+            tests/common/test_ci_support_matrix.py \
+            tests/common/test_ci_workflow_actions.py \
+            tests/common/test_adapter_test_layout.py \
+            tests/common/test_version_surfaces.py | tee artifacts/foundation/pytest.log
           python -m build --outdir dist | tee artifacts/foundation/build.log
           python -m twine check dist/* | tee artifacts/foundation/twine.log
           python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log

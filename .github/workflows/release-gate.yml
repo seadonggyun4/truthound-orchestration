@@ -25,6 +25,7 @@ jobs:
     uses: ./.github/workflows/ci-foundation.yml
     with:
       lane: release
+      expected_tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
 
   shared-runtime:
     needs: foundation

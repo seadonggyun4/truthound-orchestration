@@ -67,7 +67,7 @@ mage = [
 ]
 
 kestra = [
-    "kestra>=0.15.0",
+    "kestra>=1.3.0",
     "pyyaml>=6.0.0",
 ]
 

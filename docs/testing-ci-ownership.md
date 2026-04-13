@@ -19,6 +19,7 @@ Use this page whenever you need to decide:
 - whether a test belongs under `packages/<adapter>/tests` or `tests/<adapter>`
 - which fixtures should stay shared versus adapter-local
 - which workflow should prove the behavior in CI
+- which file owns a version change versus a host compatibility change
 
 ## Prerequisites
 
@@ -100,6 +101,20 @@ Each adapter family should report health independently.
 - root contract failures should remain visible in their contract lane, such as `dbt` or `foundation`
 - summary jobs should aggregate adapter results, not hide ownership boundaries
 
+## Version Ownership
+
+Release-version surfaces and host compatibility surfaces are intentionally split:
+
+| Surface Type | Source Of Truth | Examples |
+|--------------|-----------------|----------|
+| release-version surfaces | `ci/version-surfaces.toml` | root/package `pyproject.toml`, adapter `version.py`, `packages/dbt/dbt_project.yml`, release tag checks |
+| host compatibility surfaces | `ci/support-matrix.toml` | Airflow/Dagster/Prefect minimums, dbt execution versions, security audit surfaces |
+
+Default rule:
+
+- if you are changing `3.0.0`, `v3.0.0`, `3.x`, `>=3.0,<4.0`, or `>=3.0.0,<4.0.0`, edit `ci/version-surfaces.toml` and run `python scripts/ci/sync_version_surfaces.py write`
+- if you are changing supported host versions or CI lane matrices, edit `ci/support-matrix.toml`
+
 ## Failure Modes And Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -109,6 +124,7 @@ Each adapter family should report health independently.
 | package-local tests cannot find fixtures | shared fixtures are still root-only | move generic fixtures to `common.testing` or adapter-local `conftest.py` |
 | CI artifacts bundle multiple adapters together | workflow boundaries are still shared | split the workflow and artifact names by adapter |
 | support-matrix docs drift from workflow reality | matrix export logic or docs sync is stale | run `python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md --write` |
+| package or runtime versions drift from one another | release-version files were hand-edited | run `python scripts/ci/sync_version_surfaces.py write` and commit the generated changes |
 
 ## Adding A New Adapter-Native Test
 
