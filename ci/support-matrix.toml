@@ -11,7 +11,7 @@ primary = "3.0.0"
 required = true
 extra = "airflow"
 min = "2.6.0"
-primary = "3.1.8"
+primary = "3.2.0"
 
 [platforms.airflow.ci.min]
 python = "3.11"
@@ -104,9 +104,9 @@ constraint_urls = []
 
 [security.surfaces.airflow]
 extra = "airflow"
-host_requirements = ["truthound==3.0.0", "apache-airflow==3.1.8"]
+host_requirements = ["truthound==3.0.0", "apache-airflow==3.2.0"]
 constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
-# Airflow 3.1.8 currently resolves through fastapi<0.118, which caps
+# Airflow 3.2.0 still resolves through fastapi<0.118, which caps
 # starlette<0.49.0. Track the remaining advisory explicitly until upstream
 # dependency metadata permits a fixed Starlette release.
 ignore_vulns = ["CVE-2025-62727"]

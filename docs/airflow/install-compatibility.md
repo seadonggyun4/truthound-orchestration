@@ -9,7 +9,7 @@ title: Airflow Install And Compatibility
 Use the canonical compatibility page for the exact CI-backed tuples. For Airflow, the important support anchors are:
 
 - minimum supported: Airflow `2.6.0` on Python `3.11`
-- primary supported: Airflow `3.1.8` on Python `3.12`
+- primary supported: Airflow `3.2.0` on Python `3.12`
 
 See [Compatibility](../compatibility.md) for the generated support matrix.
 
