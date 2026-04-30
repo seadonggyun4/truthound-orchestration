@@ -1,4 +1,4 @@
-<img width="500" alt="Truthound_icon" src="https://github.com/user-attachments/assets/90d9e806-8895-45ec-97dc-f8300da4d997" />
+<img width="900" alt="Truthound banner" src="assets/truthound-icon-banner.png" />
 
 # Truthound Orchestration
 
