@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-prefect"
-version = "3.0.0"
+version = "3.0.1"
 description = "Prefect integration for data quality operations with Truthound"
 readme = "README.md"
 license = "MIT"
@@ -33,7 +33,7 @@ classifiers = [
 ]
 dependencies = [
     "prefect>=2.14.0",
-    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound-orchestration>=3.0.1,<4.0.0",
     "truthound>=3.0,<4.0",
 ]
 

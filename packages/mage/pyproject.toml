@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-mage"
-version = "3.0.0"
+version = "3.0.1"
 description = "Mage AI integration for data quality validation with pluggable engine support"
 readme = "README.md"
 license = "MIT"
@@ -26,7 +26,7 @@ classifiers = [
 keywords = ["mage", "mage-ai", "data-quality", "truthound", "validation", "great-expectations", "pandera"]
 
 dependencies = [
-    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound-orchestration>=3.0.1,<4.0.0",
     "truthound>=3.0,<4.0",
     "polars>=0.20.0",
 ]

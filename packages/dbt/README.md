@@ -23,7 +23,7 @@
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.0,<4.0.0"
+    version: ">=3.0.1,<4.0.0"
 ```
 
 ### From Git
@@ -33,7 +33,7 @@ packages:
 packages:
   - git: "https://github.com/seadonggyun4/truthound-integrations.git"
     subdirectory: "packages/dbt"
-    revision: "v3.0.0"
+    revision: "v3.0.1"
 ```
 
 ### Local Development

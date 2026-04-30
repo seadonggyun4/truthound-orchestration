@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-airflow"
-version = "3.0.0"
+version = "3.0.1"
 description = "Apache Airflow provider for data quality validation with pluggable engine support"
 readme = "README.md"
 license = "MIT"
@@ -29,7 +29,7 @@ keywords = ["airflow", "data-quality", "truthound", "validation", "great-expecta
 
 dependencies = [
     "apache-airflow>=2.6.0",
-    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound-orchestration>=3.0.1,<4.0.0",
     "truthound>=3.0,<4.0",
     "polars>=0.20.0",
 ]

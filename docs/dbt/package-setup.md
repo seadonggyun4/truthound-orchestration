@@ -26,7 +26,7 @@ See [Compatibility](../compatibility.md) for the current orchestration support m
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.0,<4.0.0"
+    version: ">=3.0.1,<4.0.0"
 ```
 
 Then install:

@@ -109,7 +109,7 @@ When you omit a saved block, Prefect uses an in-memory Truthound-backed configur
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.0,<4.0.0"
+    version: ">=3.0.1,<4.0.0"
 ```
 
 ```yaml

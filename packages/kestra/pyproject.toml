@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "truthound-kestra"
-version = "3.0.0"
+version = "3.0.1"
 description = "Truthound data quality integration for Kestra workflow orchestration"
 readme = "README.md"
 license = "MIT"
@@ -33,7 +33,7 @@ keywords = [
     "truthound",
 ]
 dependencies = [
-    "truthound-orchestration>=3.0.0,<4.0.0",
+    "truthound-orchestration>=3.0.1,<4.0.0",
     "truthound>=3.0,<4.0",
     "polars>=0.20.0",
     "pyyaml>=6.0",

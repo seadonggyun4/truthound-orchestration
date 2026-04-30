@@ -1,6 +1,6 @@
 [project]
 name = "truthound-orchestration"
-version = "3.0.0"
+version = "3.0.1"
 description = "Official orchestration integrations for Truthound data quality framework"
 readme = "README.md"
 license = { text = "Apache-2.0" }

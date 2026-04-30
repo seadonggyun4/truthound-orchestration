@@ -99,7 +99,7 @@ Public API:
     - Testing: MockDataQualityEngine, MockTruthound, create_mock_* functions
 """
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 # =============================================================================
 # Exceptions

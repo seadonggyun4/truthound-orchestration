@@ -107,7 +107,7 @@ Public API:
         - MockAdapter, MockManifest, create_mock_test_result
 """
 
-__version__ = "3.0.0"
+__version__ = "3.0.1"
 
 # =============================================================================
 # Adapters

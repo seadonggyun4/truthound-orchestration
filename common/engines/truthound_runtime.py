@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
-TRUTHOUND_VERSION_REQUIREMENT = ">=3.0.0,<4.0.0"
+TRUTHOUND_VERSION_REQUIREMENT = ">=3.0.1,<4.0.0"
 TRUTHOUND_CONTEXT_MODES = frozenset({"ephemeral", "project", "provided"})
 
 
