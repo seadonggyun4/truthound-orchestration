@@ -63,6 +63,7 @@ pytest_cache/
 dmypy.json
 .pytype/
 .pyre/
+.ruff_cache/
 
 # =============================================================================
 # Virtual Environments
