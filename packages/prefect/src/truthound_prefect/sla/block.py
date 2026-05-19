@@ -110,17 +110,31 @@ class SLABlock(Block):
         metrics_hook = getattr(self, "_metrics_hook", None)
         return metrics_hook if isinstance(metrics_hook, MetricsSLAHook) else None
 
+    def _resolved_value(self, field_name: str) -> Any:
+        """Return a concrete runtime value for a block field.
+
+        Prefect/Pydantic compatibility can leave class-level ``Field`` metadata
+        visible on block instances before values are materialized. When that
+        happens we fall back to the field default so runtime config creation
+        still sees the intended primitive value.
+        """
+
+        value = getattr(self, field_name)
+        if not isinstance(value, str) and hasattr(value, "default"):
+            return value.default
+        return value
+
     def _get_config(self) -> SLAConfig:
         """Build SLA config from block settings."""
         return SLAConfig(
-            max_failure_rate=self.max_failure_rate,
-            min_pass_rate=self.min_pass_rate,
-            max_execution_time_seconds=self.max_execution_time_seconds,
-            min_row_count=self.min_row_count,
-            max_row_count=self.max_row_count,
-            max_consecutive_failures=self.max_consecutive_failures,
-            alert_on_warning=self.alert_on_warning,
-            alert_level=AlertLevel(self.alert_level),
+            max_failure_rate=self._resolved_value("max_failure_rate"),
+            min_pass_rate=self._resolved_value("min_pass_rate"),
+            max_execution_time_seconds=self._resolved_value("max_execution_time_seconds"),
+            min_row_count=self._resolved_value("min_row_count"),
+            max_row_count=self._resolved_value("max_row_count"),
+            max_consecutive_failures=self._resolved_value("max_consecutive_failures"),
+            alert_on_warning=self._resolved_value("alert_on_warning"),
+            alert_level=AlertLevel(str(self._resolved_value("alert_level"))),
             enabled=True,
         )
 
@@ -131,10 +145,10 @@ class SLABlock(Block):
             config = self._get_config()
             hooks = []
 
-            if self.enable_logging:
+            if self._resolved_value("enable_logging"):
                 hooks.append(LoggingSLAHook())
 
-            if self.enable_metrics:
+            if self._resolved_value("enable_metrics"):
                 metrics_hook = MetricsSLAHook()
                 self._metrics_hook = metrics_hook
                 hooks.append(metrics_hook)
@@ -174,7 +188,7 @@ class SLABlock(Block):
 
         violations = monitor.check(metrics, context)
 
-        if violations and self.raise_on_violation:
+        if violations and self._resolved_value("raise_on_violation"):
             raise SLAViolationError(
                 message=f"SLA violated with {len(violations)} violation(s)",
                 violations=violations,
