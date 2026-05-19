@@ -107,10 +107,10 @@ constraint_urls = []
 extra = "airflow"
 host_requirements = ["truthound==3.0.0", "apache-airflow==3.2.0"]
 constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
-# Airflow 3.2.0 still resolves through fastapi<0.118, which caps
-# starlette<0.49.0. Track the remaining advisory explicitly until upstream
-# dependency metadata permits a fixed Starlette release.
-ignore_vulns = ["CVE-2025-62727"]
+# Airflow 3.2.0 currently has known advisories that only clear on 3.2.1rc1.
+# Keep them visible in source control, but do not block the advisory lane on a
+# release candidate-only upgrade path until a stable upstream fix is available.
+ignore_vulns = ["CVE-2025-62727", "CVE-2026-40690", "CVE-2026-38743"]
 constraint_urls = []
 
 [security.surfaces.prefect]
