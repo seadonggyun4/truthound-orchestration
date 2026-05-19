@@ -163,6 +163,12 @@ def build_security_audit_inputs(data: dict[str, Any]) -> dict[str, Any]:
                 for name in security["blocking_surfaces"]
             ]
         },
+        "advisory_matrix": {
+            "include": [
+                build_security_surface(data, name)
+                for name in security.get("advisory_surfaces", [])
+            ]
+        },
         "canary_matrix": {
             "include": [
                 build_security_surface(data, name)
@@ -211,7 +217,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             ", ".join(
                 f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]
             ),
-            "Yes (`postgres`)",
+            "Yes (`postgres`)" if data["lanes"]["main"]["dbt_execution"] else "No",
         ),
         (
             "Release",
@@ -309,8 +315,13 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ]
     )
     lines.extend(
-        f"| `{name}` | {install_surface(data['security']['surfaces'][name]['extra'])} | {'Yes' if name in data['security']['blocking_surfaces'] else 'Nightly canary only'} |"
-        for name in [*data["security"]["blocking_surfaces"], *data["security"]["canary_surfaces"]]
+        f"| `{name}` | {install_surface(data['security']['surfaces'][name]['extra'])} | "
+        f"{'Yes' if name in data['security']['blocking_surfaces'] else ('Push/release advisory only' if name in data['security'].get('advisory_surfaces', []) else 'Nightly canary only')} |"
+        for name in [
+            *data["security"]["blocking_surfaces"],
+            *data["security"].get("advisory_surfaces", []),
+            *data["security"]["canary_surfaces"],
+        ]
     )
     lines.extend(
         [

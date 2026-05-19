@@ -35,25 +35,13 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
     }
 
 
-def test_prefect_main_matrix_pairs_minimum_host_with_python_311() -> None:
+def test_prefect_main_matrix_is_primary_only_for_slim_main() -> None:
     data = ci_support_matrix.load_support_matrix()
 
     payload = ci_support_matrix.build_workflow_payload(data, "prefect", "main")
 
     assert payload["host_matrix"] == {
         "include": [
-            {
-                "label": "min",
-                "version": "2.14.0",
-                "python_version": "3.11",
-                "constraints": [
-                    "anyio<4.0.0",
-                    "griffe<1.0.0",
-                    "pendulum<3.0.0",
-                    "starlette<0.28.0",
-                ],
-                "constraint_urls": [],
-            },
             {
                 "label": "primary",
                 "version": "3.6.22",
@@ -65,10 +53,10 @@ def test_prefect_main_matrix_pairs_minimum_host_with_python_311() -> None:
     }
 
 
-def test_dagster_min_matrix_applies_legacy_pendulum_constraint() -> None:
+def test_dagster_release_min_matrix_applies_legacy_pendulum_constraint() -> None:
     data = ci_support_matrix.load_support_matrix()
 
-    payload = ci_support_matrix.build_workflow_payload(data, "dagster", "main")
+    payload = ci_support_matrix.build_workflow_payload(data, "dagster", "release")
 
     assert payload["host_matrix"]["include"][0] == {
         "label": "min",
@@ -79,15 +67,15 @@ def test_dagster_min_matrix_applies_legacy_pendulum_constraint() -> None:
     }
 
 
-def test_dbt_main_matrix_includes_all_dispatch_targets() -> None:
+def test_dbt_main_matrix_is_compile_smoke_only() -> None:
     data = ci_support_matrix.load_support_matrix()
 
     payload = ci_support_matrix.build_workflow_payload(data, "dbt", "main")
 
-    assert payload["run_execution"] is True
+    assert payload["run_execution"] is False
     assert payload["execution_target"] == "postgres"
     targets = [entry["target"] for entry in payload["compile_matrix"]["include"]]
-    assert targets == ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
+    assert targets == ["postgres"]
 
 
 def test_mage_and_kestra_payloads_export_independent_python_lanes() -> None:
@@ -113,11 +101,11 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
 
     assert payload["python_version"] == "3.12"
     blocking = {entry["label"]: entry for entry in payload["blocking_matrix"]["include"]}
+    advisory = {entry["label"]: entry for entry in payload["advisory_matrix"]["include"]}
     canary = {entry["label"]: entry for entry in payload["canary_matrix"]["include"]}
 
     assert list(blocking) == [
         "base",
-        "airflow",
         "prefect",
         "dagster",
         "dbt",
@@ -132,16 +120,16 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "ignore_vulns": [],
         "constraint_urls": [],
     }
-    assert blocking["airflow"]["host_requirements"] == [
+    assert advisory["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
         "apache-airflow==3.2.0",
     ]
-    assert blocking["airflow"]["constraints"] == [
+    assert advisory["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
         "pyjwt>=2.12.0",
     ]
-    assert blocking["airflow"]["ignore_vulns"] == ["CVE-2025-62727"]
-    assert blocking["airflow"]["constraint_urls"] == []
+    assert advisory["airflow"]["ignore_vulns"] == ["CVE-2025-62727"]
+    assert advisory["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.22",

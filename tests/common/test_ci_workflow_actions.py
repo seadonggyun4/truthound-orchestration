@@ -150,12 +150,27 @@ def test_pr_ci_uses_smoke_suite_tier_for_all_reusable_workflows() -> None:
     assert workflow_text.count("suite_tier: smoke") == 7
 
 
-def test_main_and_nightly_use_full_suite_tier_for_reusable_workflows() -> None:
+def test_main_uses_change_routed_smoke_and_nightly_keeps_full_suite_tier() -> None:
     main_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
     nightly_text = (ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
 
-    assert main_text.count("suite_tier: full") == 7
+    assert "jobs:\n  changes:" in main_text
+    assert "docs_only:" in main_text
+    assert main_text.count("suite_tier: smoke") == 7
+    assert "suite_tier: full" not in main_text
     assert nightly_text.count("suite_tier: full") == 7
+
+
+def test_main_ci_skips_adapter_fanout_for_docs_only_changes() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
+
+    assert "needs.changes.outputs.docs_only != 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'" in workflow_text
+    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'" in workflow_text
 
 
 def test_reusable_workflows_expose_suite_tier_input() -> None:
@@ -226,7 +241,18 @@ def test_dbt_workflow_keeps_compile_execution_split_and_smoke_python_contracts()
 
     assert "compile-matrix:" in workflow_text
     assert "postgres-execution:" in workflow_text
+    assert "needs.matrix.outputs.run_execution == 'true'" in workflow_text
     assert "packages/dbt/tests/test_depot.py" in workflow_text
     assert "packages/dbt/tests/test_hooks.py" in workflow_text
     assert "packages/dbt/tests/test_macros.py" in workflow_text
     assert "tests/dbt/test_first_party_suite.py" in workflow_text
+
+
+def test_security_workflow_splits_blocking_and_advisory_pip_audit_groups() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "security.yml").read_text(encoding="utf-8")
+
+    assert "advisory_matrix:" in workflow_text
+    assert "pip-audit-advisory:" in workflow_text
+    assert "continue-on-error: true" in workflow_text
+    assert "summary-blocking:" in workflow_text
+    assert "summary-advisory:" in workflow_text

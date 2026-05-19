@@ -38,6 +38,7 @@ jobs:
     outputs:
       python_version: ${{ steps.export.outputs.python_version }}
       blocking_matrix: ${{ steps.export.outputs.blocking_matrix }}
+      advisory_matrix: ${{ steps.export.outputs.advisory_matrix }}
       canary_matrix: ${{ steps.export.outputs.canary_matrix }}
     steps:
       - uses: actions/checkout@v5
@@ -175,6 +176,99 @@ jobs:
           name: truthound-security-${{ matrix.label }}
           path: artifacts/security/*
 
+  pip-audit-advisory:
+    if: github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')
+    needs: matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.advisory_matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ needs.matrix.outputs.python_version }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            ci/support-matrix.toml
+      - name: Write advisory security inputs
+        env:
+          HOST_REQUIREMENTS_JSON: ${{ toJSON(matrix.host_requirements) }}
+          CONSTRAINTS_JSON: ${{ toJSON(matrix.constraints) }}
+          IGNORE_VULNS_JSON: ${{ toJSON(matrix.ignore_vulns) }}
+          CONSTRAINT_URLS_JSON: ${{ toJSON(matrix.constraint_urls) }}
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import os
+
+          output_dir = Path("artifacts/security/generated")
+          output_dir.mkdir(parents=True, exist_ok=True)
+          requirements = json.loads(os.environ["HOST_REQUIREMENTS_JSON"])
+          constraints = json.loads(os.environ["CONSTRAINTS_JSON"])
+          ignore_vulns = json.loads(os.environ["IGNORE_VULNS_JSON"])
+          constraint_urls = json.loads(os.environ["CONSTRAINT_URLS_JSON"])
+          (output_dir / "requirements-host.txt").write_text("\n".join(requirements) + "\n", encoding="utf-8")
+          constraint_text = "\n".join(constraints) + ("\n" if constraints else "")
+          (output_dir / "constraints.txt").write_text(constraint_text, encoding="utf-8")
+          (output_dir / "ignore-vulns.txt").write_text(
+              "\n".join(ignore_vulns) + ("\n" if ignore_vulns else ""),
+              encoding="utf-8",
+          )
+          (output_dir / "constraint-urls.txt").write_text(
+              "\n".join(constraint_urls) + ("\n" if constraint_urls else ""),
+              encoding="utf-8",
+          )
+          PY
+      - name: Install advisory audit dependencies
+        env:
+          EXTRA: ${{ matrix.extra }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit
+          install_args=()
+          if [ -s artifacts/security/generated/constraint-urls.txt ]; then
+            while IFS= read -r constraint_url; do
+              [ -n "${constraint_url}" ] || continue
+              install_args+=(--constraint "${constraint_url}")
+            done < artifacts/security/generated/constraint-urls.txt
+          fi
+          if [ -s artifacts/security/generated/constraints.txt ]; then
+            install_args+=(-c artifacts/security/generated/constraints.txt)
+          fi
+          install_args+=(-r artifacts/security/generated/requirements-host.txt)
+          python -m pip install "${install_args[@]}"
+          package_target="."
+          if [ -n "${EXTRA}" ]; then
+            package_target=".[${EXTRA}]"
+          fi
+          python -m pip install --no-deps -e "${package_target}"
+      - name: Run pip-audit advisory surface
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/security
+          audit_args=()
+          if [ -s artifacts/security/generated/ignore-vulns.txt ]; then
+            while IFS= read -r vuln_id; do
+              [ -n "${vuln_id}" ] || continue
+              audit_args+=(--ignore-vuln "${vuln_id}")
+            done < artifacts/security/generated/ignore-vulns.txt
+          fi
+          pip-audit --local --progress-spinner off "${audit_args[@]}" | tee "artifacts/security/pip-audit-advisory-${{ matrix.label }}.log"
+      - name: Upload advisory security artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: truthound-security-advisory-${{ matrix.label }}
+          path: artifacts/security/*
+
   pip-audit-canary:
     if: github.event_name == 'schedule' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') == 'nightly')
     needs: matrix
@@ -286,7 +380,7 @@ jobs:
           languages: ${{ matrix.language }}
       - uses: github/codeql-action/analyze@v4
 
-  summary:
+  summary-blocking:
     if: always()
     needs:
       - matrix
@@ -315,5 +409,31 @@ jobs:
           }
           if failures:
               raise SystemExit(f"Security workflow failed: {failures}")
-          print("Security summary passed")
+          print("Blocking security summary passed")
+          PY
+
+  summary-advisory:
+    if: always()
+    needs:
+      - matrix
+      - pip-audit-advisory
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Report advisory security results
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          advisory = needs["pip-audit-advisory"]["result"]
+          if advisory not in {"success", "skipped"}:
+              print("::warning::Host-specific advisory audit surfaces reported findings. See pip-audit-advisory for details.")
+          else:
+              print("Advisory security summary passed")
           PY

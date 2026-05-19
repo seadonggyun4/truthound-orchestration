@@ -93,7 +93,8 @@ extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
 
 [security]
 python = "primary"
-blocking_surfaces = ["base", "airflow", "prefect", "dagster", "dbt", "kestra", "opentelemetry"]
+blocking_surfaces = ["base", "prefect", "dagster", "dbt", "kestra", "opentelemetry"]
+advisory_surfaces = ["airflow"]
 canary_surfaces = ["all"]
 
 [security.surfaces.base]
@@ -180,13 +181,13 @@ dbt_execution = false
 [lanes.main]
 foundation_python = ["primary"]
 shared_runtime_python = ["primary"]
-airflow_versions = ["min", "primary"]
-prefect_versions = ["min", "primary"]
-dagster_versions = ["min", "primary"]
+airflow_versions = ["primary"]
+prefect_versions = ["primary"]
+dagster_versions = ["primary"]
 mage_python = ["primary"]
 kestra_python = ["primary"]
-dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
-dbt_execution = true
+dbt_compile_targets = ["postgres"]
+dbt_execution = false
 
 [lanes.release]
 foundation_python = ["primary"]

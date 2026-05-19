@@ -10,6 +10,79 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      all_platforms: ${{ steps.classify.outputs.all_platforms }}
+      airflow: ${{ steps.classify.outputs.airflow }}
+      prefect: ${{ steps.classify.outputs.prefect }}
+      dagster: ${{ steps.classify.outputs.dagster }}
+      mage: ${{ steps.classify.outputs.mage }}
+      kestra: ${{ steps.classify.outputs.kestra }}
+      dbt: ${{ steps.classify.outputs.dbt }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import os
+          import subprocess
+          from pathlib import Path
+
+          root = Path.cwd()
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          event_name = os.environ["EVENT_NAME"]
+
+          if event_name == "workflow_dispatch":
+              outputs = {
+                  "docs": False,
+                  "all_platforms": True,
+                  "airflow": True,
+                  "prefect": True,
+                  "dagster": True,
+                  "mage": True,
+                  "kestra": True,
+                  "dbt": True,
+                  "docs_only": False,
+              }
+          else:
+              before_sha = os.environ["BEFORE_SHA"]
+              after_sha = os.environ["AFTER_SHA"]
+              zero_sha = "0" * 40
+              if not before_sha or before_sha == zero_sha:
+                  before_sha = subprocess.check_output(
+                      ["git", "rev-parse", f"{after_sha}^"],
+                      text=True,
+                  ).strip()
+
+              changed = subprocess.check_output(
+                  ["git", "diff", "--name-only", before_sha, after_sha],
+                  text=True,
+              ).splitlines()
+
+              module_path = root / "scripts" / "ci" / "pr_change_filter.py"
+              spec = importlib.util.spec_from_file_location("pr_change_filter", module_path)
+              assert spec is not None and spec.loader is not None
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              outputs = module.classify_changed_files(changed)
+
+          with output_path.open("a", encoding="utf-8") as handle:
+              for key, value in outputs.items():
+                  handle.write(f"{key}={'true' if value else 'false'}\n")
+          PY
+
   foundation:
     permissions:
       contents: read
@@ -19,53 +92,74 @@ jobs:
       lane: main
 
   shared-runtime:
-    needs: foundation
+    if: needs.changes.outputs.docs_only != 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/shared-runtime.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   airflow:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/airflow.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   prefect:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/prefect.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   dagster:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/dagster.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   mage:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/mage.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   kestra:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/kestra.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   dbt:
-    needs: foundation
+    if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'
+    needs:
+      - changes
+      - foundation
     uses: ./.github/workflows/dbt.yml
     with:
       lane: main
-      suite_tier: full
+      suite_tier: smoke
 
   summary:
     if: always()

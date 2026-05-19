@@ -43,7 +43,7 @@ Truthound release line: `>=3.0,<4.0`
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
 | PR | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `2.6.0` on `Python 3.11`, `3.2.0` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Main | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
 | Release | `2.6.0` on `Python 3.11`, `3.2.0` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 | Nightly | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
@@ -62,12 +62,12 @@ Truthound release line: `>=3.0,<4.0`
 | Surface | Install Surface | Release Blocking |
 |---------|-----------------|------------------|
 | `base` | `truthound-orchestration` | Yes |
-| `airflow` | `truthound-orchestration[airflow]` | Yes |
 | `prefect` | `truthound-orchestration[prefect]` | Yes |
 | `dagster` | `truthound-orchestration[dagster]` | Yes |
 | `dbt` | `truthound-orchestration[dbt]` | Yes |
 | `kestra` | `truthound-orchestration[kestra]` | Yes |
 | `opentelemetry` | `truthound-orchestration[opentelemetry]` | Yes |
+| `airflow` | `truthound-orchestration[airflow]` | Push/release advisory only |
 | `all` | `truthound-orchestration[all]` | Nightly canary only |
 
 First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
