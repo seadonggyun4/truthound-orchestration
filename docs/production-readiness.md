@@ -47,6 +47,8 @@ Before rollout, confirm all of the following:
 | Results | the team knows where results land: XCom, metadata, artifacts, outputs, or dbt test status |
 | Operations | retries, caching, rate limiting, notifications, and SLA handling are configured where needed |
 
+If the rollout depends on Depot flows such as scheduled sync, release tagging, or rollback triggers, also confirm the orchestration side is treating Depot as a pipeline execution layer only. Approval, release safety, and rollback safety should remain Depot-owned. See [Depot Pipelines](depot-pipelines.md).
+
 ## Production Pattern
 
 The most reliable rollout sequence is:
@@ -86,6 +88,7 @@ The most reliable rollout sequence is:
 ## Related Pages
 
 - [Choose a Platform](choose-a-platform.md)
+- [Depot Pipelines](depot-pipelines.md)
 - [Shared Runtime](common/index.md)
 - [Data Quality Engines](engines/index.md)
 - [Enterprise Operations](enterprise/index.md)

@@ -32,3 +32,5 @@ def validate_users() -> dict:
 - Zero-config Truthound-first task helpers
 - Shared orchestration wire serialization
 - Truthound 3.x compatibility line
+
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The Prefect-specific happy path uses `DepotBlock` together with the Depot task helpers in `truthound_prefect.tasks.depot`.

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DOC_FILES = [
     ROOT / "mkdocs.yml",
     ROOT / "docs/index.md",
+    ROOT / "docs/depot-pipelines.md",
     ROOT / "docs/getting-started.md",
     ROOT / "docs/architecture.md",
     ROOT / "docs/compatibility.md",
@@ -48,6 +49,7 @@ def main() -> int:
     checks = [
         _require(ROOT / "README.md", "official orchestration integrations for Truthound 3.x"),
         _require(ROOT / "README.md", "Truthound 3.x Compatibility"),
+        _require(ROOT / "README.md", "Depot Pipeline Operations"),
         _require_any(
             ROOT / "docs/index.md",
             (
@@ -56,6 +58,10 @@ def main() -> int:
             ),
             label="homepage compatibility positioning",
         ),
+        _require(ROOT / "docs/index.md", "Depot Pipelines"),
+        _require(ROOT / "docs/depot-pipelines.md", "pipeline execution layer"),
+        _require(ROOT / "docs/depot-pipelines.md", "approval, release safety, rollback safety"),
+        _require(ROOT / "mkdocs.yml", "Depot Pipelines: depot-pipelines.md"),
         _require(ROOT / "docs/zero-config.md", "safe_auto"),
         _require(ROOT / "docs/compatibility.md", "supports `Truthound 3.x` only"),
         _require(ROOT / "docs/compatibility.md", "BEGIN GENERATED SUPPORT MATRIX"),

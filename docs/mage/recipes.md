@@ -55,8 +55,28 @@ Create one helper module that returns prebuilt `CheckBlockConfig`,
 `ProfileBlockConfig`, and `SensorBlockConfig` objects. This prevents configuration
 drift across pipelines.
 
+## Depot Pipeline Happy Path
+
+Use the Depot block helpers when a Mage pipeline needs shared scheduled sync or branch validation behavior without hiding execution state inside ad hoc block code.
+
+```python
+from truthound_mage.blocks.depot import scheduled_sync
+from truthound_mage.blocks.base import BlockExecutionContext
+
+
+def transform(*args, **kwargs):
+    return scheduled_sync(
+        depot_id="customer-platform",
+        asset_id="users",
+        context=BlockExecutionContext(block_uuid="sync-users", pipeline_uuid="users-pipeline"),
+    )
+```
+
+The block returns the shared compact Depot flow payload. Mage still owns block wiring and pipeline-local execution, while Depot keeps ownership of approval, release safety, rollback safety, and business state. For the shared status and failure semantics, see [Depot Pipelines](../depot-pipelines.md).
+
 ## Related Pages
 
 - [Project Layout](project-layout.md)
 - [`io_config.yaml`](io-config.md)
 - [Troubleshooting](troubleshooting.md)
+- [Depot Pipelines](../depot-pipelines.md)

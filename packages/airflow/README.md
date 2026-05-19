@@ -17,6 +17,8 @@ pip install truthound-airflow
 - DataQualityHook - Connection management for data sources
 - SLA monitoring and callbacks
 
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The Airflow-specific happy path uses `DepotScheduledValidationOperator` and the other Depot operators exported from `truthound_airflow.operators`.
+
 ## Usage
 
 ```python

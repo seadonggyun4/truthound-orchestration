@@ -83,6 +83,26 @@ Streaming support still depends on the selected engine capability. Use preflight
 
 `TruthoundCheckOperator`, `TruthoundProfileOperator`, and `TruthoundLearnOperator` exist for teams that want the Truthound-first path to be explicit in DAG code. Use them when that clarity is more valuable than host-neutral operator naming.
 
+## Depot Pipeline Happy Path
+
+Use the Depot operators when the DAG needs branch-aware validation or scheduled Depot execution while still keeping DAG ownership inside Airflow.
+
+```python
+from airflow import DAG
+from truthound_airflow.operators import DepotScheduledValidationOperator
+
+with DAG("depot_validation", schedule="@daily", catchup=False) as dag:
+    validate_branch = DepotScheduledValidationOperator(
+        task_id="validate_branch",
+        depot_id="customer-platform",
+        asset_id="users",
+        branch_id="main",
+        wait=True,
+    )
+```
+
+The operator returns the shared compact Depot payload through XCom. Airflow still owns retries, task state, and downstream wiring, while Depot keeps ownership of approval, release safety, rollback safety, and business state. For the shared semantics behind `waiting`, `no_op`, and failed terminal states, see [Depot Pipelines](../depot-pipelines.md).
+
 ## XCom Contract
 
 Operators publish structured results that should be treated as shared runtime payloads with Airflow metadata around them. Downstream tasks should read documented result fields rather than inventing their own parser assumptions.
@@ -108,3 +128,4 @@ Make behavior explicit when:
 - [Sensors and Triggers](sensors.md)
 - [SLA and Callbacks](sla.md)
 - [Recipes](recipes.md)
+- [Depot Pipelines](../depot-pipelines.md)

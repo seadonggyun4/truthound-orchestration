@@ -39,6 +39,7 @@ Default rule:
 
 - if a test imports only adapter package code and shared fixtures, it belongs package-local
 - if a test verifies repo wiring, CI contracts, install surfaces, or multi-package behavior, it belongs at the repo root
+- if a test verifies shared Depot operation, flow, failure, or observability contracts across hosts, it belongs under `tests/common/`
 
 ## Minimal Quickstart
 
@@ -100,6 +101,7 @@ Each adapter family should report health independently.
 - package-local adapter failures should appear in the adapter workflow, not inside a bundled multi-host lane
 - root contract failures should remain visible in their contract lane, such as `dbt` or `foundation`
 - summary jobs should aggregate adapter results, not hide ownership boundaries
+- Depot shared smoke belongs in `shared-runtime.yml`, while adapter-native Depot projection tests remain package-local
 
 ## Version Ownership
 
@@ -139,6 +141,7 @@ Use this checklist:
 ## Related Pages
 
 - [Compatibility](compatibility.md)
+- [Depot Pipelines](depot-pipelines.md)
 - [Production Readiness](production-readiness.md)
 - [Troubleshooting](troubleshooting.md)
 - [Releasing](releasing.md)

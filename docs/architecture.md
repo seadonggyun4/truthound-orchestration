@@ -33,6 +33,8 @@ Host package
 - compatibility and preflight checks
 - shared wire serialization
 
+Depot execution extends that same shared boundary. The orchestration layer may normalize Depot requests, wait or poll on shared flow state, attach artifact refs, and emit compact payloads, but it must not take ownership of Depot approval, release safety, rollback safety, or business state. See [Depot Pipelines](depot-pipelines.md).
+
 Key public runtime types:
 
 - `EngineCreationRequest`
@@ -79,6 +81,17 @@ Most host flows follow the same sequence:
 8. The host package adds host metadata or rendering wrappers.
 
 This is the core reason platform packages can stay thin while still behaving consistently.
+
+## Depot Pipeline Layer
+
+Depot support is implemented as a parallel shared runtime façade rather than a platform-specific sidecar. The shared layer owns:
+
+- request normalization for Depot operations and flows
+- compact operation and flow payload emission
+- failure normalization and observability redaction
+- host-safe projection boundaries for Airflow, Prefect, Dagster, dbt, Mage, and Kestra
+
+The adapters still own only their native entrypoints. They do not become Depot business-state owners.
 
 ## Zero-Config Contract
 
@@ -128,5 +141,6 @@ This architecture gives you three important benefits:
 - [Getting Started](getting-started.md)
 - [Choose a Platform](choose-a-platform.md)
 - [Zero-Config](zero-config.md)
+- [Depot Pipelines](depot-pipelines.md)
 - [Shared Runtime](common/index.md)
 - [Engines](engines/index.md)

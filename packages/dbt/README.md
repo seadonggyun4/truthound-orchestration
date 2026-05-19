@@ -15,6 +15,8 @@
 - **Performance Optimized**: Adapter-specific SQL optimizations
 - **CI/CD Ready**: Manifest parser for coverage reporting
 
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The dbt-specific happy path uses the `truthound_depot_validate_branch` and `truthound_depot_release_tag` `run-operation` macros.
+
 ## Installation
 
 ### From dbt Hub (Recommended)

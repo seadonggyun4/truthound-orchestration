@@ -29,8 +29,11 @@ matrix, or result contract changes unexpectedly.
 4. restore public docs if operator-facing guidance regressed
 5. reopen rollout only after the failing tuple or contract is reproduced and fixed
 
+When the incident involves Depot-triggered release or rollback flows, treat the shared orchestration layer as the execution and status propagation surface only. Approval and rollback safety still belong to Depot policy. See [Depot Pipelines](../depot-pipelines.md).
+
 ## Related Pages
 
 - [CI/CD and Production Rollout](ci-cd-production.md)
 - [Rollout Topologies](rollout-topologies.md)
+- [Depot Pipelines](../depot-pipelines.md)
 - [Failure Catalog](../common/failure-catalog.md)

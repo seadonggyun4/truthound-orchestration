@@ -52,6 +52,8 @@ flow_yaml = generate_check_flow(
 - **Output Handlers**: Parse and handle Kestra task outputs
 - **SLA Monitoring**: Built-in SLA monitoring and alerting
 
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The Kestra-specific happy path uses the Depot script entrypoints and generated Depot flow templates from `truthound_kestra`.
+
 ## Supported Engines
 
 - Truthound (default)

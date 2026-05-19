@@ -33,6 +33,8 @@ result = block.execute(dataframe)
 - **DataQualityConditionBlock**: Condition block for branching based on data quality
 - **SLA Monitoring**: Built-in SLA monitoring and alerting
 
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The Mage-specific happy path uses the Depot helpers in `truthound_mage.blocks.depot`, including `scheduled_sync` and `validate_branch`.
+
 ## Supported Engines
 
 - Truthound (default)

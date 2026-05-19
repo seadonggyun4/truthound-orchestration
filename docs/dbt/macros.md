@@ -90,6 +90,32 @@ dbt run-operation run_truthound_summary --args '{
 The first-party suite uses these macros to prove that package logic works in a real
 warehouse, not only in compilation.
 
+## Depot Pipeline Happy Path
+
+Use the Depot macros when a dbt project needs branch validation or release-tag style orchestration through `run-operation`, without turning dbt into a long-lived Depot control plane.
+
+### `truthound_depot_validate_branch`
+
+```bash
+dbt run-operation truthound_depot_validate_branch --args '{
+  "depot_id": "customer-platform",
+  "asset_id": "users",
+  "branch_id": "main"
+}'
+```
+
+### `truthound_depot_release_tag`
+
+```bash
+dbt run-operation truthound_depot_release_tag --args '{
+  "depot_id": "customer-platform",
+  "asset_id": "users",
+  "release_tag": "v3.0.1"
+}'
+```
+
+These operations return the shared compact Depot payload. dbt still owns the command surface and warehouse context, while Depot keeps ownership of approval, release safety, rollback safety, and business state. For the cross-host contract, see [Depot Pipelines](../depot-pipelines.md).
+
 ## Windowed And Incremental Helpers
 
 The package also exposes window helpers in `truthound_window.sql`.
@@ -148,3 +174,4 @@ adapter.
 - [Generic Tests](generic-tests.md)
 - [Adapter Behavior](adapter-behavior.md)
 - [CI and First-Party Suite](ci-first-party-suite.md)
+- [Depot Pipelines](../depot-pipelines.md)

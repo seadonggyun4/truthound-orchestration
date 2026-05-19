@@ -39,6 +39,24 @@ The flow module exposes:
 These are useful when platform teams want a standardized starter flow for multiple
 domains or environments.
 
+## Depot Pipeline Happy Path
+
+Use the Depot script and template surface when Kestra should keep YAML as the orchestration entrypoint but still emit the shared Depot payload contract.
+
+```python
+from truthound_kestra.flows.depot import generate_depot_scheduled_validate_flow
+
+flow_yaml = generate_depot_scheduled_validate_flow(
+    flow_id="scheduled-validate-users",
+    namespace="company.data",
+    depot_id="customer-platform",
+    asset_id="users",
+    schedule="0 6 * * *",
+)
+```
+
+The generated flow calls the shared Depot script entrypoint and preserves the compact shared Depot payload in Kestra output handling. Kestra still owns YAML flow composition, while Depot keeps ownership of approval, release safety, rollback safety, and business state. For the shared execution contract, see [Depot Pipelines](../depot-pipelines.md).
+
 ## Production Guidance
 
 - use script entry points for task-level execution
@@ -51,3 +69,4 @@ domains or environments.
 
 - [Recipes](recipes.md)
 - [Troubleshooting](troubleshooting.md)
+- [Depot Pipelines](../depot-pipelines.md)

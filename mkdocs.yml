@@ -9,6 +9,7 @@ nav:
   - Getting Started: getting-started.md
   - Choose a Platform: choose-a-platform.md
   - Architecture: architecture.md
+  - Depot Pipelines: depot-pipelines.md
   - Zero-Config: zero-config.md
   - Compatibility: compatibility.md
   - Adoption Playbook: adoption-playbook.md

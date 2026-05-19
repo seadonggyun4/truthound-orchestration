@@ -66,10 +66,55 @@ This release line exists to provide a clear compatibility boundary for the Truth
 
 ---
 
+## Depot Pipeline Operations
+
+Depot support in `truthound-orchestration` is delivered as a **shared Depot contract plus host-native projection** layer.
+
+The ownership boundary is strict:
+
+- Orchestration owns execution, submit/poll/wait behavior, compact payload emission, and host-native projection
+- Depot owns approval, release safety, rollback safety, and business state
+
+That means the adapters can expose Depot operations naturally in Airflow, Prefect, Dagster, dbt, Mage, and Kestra without becoming Depot business-state owners themselves.
+
+Supported shared Depot operation surfaces:
+
+- `pull_snapshot`
+- `validate_branch`
+- `merge_after_approval`
+- `release_tag`
+- `rollback_to_snapshot`
+- `scheduled_sync`
+
+Supported shared Depot flow surfaces:
+
+- submit-only
+- submit + wait
+- `waiting`
+- `no_op`
+- failed terminal flows with compact failure payloads
+
+Use Depot pipelines when you need branch-aware validation, scheduled sync, approval-aware release requests, or rollback triggers that stay Depot-owned for policy decisions.
+
+Canonical documentation:
+
+- [Depot Pipelines](docs/depot-pipelines.md)
+- [Airflow Depot example](docs/airflow/operators.md)
+- [Prefect Depot example](docs/prefect/tasks.md)
+- [Dagster Depot example](docs/dagster/ops.md)
+- [dbt Depot example](docs/dbt/macros.md)
+- [Mage Depot example](docs/mage/recipes.md)
+- [Kestra Depot example](docs/kestra/scripts-templates.md)
+
+README intentionally keeps this surface high level. The shared runtime contract, flow semantics, failure taxonomy, and host mapping live in the canonical Depot guide above.
+
+---
+
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Truthound 3.x Compatibility](#truthound-3x-compatibility)
+- [Depot Pipeline Operations](#depot-pipeline-operations)
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Implementation Status](#implementation-status)

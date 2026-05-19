@@ -29,3 +29,5 @@ defs = Definitions(resources={"data_quality": DataQualityResource()})
 - Truthound-first zero-config defaults
 - Shared resolver and serializer contracts
 - Truthound 3.x compatibility line
+
+Depot pipeline operations are documented in [`../../docs/depot-pipelines.md`](../../docs/depot-pipelines.md). The Dagster-specific happy path uses `DepotResource` and the Depot ops exported from `truthound_dagster.ops`.

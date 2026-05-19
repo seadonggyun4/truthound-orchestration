@@ -46,8 +46,26 @@ Ops are a strong fit when you want separate stages for:
 
 The op outputs follow the same shared result contract used across the repository, with Dagster-native wrapping where appropriate.
 
+## Depot Pipeline Happy Path
+
+Use the Depot ops when a job needs branch-aware orchestration or scheduled Depot execution while keeping Dagster-native graph structure and metadata emission.
+
+```python
+from dagster import job
+from truthound_dagster.ops import scheduled_validation_op
+from truthound_dagster.resources import DepotResource
+
+
+@job(resource_defs={"depot": DepotResource(base_url="https://depot.example", api_token="token")})
+def validate_users_branch():
+    scheduled_validation_op(depot_id="customer-platform", asset_id="users", branch_id="main", wait=True)
+```
+
+The op emits a compact shared Depot payload plus Dagster-native metadata. Dagster still owns graph wiring and run metadata, while Depot keeps ownership of approval, release safety, rollback safety, and business state. For the shared flow and failure semantics, see [Depot Pipelines](../depot-pipelines.md).
+
 ## Related Reading
 
 - [Resources](resources.md)
 - [Assets and Asset Checks](assets.md)
 - [Recipes](recipes.md)
+- [Depot Pipelines](../depot-pipelines.md)
