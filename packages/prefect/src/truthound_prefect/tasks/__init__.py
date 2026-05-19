@@ -35,6 +35,12 @@ Example:
     ...     return result
 """
 
+from truthound_prefect.tasks.anomaly import (
+    create_anomaly_task,
+    data_quality_anomaly_task,
+    lenient_anomaly_task,
+    strict_anomaly_task,
+)
 from truthound_prefect.tasks.base import (
     AUTO_SCHEMA_CHECK_CONFIG,
     DEFAULT_ANOMALY_TASK_CONFIG,
@@ -58,18 +64,23 @@ from truthound_prefect.tasks.base import (
     LearnTaskConfig,
     ProfileTaskConfig,
 )
-from truthound_prefect.tasks.anomaly import (
-    create_anomaly_task,
-    data_quality_anomaly_task,
-    lenient_anomaly_task,
-    strict_anomaly_task,
-)
 from truthound_prefect.tasks.check import (
     auto_schema_check_task,
     create_check_task,
     data_quality_check_task,
     lenient_check_task,
     strict_check_task,
+)
+from truthound_prefect.tasks.depot import (
+    merge_after_approval_task,
+    pull_snapshot_task,
+    release_tag_flow_task,
+    release_tag_task,
+    rollback_flow_task,
+    rollback_to_snapshot_task,
+    scheduled_sync_task,
+    scheduled_validation_task,
+    validate_branch_task,
 )
 from truthound_prefect.tasks.drift import (
     create_drift_task,
@@ -136,6 +147,16 @@ __all__ = [
     # Stream tasks
     "data_quality_stream_task",
     "create_stream_task",
+    # Depot tasks
+    "pull_snapshot_task",
+    "validate_branch_task",
+    "merge_after_approval_task",
+    "release_tag_task",
+    "rollback_to_snapshot_task",
+    "scheduled_sync_task",
+    "scheduled_validation_task",
+    "release_tag_flow_task",
+    "rollback_flow_task",
     # Learn tasks
     "data_quality_learn_task",
     "create_learn_task",

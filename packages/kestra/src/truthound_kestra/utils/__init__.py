@@ -58,6 +58,7 @@ from truthound_kestra.utils.serialization import (
     YamlSerializer,
     deserialize_result,
     get_serializer,
+    serialize_depot_result,
     serialize_result,
     serialize_to_format,
 )
@@ -110,6 +111,7 @@ __all__ = [
     "COMPACT_SERIALIZER_CONFIG",
     "FULL_SERIALIZER_CONFIG",
     "serialize_result",
+    "serialize_depot_result",
     "deserialize_result",
     "serialize_to_format",
     "get_serializer",

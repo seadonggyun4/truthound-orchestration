@@ -31,8 +31,10 @@ from truthound_prefect.utils.helpers import (
 from truthound_prefect.utils.serialization import (
     ResultSerializer,
     deserialize_result,
+    serialize_depot_result,
     serialize_result,
     to_prefect_artifact,
+    to_prefect_depot_artifact,
 )
 from truthound_prefect.utils.types import (
     AnyDataQualityOutput,
@@ -70,8 +72,10 @@ __all__ = [
     # Serialization
     "ResultSerializer",
     "serialize_result",
+    "serialize_depot_result",
     "deserialize_result",
     "to_prefect_artifact",
+    "to_prefect_depot_artifact",
     # Helpers
     "format_duration",
     "format_percentage",

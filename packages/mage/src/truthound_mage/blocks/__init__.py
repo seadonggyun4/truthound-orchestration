@@ -12,26 +12,49 @@ Components:
     - Condition: Routing conditions based on quality results
 """
 
+from truthound_mage.blocks.anomaly import (
+    AnomalyTransformer,
+    create_anomaly_transformer,
+)
 from truthound_mage.blocks.base import (
+    DEFAULT_ANOMALY_BLOCK_CONFIG,
+    DEFAULT_BLOCK_CONFIG,
+    DEFAULT_DRIFT_BLOCK_CONFIG,
+    LENIENT_ANOMALY_BLOCK_CONFIG,
+    LENIENT_BLOCK_CONFIG,
+    LENIENT_DRIFT_BLOCK_CONFIG,
+    STRICT_ANOMALY_BLOCK_CONFIG,
+    STRICT_BLOCK_CONFIG,
+    STRICT_DRIFT_BLOCK_CONFIG,
     AnomalyBlockConfig,
     BlockConfig,
     BlockExecutionContext,
     BlockResult,
     CheckBlockConfig,
-    DEFAULT_ANOMALY_BLOCK_CONFIG,
-    DEFAULT_BLOCK_CONFIG,
-    DEFAULT_DRIFT_BLOCK_CONFIG,
     DriftBlockConfig,
     LearnBlockConfig,
-    LENIENT_ANOMALY_BLOCK_CONFIG,
-    LENIENT_BLOCK_CONFIG,
-    LENIENT_DRIFT_BLOCK_CONFIG,
     ProfileBlockConfig,
-    STRICT_ANOMALY_BLOCK_CONFIG,
-    STRICT_BLOCK_CONFIG,
-    STRICT_DRIFT_BLOCK_CONFIG,
 )
-
+from truthound_mage.blocks.condition import (
+    BaseConditionBlock,
+    ConditionBlockConfig,
+    ConditionResult,
+    DataQualityCondition,
+    create_quality_condition,
+)
+from truthound_mage.blocks.depot import scheduled_sync, sync_asset, validate_branch
+from truthound_mage.blocks.drift import (
+    BaseDriftTransformer,
+    DriftTransformer,
+    create_drift_transformer,
+)
+from truthound_mage.blocks.sensor import (
+    BaseSensorBlock,
+    DataQualitySensor,
+    QualityGateSensor,
+    SensorBlockConfig,
+    create_quality_sensor,
+)
 from truthound_mage.blocks.transformer import (
     BaseDataQualityTransformer,
     CheckTransformer,
@@ -41,33 +64,6 @@ from truthound_mage.blocks.transformer import (
     create_check_transformer,
     create_learn_transformer,
     create_profile_transformer,
-)
-
-from truthound_mage.blocks.drift import (
-    BaseDriftTransformer,
-    DriftTransformer,
-    create_drift_transformer,
-)
-
-from truthound_mage.blocks.anomaly import (
-    AnomalyTransformer,
-    create_anomaly_transformer,
-)
-
-from truthound_mage.blocks.sensor import (
-    BaseSensorBlock,
-    DataQualitySensor,
-    QualityGateSensor,
-    SensorBlockConfig,
-    create_quality_sensor,
-)
-
-from truthound_mage.blocks.condition import (
-    BaseConditionBlock,
-    ConditionBlockConfig,
-    ConditionResult,
-    DataQualityCondition,
-    create_quality_condition,
 )
 
 __all__ = [
@@ -117,4 +113,7 @@ __all__ = [
     "ConditionBlockConfig",
     "ConditionResult",
     "create_quality_condition",
+    "sync_asset",
+    "validate_branch",
+    "scheduled_sync",
 ]

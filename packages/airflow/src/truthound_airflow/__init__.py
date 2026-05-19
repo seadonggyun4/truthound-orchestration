@@ -26,37 +26,58 @@ Example:
     ...     )
 """
 
-from truthound_airflow.version import __version__, __version_tuple__
+# =============================================================================
+# Hooks
+# =============================================================================
+from truthound_airflow.hooks import (
+    ConnectionConfig,
+    DataLoader,
+    DataQualityHook,
+    DataWriter,
+    TruthoundHook,
+)
 
 # =============================================================================
 # Operators
 # =============================================================================
-
 from truthound_airflow.operators import (
     # Base
     BaseDataQualityOperator,
-    OperatorConfig,
+    BaseDepotFlowOperator,
+    # Depot
+    BaseDepotOperator,
     CheckOperatorConfig,
-    ProfileOperatorConfig,
-    LearnOperatorConfig,
-    ResultHandler,
     # Check
     DataQualityCheckOperator,
-    TruthoundCheckOperator,
-    # Profile
-    DataQualityProfileOperator,
-    TruthoundProfileOperator,
     # Learn
     DataQualityLearnOperator,
-    TruthoundLearnOperator,
+    # Profile
+    DataQualityProfileOperator,
     # Stream
     DataQualityStreamOperator,
+    DepotFlowOperatorConfig,
+    DepotMergeAfterApprovalOperator,
+    DepotOperatorConfig,
+    DepotPullSnapshotOperator,
+    DepotReleaseTagFlowOperator,
+    DepotReleaseTagOperator,
+    DepotRollbackFlowOperator,
+    DepotRollbackToSnapshotOperator,
+    DepotScheduledSyncOperator,
+    DepotScheduledValidationOperator,
+    DepotValidateBranchOperator,
+    LearnOperatorConfig,
+    OperatorConfig,
+    ProfileOperatorConfig,
+    ResultHandler,
+    TruthoundCheckOperator,
+    TruthoundLearnOperator,
+    TruthoundProfileOperator,
 )
 
 # =============================================================================
 # Sensors
 # =============================================================================
-
 from truthound_airflow.sensors import (
     DataQualitySensor,
     DeferrableDataQualitySensor,
@@ -65,37 +86,25 @@ from truthound_airflow.sensors import (
 )
 
 # =============================================================================
-# Hooks
-# =============================================================================
-
-from truthound_airflow.hooks import (
-    DataQualityHook,
-    DataLoader,
-    DataWriter,
-    ConnectionConfig,
-    TruthoundHook,
-)
-
-# =============================================================================
 # SLA
 # =============================================================================
-
 from truthound_airflow.sla import (
     # Config
     AlertLevel,
+    # Callbacks
+    BaseDataQualityCallback,
+    CallbackChain,
+    DataQualitySLACallback,
+    QualityAlertCallback,
     SLAConfig,
     SLAMetrics,
-    SLAViolation,
-    SLAViolationType,
     # Monitor
     SLAMonitor,
     SLARegistry,
-    # Callbacks
-    BaseDataQualityCallback,
-    DataQualitySLACallback,
-    QualityAlertCallback,
-    CallbackChain,
+    SLAViolation,
+    SLAViolationType,
 )
+from truthound_airflow.version import __version__, __version_tuple__
 
 # =============================================================================
 # Provider Info
@@ -152,6 +161,19 @@ __all__ = [
     "DataQualityLearnOperator",
     "TruthoundLearnOperator",
     "DataQualityStreamOperator",
+    "DepotOperatorConfig",
+    "DepotFlowOperatorConfig",
+    "BaseDepotOperator",
+    "BaseDepotFlowOperator",
+    "DepotPullSnapshotOperator",
+    "DepotValidateBranchOperator",
+    "DepotMergeAfterApprovalOperator",
+    "DepotReleaseTagOperator",
+    "DepotRollbackToSnapshotOperator",
+    "DepotScheduledSyncOperator",
+    "DepotScheduledValidationOperator",
+    "DepotReleaseTagFlowOperator",
+    "DepotRollbackFlowOperator",
     # Sensors
     "DataQualitySensor",
     "DeferrableDataQualitySensor",

@@ -34,18 +34,19 @@ from truthound_dagster.resources.base import (
     BaseResource,
     ResourceConfig,
 )
+from truthound_dagster.resources.depot import DepotResource, DepotResourceConfig
 from truthound_dagster.resources.engine import (
+    DEFAULT_DQ_CONFIG,
+    # Presets
+    DEFAULT_ENGINE_CONFIG,
+    LENIENT_DQ_CONFIG,
+    PARALLEL_ENGINE_CONFIG,
+    PRODUCTION_ENGINE_CONFIG,
+    STRICT_DQ_CONFIG,
     DataQualityResource,
     DataQualityResourceConfig,
     EngineResource,
     EngineResourceConfig,
-    # Presets
-    DEFAULT_ENGINE_CONFIG,
-    PARALLEL_ENGINE_CONFIG,
-    PRODUCTION_ENGINE_CONFIG,
-    DEFAULT_DQ_CONFIG,
-    STRICT_DQ_CONFIG,
-    LENIENT_DQ_CONFIG,
 )
 
 __all__ = [
@@ -64,4 +65,6 @@ __all__ = [
     "DEFAULT_DQ_CONFIG",
     "STRICT_DQ_CONFIG",
     "LENIENT_DQ_CONFIG",
+    "DepotResource",
+    "DepotResourceConfig",
 ]

@@ -21,21 +21,22 @@ Example:
 """
 
 from truthound_prefect.blocks.base import (
-    BaseBlock,
-    BlockConfig,
     DEFAULT_BLOCK_CONFIG,
     DEVELOPMENT_BLOCK_CONFIG,
     PRODUCTION_BLOCK_CONFIG,
+    BaseBlock,
+    BlockConfig,
 )
+from truthound_prefect.blocks.depot import DepotBlock
 from truthound_prefect.blocks.engine import (
     AUTO_SCHEMA_ENGINE_CONFIG,
     DEFAULT_ENGINE_CONFIG,
     DEVELOPMENT_ENGINE_CONFIG,
+    PARALLEL_ENGINE_CONFIG,
+    PRODUCTION_ENGINE_CONFIG,
     DataQualityBlock,
     EngineBlock,
     EngineBlockConfig,
-    PARALLEL_ENGINE_CONFIG,
-    PRODUCTION_ENGINE_CONFIG,
     create_ephemeral_truthound_block,
 )
 
@@ -56,4 +57,5 @@ __all__ = [
     "PRODUCTION_ENGINE_CONFIG",
     "DEVELOPMENT_ENGINE_CONFIG",
     "AUTO_SCHEMA_ENGINE_CONFIG",
+    "DepotBlock",
 ]

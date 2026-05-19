@@ -6,7 +6,21 @@ import json
 from typing import Any
 
 from common.base import CheckResult, LearnResult, ProfileResult
-from common.serializers import detect_result_type, serialize_result_wire
+from common.runtime import PlatformRuntimeContext
+from common.serializers import (
+    compose_platform_flow_payload,
+    compose_platform_runtime_payload,
+    detect_result_type,
+    serialize_result_wire,
+)
+
+
+def _runtime_context_payload(
+    runtime_context: PlatformRuntimeContext | None,
+) -> dict[str, Any] | None:
+    if runtime_context is None:
+        return None
+    return runtime_context.to_dict()
 
 
 def serialize_result(result: Any) -> dict[str, Any]:
@@ -88,8 +102,32 @@ def from_json(data: str, result_type: str | None = None) -> Any:
     return deserialize_result(json.loads(data), result_type)
 
 
+def serialize_depot_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_runtime_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        depot_result=result,
+    )
+
+
+def serialize_depot_flow_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_flow_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        flow_result=result,
+    )
+
+
 __all__ = [
     "serialize_result",
+    "serialize_depot_result",
+    "serialize_depot_flow_result",
     "deserialize_result",
     "serialize_check_result",
     "deserialize_check_result",

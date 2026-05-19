@@ -24,40 +24,33 @@ Example:
     >>> result = transformer.execute(df)
 """
 
-from truthound_mage.version import __version__
-
 # =============================================================================
 # Blocks - Base
 # =============================================================================
-
 from truthound_mage.blocks.base import (
     BlockConfig,
-    CheckBlockConfig,
-    ProfileBlockConfig,
-    LearnBlockConfig,
     BlockExecutionContext,
     BlockResult,
+    CheckBlockConfig,
+    LearnBlockConfig,
+    ProfileBlockConfig,
 )
 
 # =============================================================================
-# Blocks - Transformer
+# Blocks - Condition
 # =============================================================================
-
-from truthound_mage.blocks.transformer import (
-    BaseDataQualityTransformer,
-    DataQualityTransformer,
-    CheckTransformer,
-    ProfileTransformer,
-    LearnTransformer,
-    create_check_transformer,
-    create_profile_transformer,
-    create_learn_transformer,
+from truthound_mage.blocks.condition import (
+    BaseConditionBlock,
+    ConditionBlockConfig,
+    ConditionResult,
+    DataQualityCondition,
+    create_quality_condition,
 )
+from truthound_mage.blocks.depot import scheduled_sync, sync_asset, validate_branch
 
 # =============================================================================
 # Blocks - Sensor
 # =============================================================================
-
 from truthound_mage.blocks.sensor import (
     BaseSensorBlock,
     DataQualitySensor,
@@ -67,76 +60,77 @@ from truthound_mage.blocks.sensor import (
 )
 
 # =============================================================================
-# Blocks - Condition
+# Blocks - Transformer
 # =============================================================================
-
-from truthound_mage.blocks.condition import (
-    BaseConditionBlock,
-    DataQualityCondition,
-    ConditionBlockConfig,
-    ConditionResult,
-    create_quality_condition,
+from truthound_mage.blocks.transformer import (
+    BaseDataQualityTransformer,
+    CheckTransformer,
+    DataQualityTransformer,
+    LearnTransformer,
+    ProfileTransformer,
+    create_check_transformer,
+    create_learn_transformer,
+    create_profile_transformer,
 )
 
 # =============================================================================
 # IO Configuration
 # =============================================================================
-
 from truthound_mage.io.config import (
-    IOConfig,
-    DataSourceConfig,
     DataSinkConfig,
+    DataSourceConfig,
+    IOConfig,
     load_io_config,
 )
 
 # =============================================================================
 # SLA
 # =============================================================================
-
 from truthound_mage.sla import (
-    # Config
-    AlertLevel,
-    SLAConfig,
-    SLAMetrics,
-    SLAViolation,
-    SLAViolationType,
     # Presets
     DEFAULT_SLA_CONFIG,
-    STRICT_SLA_CONFIG,
     LENIENT_SLA_CONFIG,
     PRODUCTION_SLA_CONFIG,
+    STRICT_SLA_CONFIG,
+    # Config
+    AlertLevel,
+    # Hooks
+    BaseSLAHook,
+    CompositeSLAHook,
+    LoggingSLAHook,
+    MetricsSLAHook,
+    SLAConfig,
+    SLAMetrics,
     # Monitor
     SLAMonitor,
     SLARegistry,
-    # Hooks
-    BaseSLAHook,
-    LoggingSLAHook,
-    MetricsSLAHook,
-    CompositeSLAHook,
+    SLAViolation,
+    SLAViolationType,
 )
 
 # =============================================================================
 # Utils
 # =============================================================================
-
 from truthound_mage.utils import (
-    # Exceptions
-    DataQualityBlockError,
     BlockConfigurationError,
     BlockExecutionError,
+    BlockMetadata,
     DataLoadError,
-    SLAViolationError,
+    # Exceptions
+    DataQualityBlockError,
     # Types
     DataQualityOutput,
-    BlockMetadata,
-    # Serialization
-    serialize_result,
+    SLAViolationError,
+    create_block_metadata,
     deserialize_result,
     # Helpers
     format_check_result,
     format_violations,
-    create_block_metadata,
+    # Serialization
+    serialize_depot_result,
+    serialize_result,
 )
+from truthound_mage.version import __version__
 
 # =============================================================================
 # Public API
@@ -173,6 +167,10 @@ __all__ = [
     "ConditionBlockConfig",
     "ConditionResult",
     "create_quality_condition",
+    "sync_asset",
+    "validate_branch",
+    "scheduled_sync",
+    "scheduled_sync",
     # IO
     "IOConfig",
     "DataSourceConfig",
@@ -208,6 +206,7 @@ __all__ = [
     "BlockMetadata",
     # Utils - Serialization
     "serialize_result",
+    "serialize_depot_result",
     "deserialize_result",
     # Utils - Helpers
     "format_check_result",

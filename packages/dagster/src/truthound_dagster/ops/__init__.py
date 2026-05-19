@@ -33,48 +33,57 @@ Example:
     ... )
 """
 
+from truthound_dagster.ops.anomaly import (
+    create_anomaly_op,
+    data_quality_anomaly_op,
+)
 from truthound_dagster.ops.base import (
-    BaseOpConfig,
-    CheckOpConfig,
-    LearnOpConfig,
-    ProfileOpConfig,
-    DriftOpConfig,
-    AnomalyOpConfig,
+    AUTO_SCHEMA_CHECK_CONFIG,
+    DEFAULT_ANOMALY_CONFIG,
     # Presets
     DEFAULT_CHECK_CONFIG,
-    STRICT_CHECK_CONFIG,
-    LENIENT_CHECK_CONFIG,
-    AUTO_SCHEMA_CHECK_CONFIG,
-    DEFAULT_PROFILE_CONFIG,
-    MINIMAL_PROFILE_CONFIG,
-    DEFAULT_LEARN_CONFIG,
-    HIGH_CONFIDENCE_LEARN_CONFIG,
     DEFAULT_DRIFT_CONFIG,
-    STRICT_DRIFT_CONFIG,
-    LENIENT_DRIFT_CONFIG,
-    DEFAULT_ANOMALY_CONFIG,
-    STRICT_ANOMALY_CONFIG,
+    DEFAULT_LEARN_CONFIG,
+    DEFAULT_PROFILE_CONFIG,
+    HIGH_CONFIDENCE_LEARN_CONFIG,
     LENIENT_ANOMALY_CONFIG,
+    LENIENT_CHECK_CONFIG,
+    LENIENT_DRIFT_CONFIG,
+    MINIMAL_PROFILE_CONFIG,
+    STRICT_ANOMALY_CONFIG,
+    STRICT_CHECK_CONFIG,
+    STRICT_DRIFT_CONFIG,
+    AnomalyOpConfig,
+    BaseOpConfig,
+    CheckOpConfig,
+    DriftOpConfig,
+    LearnOpConfig,
+    ProfileOpConfig,
 )
 from truthound_dagster.ops.check import (
     create_check_op,
     data_quality_check_op,
 )
-from truthound_dagster.ops.profile import (
-    create_profile_op,
-    data_quality_profile_op,
-)
-from truthound_dagster.ops.learn import (
-    create_learn_op,
-    data_quality_learn_op,
+from truthound_dagster.ops.depot import (
+    merge_after_approval_op,
+    pull_snapshot_op,
+    release_tag_flow_op,
+    rollback_flow_op,
+    scheduled_sync_op,
+    scheduled_validation_op,
+    validate_branch_op,
 )
 from truthound_dagster.ops.drift import (
     create_drift_op,
     data_quality_drift_op,
 )
-from truthound_dagster.ops.anomaly import (
-    create_anomaly_op,
-    data_quality_anomaly_op,
+from truthound_dagster.ops.learn import (
+    create_learn_op,
+    data_quality_learn_op,
+)
+from truthound_dagster.ops.profile import (
+    create_profile_op,
+    data_quality_profile_op,
 )
 
 __all__ = [
@@ -119,4 +128,12 @@ __all__ = [
     # Anomaly ops
     "data_quality_anomaly_op",
     "create_anomaly_op",
+    # Depot ops
+    "pull_snapshot_op",
+    "validate_branch_op",
+    "merge_after_approval_op",
+    "scheduled_sync_op",
+    "scheduled_validation_op",
+    "release_tag_flow_op",
+    "rollback_flow_op",
 ]

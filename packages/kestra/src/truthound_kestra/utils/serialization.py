@@ -19,20 +19,15 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from contextlib import suppress
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
+from common.runtime import PlatformRuntimeContext
+from common.serializers import compose_platform_flow_payload, compose_platform_runtime_payload
 from truthound_kestra.utils.exceptions import SerializationError
-from truthound_kestra.utils.types import (
-    CheckStatus,
-    ColumnProfile,
-    LearnedRule,
-    OperationType,
-    OutputFormat,
-    ScriptOutput,
-    ValidationFailure,
-)
+from truthound_kestra.utils.types import OutputFormat, ScriptOutput
 
 if TYPE_CHECKING:
     pass
@@ -48,6 +43,8 @@ __all__ = [
     "MarkdownSerializer",
     # Functions
     "serialize_result",
+    "serialize_depot_result",
+    "serialize_depot_flow_result",
     "deserialize_result",
     "serialize_to_format",
     "get_serializer",
@@ -422,10 +419,8 @@ class ResultSerializer:
 
         for key, value in result.items():
             if key in timestamp_keys and isinstance(value, str):
-                try:
+                with suppress(ValueError):
                     result[key] = datetime.fromisoformat(value)
-                except ValueError:
-                    pass  # Keep as string if parsing fails
             elif isinstance(value, dict):
                 result[key] = self._parse_timestamps(value)
             elif isinstance(value, list):
@@ -504,7 +499,7 @@ class JsonSerializer(BaseFormatSerializer):
             SerializationError: If deserialization fails.
         """
         try:
-            return json.loads(content)
+            return cast(dict[str, Any], json.loads(content))
         except Exception as e:
             raise SerializationError(
                 message=f"Failed to deserialize JSON: {e}",
@@ -536,11 +531,14 @@ class YamlSerializer(BaseFormatSerializer):
         try:
             import yaml
 
-            return yaml.dump(
+            return cast(
+                str,
+                yaml.dump(
                 data,
                 default_flow_style=self._config.compact,
                 allow_unicode=True,
                 sort_keys=False,
+                ),
             )
         except ImportError as e:
             raise SerializationError(
@@ -570,7 +568,7 @@ class YamlSerializer(BaseFormatSerializer):
         try:
             import yaml
 
-            return yaml.safe_load(content)
+            return cast(dict[str, Any], yaml.safe_load(content))
         except ImportError as e:
             raise SerializationError(
                 message="PyYAML is required for YAML deserialization",
@@ -603,7 +601,6 @@ class MarkdownSerializer(BaseFormatSerializer):
             Markdown string.
         """
         lines = []
-        result_type = data.get("_type", "result")
 
         # Header
         status = data.get("status", "unknown")
@@ -670,7 +667,7 @@ class MarkdownSerializer(BaseFormatSerializer):
             lines.append("")
 
         # Footer
-        timestamp = data.get("timestamp", datetime.now(timezone.utc).isoformat())
+        timestamp = data.get("timestamp", datetime.now(UTC).isoformat())
         lines.append("---")
         lines.append(f"*Generated at: {timestamp}*")
 
@@ -805,3 +802,25 @@ def serialize_to_format(
     serializer = get_serializer(format, config)
     data = serialize_result(result)
     return serializer.serialize(data)
+
+
+def serialize_depot_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_runtime_payload(
+        runtime_context=runtime_context.to_dict() if runtime_context is not None else None,
+        depot_result=result,
+    )
+
+
+def serialize_depot_flow_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_flow_payload(
+        runtime_context=runtime_context.to_dict() if runtime_context is not None else None,
+        flow_result=result,
+    )

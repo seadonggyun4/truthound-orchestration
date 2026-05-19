@@ -37,8 +37,6 @@ Using SLA Monitoring:
     >>> violations = sla_block.check_result(check_result)
 """
 
-from truthound_prefect.version import __version__, __version_info__
-
 # Blocks
 from truthound_prefect.blocks import (
     AUTO_SCHEMA_ENGINE_CONFIG,
@@ -52,40 +50,9 @@ from truthound_prefect.blocks import (
     BaseBlock,
     BlockConfig,
     DataQualityBlock,
+    DepotBlock,
     EngineBlock,
     EngineBlockConfig,
-)
-
-# Tasks
-from truthound_prefect.tasks import (
-    AUTO_SCHEMA_CHECK_CONFIG,
-    DEFAULT_CHECK_CONFIG,
-    DEFAULT_LEARN_CONFIG,
-    DEFAULT_PROFILE_CONFIG,
-    FULL_PROFILE_CONFIG,
-    LENIENT_CHECK_CONFIG,
-    MINIMAL_PROFILE_CONFIG,
-    STRICT_CHECK_CONFIG,
-    STRICT_LEARN_CONFIG,
-    BaseTaskConfig,
-    CheckTaskConfig,
-    LearnTaskConfig,
-    ProfileTaskConfig,
-    auto_schema_check_task,
-    create_check_task,
-    create_learn_task,
-    create_profile_task,
-    create_stream_task,
-    data_quality_check_task,
-    data_quality_learn_task,
-    data_quality_profile_task,
-    data_quality_stream_task,
-    full_profile_task,
-    lenient_check_task,
-    minimal_profile_task,
-    standard_learn_task,
-    strict_check_task,
-    strict_learn_task,
 )
 
 # Flows
@@ -133,6 +100,47 @@ from truthound_prefect.sla import (
     reset_sla_registry,
 )
 
+# Tasks
+from truthound_prefect.tasks import (
+    AUTO_SCHEMA_CHECK_CONFIG,
+    DEFAULT_CHECK_CONFIG,
+    DEFAULT_LEARN_CONFIG,
+    DEFAULT_PROFILE_CONFIG,
+    FULL_PROFILE_CONFIG,
+    LENIENT_CHECK_CONFIG,
+    MINIMAL_PROFILE_CONFIG,
+    STRICT_CHECK_CONFIG,
+    STRICT_LEARN_CONFIG,
+    BaseTaskConfig,
+    CheckTaskConfig,
+    LearnTaskConfig,
+    ProfileTaskConfig,
+    auto_schema_check_task,
+    create_check_task,
+    create_learn_task,
+    create_profile_task,
+    create_stream_task,
+    data_quality_check_task,
+    data_quality_learn_task,
+    data_quality_profile_task,
+    data_quality_stream_task,
+    full_profile_task,
+    lenient_check_task,
+    merge_after_approval_task,
+    minimal_profile_task,
+    pull_snapshot_task,
+    release_tag_flow_task,
+    release_tag_task,
+    rollback_flow_task,
+    rollback_to_snapshot_task,
+    scheduled_sync_task,
+    scheduled_validation_task,
+    standard_learn_task,
+    strict_check_task,
+    strict_learn_task,
+    validate_branch_task,
+)
+
 # Utils
 from truthound_prefect.utils import (
     AnyDataQualityOutput,
@@ -168,6 +176,7 @@ from truthound_prefect.utils import (
     summarize_profile_result,
     to_prefect_artifact,
 )
+from truthound_prefect.version import __version__, __version_info__
 
 __all__ = [
     # Version
@@ -179,6 +188,7 @@ __all__ = [
     "EngineBlockConfig",
     "EngineBlock",
     "DataQualityBlock",
+    "DepotBlock",
     "DEFAULT_BLOCK_CONFIG",
     "PRODUCTION_BLOCK_CONFIG",
     "DEVELOPMENT_BLOCK_CONFIG",
@@ -206,6 +216,15 @@ __all__ = [
     "data_quality_profile_task",
     "data_quality_learn_task",
     "data_quality_stream_task",
+    "pull_snapshot_task",
+    "validate_branch_task",
+    "merge_after_approval_task",
+    "release_tag_task",
+    "rollback_to_snapshot_task",
+    "scheduled_sync_task",
+    "scheduled_validation_task",
+    "release_tag_flow_task",
+    "rollback_flow_task",
     "create_check_task",
     "create_profile_task",
     "create_learn_task",

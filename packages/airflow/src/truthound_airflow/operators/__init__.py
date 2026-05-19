@@ -40,6 +40,21 @@ from truthound_airflow.operators.check import (
     DataQualityCheckOperator,
     TruthoundCheckOperator,
 )
+from truthound_airflow.operators.depot import (
+    BaseDepotFlowOperator,
+    BaseDepotOperator,
+    DepotFlowOperatorConfig,
+    DepotMergeAfterApprovalOperator,
+    DepotOperatorConfig,
+    DepotPullSnapshotOperator,
+    DepotReleaseTagFlowOperator,
+    DepotReleaseTagOperator,
+    DepotRollbackFlowOperator,
+    DepotRollbackToSnapshotOperator,
+    DepotScheduledSyncOperator,
+    DepotScheduledValidationOperator,
+    DepotValidateBranchOperator,
+)
 from truthound_airflow.operators.learn import (
     DataQualityLearnOperator,
     TruthoundLearnOperator,
@@ -64,6 +79,20 @@ __all__ = [
     "DataQualityProfileOperator",
     "DataQualityLearnOperator",
     "DataQualityStreamOperator",
+    # Depot
+    "DepotOperatorConfig",
+    "DepotFlowOperatorConfig",
+    "BaseDepotOperator",
+    "BaseDepotFlowOperator",
+    "DepotPullSnapshotOperator",
+    "DepotValidateBranchOperator",
+    "DepotMergeAfterApprovalOperator",
+    "DepotReleaseTagOperator",
+    "DepotRollbackToSnapshotOperator",
+    "DepotScheduledSyncOperator",
+    "DepotScheduledValidationOperator",
+    "DepotReleaseTagFlowOperator",
+    "DepotRollbackFlowOperator",
     # Legacy aliases (backwards compatibility)
     "TruthoundCheckOperator",
     "TruthoundProfileOperator",

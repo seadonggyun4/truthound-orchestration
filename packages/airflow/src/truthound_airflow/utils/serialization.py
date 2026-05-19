@@ -12,12 +12,17 @@ Example:
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from contextlib import suppress
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
-from common.serializers import detect_result_type, serialize_result_wire
-
+from common.runtime import PlatformRuntimeContext
+from common.serializers import (
+    compose_platform_flow_payload,
+    compose_platform_runtime_payload,
+    detect_result_type,
+    serialize_result_wire,
+)
 
 # =============================================================================
 # Protocols
@@ -38,6 +43,14 @@ class HasTimestamp(Protocol):
     """Protocol for objects with timestamp."""
 
     timestamp: datetime
+
+
+def _runtime_context_payload(
+    runtime_context: PlatformRuntimeContext | None,
+) -> dict[str, Any] | None:
+    if runtime_context is None:
+        return None
+    return runtime_context.to_dict()
 
 
 def _serialize_shared_result(
@@ -74,14 +87,46 @@ def _serialize_shared_result(
 def _deserialize_shared_result(data: dict[str, Any]) -> dict[str, Any]:
     result = dict(data)
     if "timestamp" in result and isinstance(result["timestamp"], str):
-        try:
+        with suppress(ValueError):
             result["timestamp"] = datetime.fromisoformat(result["timestamp"])
-        except ValueError:
-            pass
     result.pop("_serializer", None)
     result.pop("_version", None)
     result.pop("_type", None)
     return result
+
+
+def serialize_depot_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    """Serialize a Depot operation result to an XCom-safe payload."""
+
+    payload = compose_platform_runtime_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        depot_result=result,
+    )
+    payload["_serializer"] = "truthound_airflow"
+    payload["_version"] = "3.0"
+    payload["_type"] = "depot_operation"
+    return payload
+
+
+def serialize_depot_flow_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    """Serialize a Depot flow result to an XCom-safe payload."""
+
+    payload = compose_platform_flow_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        flow_result=result,
+    )
+    payload["_serializer"] = "truthound_airflow"
+    payload["_version"] = "3.0"
+    payload["_type"] = "depot_flow"
+    return payload
 
 
 # =============================================================================
@@ -116,17 +161,14 @@ class ResultSerializer:
         """Serialize CheckResult by attribute access."""
         failures = []
         for f in getattr(result, "failures", []):
+            severity = getattr(f, "severity", None)
             failure_dict = {
                 "rule_name": getattr(f, "rule_name", "unknown"),
                 "column": getattr(f, "column", None),
                 "message": getattr(f, "message", ""),
                 "severity": (
-                    getattr(getattr(f, "severity", None), "name", None)
-                    or (
-                        str(getattr(getattr(f, "severity", None), "value")).upper()
-                        if hasattr(getattr(f, "severity", None), "value")
-                        else "medium"
-                    )
+                    getattr(severity, "name", None)
+                    or (str(getattr(severity, "value", "medium")).upper())
                 ),
                 "failed_count": getattr(f, "failed_count", 0),
                 "total_count": getattr(f, "total_count", 0),
@@ -138,13 +180,13 @@ class ResultSerializer:
         if timestamp and isinstance(timestamp, datetime):
             timestamp = timestamp.isoformat()
         elif timestamp is None:
-            timestamp = datetime.now(timezone.utc).isoformat()
+            timestamp = datetime.now(UTC).isoformat()
 
         status = getattr(result, "status", None)
-        if hasattr(status, "name"):
+        if status is not None and hasattr(status, "name"):
             status = status.name
-        elif hasattr(status, "value"):
-            status = str(status.value).upper()
+        elif status is not None and hasattr(status, "value"):
+            status = str(getattr(status, "value", status)).upper()
         elif status is None:
             status = "unknown"
 

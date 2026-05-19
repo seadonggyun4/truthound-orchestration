@@ -5,7 +5,21 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from common.serializers import detect_result_type, serialize_result_wire
+from common.runtime import PlatformRuntimeContext
+from common.serializers import (
+    compose_platform_flow_payload,
+    compose_platform_runtime_payload,
+    detect_result_type,
+    serialize_result_wire,
+)
+
+
+def _runtime_context_payload(
+    runtime_context: PlatformRuntimeContext | None,
+) -> dict[str, Any] | None:
+    if runtime_context is None:
+        return None
+    return runtime_context.to_dict()
 
 
 class ResultSerializer:
@@ -42,7 +56,7 @@ def _enum_name(value: Any, *, default: str) -> str:
 
 def _timestamp_value(value: Any) -> str:
     if hasattr(value, "isoformat"):
-        return value.isoformat()
+        return str(value.isoformat())
     if value is None:
         return ""
     return str(value)
@@ -172,13 +186,45 @@ def to_dagster_metadata(result: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
+def serialize_depot_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_runtime_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        depot_result=result,
+    )
+
+
+def serialize_depot_flow_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_flow_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        flow_result=result,
+    )
+
+
+def to_dagster_depot_metadata(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "operation_type": result.get("operation_type", ""),
+        "status": result.get("status", ""),
+        "operation_id": result.get("operation_id", ""),
+        "release_tag": result.get("release_tag", ""),
+        "error_code": result.get("error_code", ""),
+    }
+
+
 def to_json_serializable(obj: Any) -> Any:
     """Convert nested objects to JSON-serializable values."""
 
     if obj is None or isinstance(obj, (bool, int, float, str)):
         return obj
     if isinstance(obj, datetime):
-        return obj.isoformat()
+        return str(obj.isoformat())
     if isinstance(obj, (list, tuple)):
         return [to_json_serializable(item) for item in obj]
     if isinstance(obj, set):
@@ -198,7 +244,10 @@ def to_json_serializable(obj: Any) -> Any:
 __all__ = [
     "ResultSerializer",
     "serialize_result",
+    "serialize_depot_result",
+    "serialize_depot_flow_result",
     "deserialize_result",
     "to_dagster_metadata",
+    "to_dagster_depot_metadata",
     "to_json_serializable",
 ]

@@ -113,100 +113,104 @@ __version__ = "3.0.1"
 # Adapters
 # =============================================================================
 from truthound_dbt.adapters import (
-    # Protocol
-    SQLAdapter,
-    # Implementations
-    PostgresAdapter,
-    SnowflakeAdapter,
-    BigQueryAdapter,
-    RedshiftAdapter,
-    DatabricksAdapter,
-    # Registry
-    AdapterRegistry,
-    get_adapter,
-    get_adapter_registry,
-    register_adapter,
-    list_adapters,
     # Exceptions
     AdapterError,
     AdapterNotFoundError,
+    # Registry
+    AdapterRegistry,
+    BigQueryAdapter,
+    DatabricksAdapter,
+    # Implementations
+    PostgresAdapter,
+    RedshiftAdapter,
+    SnowflakeAdapter,
+    # Protocol
+    SQLAdapter,
     UnsupportedOperationError,
+    get_adapter,
+    get_adapter_registry,
+    list_adapters,
+    register_adapter,
 )
 
 # =============================================================================
 # Converters
 # =============================================================================
 from truthound_dbt.converters import (
-    # Protocol
-    RuleConverter,
-    # Implementations
-    StandardRuleConverter,
-    # Registry
-    RuleConverterRegistry,
-    get_converter,
-    get_converter_registry,
-    register_converter,
-    list_converters,
-    # Types
-    ConversionResult,
-    RuleSQL,
     # Exceptions
     ConversionError,
+    # Types
+    ConversionResult,
+    # Protocol
+    RuleConverter,
+    # Registry
+    RuleConverterRegistry,
+    RuleSQL,
+    # Implementations
+    StandardRuleConverter,
     UnsupportedRuleError,
+    get_converter,
+    get_converter_registry,
+    list_converters,
+    register_converter,
 )
 
 # =============================================================================
 # Generators
 # =============================================================================
 from truthound_dbt.generators import (
+    ColumnSchema,
+    GeneratedSQL,
+    GeneratedTest,
+    ModelSchema,
+    # Schema Generator
+    SchemaGenerator,
     # SQL Generator
     SQLGenerator,
     SQLGeneratorConfig,
-    GeneratedSQL,
     # Test Generator
     TestGenerator,
     TestGeneratorConfig,
-    GeneratedTest,
-    # Schema Generator
-    SchemaGenerator,
-    ModelSchema,
-    ColumnSchema,
-)
-
-# =============================================================================
-# Parsers
-# =============================================================================
-from truthound_dbt.parsers import (
-    # Manifest Parser
-    ManifestParser,
-    TruthoundTest,
-    TruthoundRule,
-    TruthoundReport,
-    # Run Results Parser
-    RunResultsParser,
-    TestResult,
-    RunSummary,
-    # Check Category
-    CheckCategory,
 )
 
 # =============================================================================
 # Hooks
 # =============================================================================
 from truthound_dbt.hooks import (
-    # Protocol
-    DbtHook,
     AsyncDbtHook,
-    # Implementations
-    LoggingDbtHook,
-    MetricsDbtHook,
     CompositeDbtHook,
     # Events
     DbtEvent,
-    TestStartEvent,
-    TestEndEvent,
-    ParseStartEvent,
+    # Protocol
+    DbtHook,
+    DepotHookConfig,
+    # Implementations
+    LoggingDbtHook,
+    MetricsDbtHook,
     ParseEndEvent,
+    ParseStartEvent,
+    TestEndEvent,
+    TestStartEvent,
+    execute_depot_hook_operation,
+    release_tag_operation,
+    validate_branch_operation,
+)
+
+# =============================================================================
+# Parsers
+# =============================================================================
+from truthound_dbt.parsers import (
+    # Check Category
+    CheckCategory,
+    # Manifest Parser
+    ManifestParser,
+    # Run Results Parser
+    RunResultsParser,
+    RunSummary,
+    TestResult,
+    TruthoundReport,
+    TruthoundRule,
+    TruthoundTest,
 )
 
 # =============================================================================
@@ -216,10 +220,11 @@ from truthound_dbt.testing import (
     MockAdapter,
     MockManifest,
     MockRunResults,
-    create_mock_test_result,
     create_mock_manifest,
+    create_mock_test_result,
     create_sample_rules,
 )
+
 
 # =============================================================================
 # Public API
@@ -292,6 +297,10 @@ __all__ = [
     "LoggingDbtHook",
     "MetricsDbtHook",
     "CompositeDbtHook",
+    "DepotHookConfig",
+    "execute_depot_hook_operation",
+    "validate_branch_operation",
+    "release_tag_operation",
     # Hooks - Events
     "DbtEvent",
     "TestStartEvent",

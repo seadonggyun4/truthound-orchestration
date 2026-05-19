@@ -68,9 +68,10 @@ from truthound_kestra.scripts.check import (
     CheckScriptResult,
     check_quality_script,
 )
-from truthound_kestra.scripts.stream import (
-    StreamScriptExecutor,
-    stream_quality_script,
+from truthound_kestra.scripts.depot import (
+    pull_snapshot_script,
+    release_tag_script,
+    validate_branch_script,
 )
 from truthound_kestra.scripts.drift import (
     DriftScriptExecutor,
@@ -87,11 +88,18 @@ from truthound_kestra.scripts.profile import (
     ProfileScriptResult,
     profile_data_script,
 )
+from truthound_kestra.scripts.stream import (
+    StreamScriptExecutor,
+    stream_quality_script,
+)
 
 __all__ = [
     # Main entry points
     "check_quality_script",
+    "pull_snapshot_script",
+    "release_tag_script",
     "stream_quality_script",
+    "validate_branch_script",
     "profile_data_script",
     "learn_schema_script",
     "drift_detection_script",

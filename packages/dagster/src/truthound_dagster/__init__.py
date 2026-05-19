@@ -45,106 +45,116 @@ Example - Using SLA Monitor:
     >>> sla = SLAResource(default_config=sla_config.to_dict())
 """
 
-from truthound_dagster.version import __version__, __version_info__
-
-# Resources
-from truthound_dagster.resources import (
-    # Main resources
-    DataQualityResource,
-    EngineResource,
+# Assets
+from truthound_dagster.assets import (
+    ProfileAssetConfig,
     # Configuration
-    EngineResourceConfig,
-    # Presets
-    DEFAULT_ENGINE_CONFIG,
-    PARALLEL_ENGINE_CONFIG,
-    PRODUCTION_ENGINE_CONFIG,
+    QualityAssetConfig,
+    QualityCheckMode,
+    create_asset_check,
+    # Factory functions
+    create_quality_asset,
+    create_quality_check_asset,
+    profiled_asset,
+    quality_asset_check,
+    # Decorators
+    quality_checked_asset,
 )
 
 # Ops
 from truthound_dagster.ops import (
-    # Pre-built ops
-    data_quality_check_op,
-    data_quality_profile_op,
-    data_quality_learn_op,
-    # Factory functions
-    create_check_op,
-    create_profile_op,
-    create_learn_op,
-    # Configuration
-    CheckOpConfig,
-    ProfileOpConfig,
-    LearnOpConfig,
+    LENIENT_CHECK_CONFIG,
     # Presets
     STRICT_CHECK_CONFIG,
-    LENIENT_CHECK_CONFIG,
+    # Configuration
+    CheckOpConfig,
+    LearnOpConfig,
+    ProfileOpConfig,
+    # Factory functions
+    create_check_op,
+    create_learn_op,
+    create_profile_op,
+    # Pre-built ops
+    data_quality_check_op,
+    data_quality_learn_op,
+    data_quality_profile_op,
+    merge_after_approval_op,
+    pull_snapshot_op,
+    release_tag_flow_op,
+    rollback_flow_op,
+    scheduled_sync_op,
+    scheduled_validation_op,
+    validate_branch_op,
 )
 
-# Assets
-from truthound_dagster.assets import (
-    # Decorators
-    quality_checked_asset,
-    profiled_asset,
-    quality_asset_check,
-    # Factory functions
-    create_quality_asset,
-    create_quality_check_asset,
-    create_asset_check,
+# Resources
+from truthound_dagster.resources import (
+    # Presets
+    DEFAULT_ENGINE_CONFIG,
+    PARALLEL_ENGINE_CONFIG,
+    PRODUCTION_ENGINE_CONFIG,
+    # Main resources
+    DataQualityResource,
+    DepotResource,
+    DepotResourceConfig,
+    EngineResource,
     # Configuration
-    QualityAssetConfig,
-    ProfileAssetConfig,
-    QualityCheckMode,
+    EngineResourceConfig,
 )
 
 # SLA
 from truthound_dagster.sla import (
+    # Presets
+    DEFAULT_SLA_CONFIG,
+    LENIENT_SLA_CONFIG,
+    STRICT_SLA_CONFIG,
+    AlertLevel,
+    CompositeSLAHook,
+    LoggingSLAHook,
+    MetricsSLAHook,
     # Configuration
     SLAConfig,
+    # Hooks
+    SLAHook,
     SLAMetrics,
-    SLAViolation,
-    SLAViolationType,
-    AlertLevel,
     # Monitor
     SLAMonitor,
     SLARegistry,
-    get_sla_registry,
-    reset_sla_registry,
     # Resource
     SLAResource,
     SLAResourceConfig,
-    # Hooks
-    SLAHook,
-    LoggingSLAHook,
-    MetricsSLAHook,
-    CompositeSLAHook,
-    # Presets
-    DEFAULT_SLA_CONFIG,
-    STRICT_SLA_CONFIG,
-    LENIENT_SLA_CONFIG,
+    SLAViolation,
+    SLAViolationType,
+    get_sla_registry,
+    reset_sla_registry,
 )
 
 # Utils
 from truthound_dagster.utils import (
-    # Serialization
-    ResultSerializer,
-    serialize_result,
-    deserialize_result,
-    to_dagster_metadata,
-    # Types
-    DataQualityOutput,
-    QualityCheckOutput,
-    ProfileOutput,
-    LearnOutput,
+    ConfigurationError,
     # Exceptions
     DataQualityError,
-    ConfigurationError,
+    # Types
+    DataQualityOutput,
     EngineError,
+    LearnOutput,
+    ProfileOutput,
+    QualityCheckOutput,
+    # Serialization
+    ResultSerializer,
     SLAViolationError,
+    create_quality_metadata,
+    deserialize_result,
     # Helpers
     format_duration,
     format_percentage,
+    serialize_depot_result,
+    serialize_result,
     summarize_check_result,
-    create_quality_metadata,
+    to_dagster_depot_metadata,
+    to_dagster_metadata,
 )
+from truthound_dagster.version import __version__, __version_info__
 
 __all__ = [
     # Version
@@ -152,6 +162,8 @@ __all__ = [
     "__version_info__",
     # Resources
     "DataQualityResource",
+    "DepotResource",
+    "DepotResourceConfig",
     "EngineResource",
     "EngineResourceConfig",
     "DEFAULT_ENGINE_CONFIG",
@@ -161,6 +173,13 @@ __all__ = [
     "data_quality_check_op",
     "data_quality_profile_op",
     "data_quality_learn_op",
+    "pull_snapshot_op",
+    "validate_branch_op",
+    "merge_after_approval_op",
+    "scheduled_sync_op",
+    "scheduled_validation_op",
+    "release_tag_flow_op",
+    "rollback_flow_op",
     "create_check_op",
     "create_profile_op",
     "create_learn_op",
@@ -201,8 +220,10 @@ __all__ = [
     # Utils
     "ResultSerializer",
     "serialize_result",
+    "serialize_depot_result",
     "deserialize_result",
     "to_dagster_metadata",
+    "to_dagster_depot_metadata",
     "DataQualityOutput",
     "QualityCheckOutput",
     "ProfileOutput",

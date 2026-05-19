@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 from truthound_kestra.utils.exceptions import OutputError
@@ -30,11 +30,8 @@ from truthound_kestra.utils.helpers import (
 from truthound_kestra.utils.serialization import (
     MarkdownSerializer,
     ResultSerializer,
-    serialize_result,
 )
 from truthound_kestra.utils.types import (
-    CheckStatus,
-    OperationType,
     OutputFormat,
     ScriptOutput,
 )
@@ -161,10 +158,7 @@ class BaseOutputHandler(ABC):
         Returns:
             Formatted output dictionary.
         """
-        if isinstance(result, ScriptOutput):
-            data = result.to_dict()
-        else:
-            data = dict(result)
+        data = result.to_dict() if isinstance(result, ScriptOutput) else dict(result)
 
         output: dict[str, Any] = {
             "status": data.get("status", "unknown"),
@@ -186,7 +180,7 @@ class BaseOutputHandler(ABC):
             output["metadata"] = data.get("metadata", {})
             output["timestamp"] = data.get(
                 "timestamp",
-                datetime.now(timezone.utc).isoformat()
+                datetime.now(UTC).isoformat()
             )
 
         return output
@@ -274,10 +268,7 @@ class KestraOutputHandler(BaseOutputHandler):
             result: Profile result to send.
             output_name: Name for the output.
         """
-        if isinstance(result, ScriptOutput):
-            data = result.to_dict()
-        else:
-            data = dict(result)
+        data = result.to_dict() if isinstance(result, ScriptOutput) else dict(result)
 
         output = {
             "status": data.get("status", "passed"),
@@ -290,7 +281,7 @@ class KestraOutputHandler(BaseOutputHandler):
             output["metadata"] = data.get("metadata", {})
             output["timestamp"] = data.get(
                 "timestamp",
-                datetime.now(timezone.utc).isoformat()
+                datetime.now(UTC).isoformat()
             )
 
         self.send({output_name: output})
@@ -306,10 +297,7 @@ class KestraOutputHandler(BaseOutputHandler):
             result: Learn result to send.
             output_name: Name for the output.
         """
-        if isinstance(result, ScriptOutput):
-            data = result.to_dict()
-        else:
-            data = dict(result)
+        data = result.to_dict() if isinstance(result, ScriptOutput) else dict(result)
 
         rules = data.get("rules", [])
 
@@ -327,7 +315,7 @@ class KestraOutputHandler(BaseOutputHandler):
             output["metadata"] = data.get("metadata", {})
             output["timestamp"] = data.get(
                 "timestamp",
-                datetime.now(timezone.utc).isoformat()
+                datetime.now(UTC).isoformat()
             )
 
         self.send({output_name: output, "learned_rules": output["learned_rules"]})
@@ -511,6 +499,16 @@ def send_check_result(
         >>> send_check_result(script_output)
     """
     _default_handler.send_check_result(result, output_name)
+
+
+def send_depot_result(
+    result: ScriptOutput | dict[str, Any],
+    output_name: str = "depot_result",
+) -> None:
+    """Send a Depot result using the default handler."""
+
+    payload = result.to_dict() if isinstance(result, ScriptOutput) else dict(result)
+    _default_handler.send({output_name: payload})
 
 
 def send_profile_result(

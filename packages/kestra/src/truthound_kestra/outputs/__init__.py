@@ -24,6 +24,7 @@ from truthound_kestra.outputs.handlers import (
     OutputConfig,
     OutputHandlerProtocol,
     send_check_result,
+    send_depot_result,
     send_learn_result,
     send_outputs,
     send_profile_result,
@@ -41,6 +42,7 @@ __all__ = [
     # Functions
     "send_outputs",
     "send_check_result",
+    "send_depot_result",
     "send_profile_result",
     "send_learn_result",
 ]

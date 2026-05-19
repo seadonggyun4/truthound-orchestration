@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import csv
+import importlib.util
 import json
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
 import pytest
 

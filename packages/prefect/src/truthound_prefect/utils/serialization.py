@@ -8,7 +8,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from common.serializers import detect_result_type, serialize_result_wire
+from common.runtime import PlatformRuntimeContext
+from common.serializers import (
+    compose_platform_flow_payload,
+    compose_platform_runtime_payload,
+    detect_result_type,
+    serialize_result_wire,
+)
+
+
+def _runtime_context_payload(
+    runtime_context: PlatformRuntimeContext | None,
+) -> dict[str, Any] | None:
+    if runtime_context is None:
+        return None
+    return runtime_context.to_dict()
 
 
 class ResultSerializer:
@@ -39,7 +53,7 @@ def _enum_name(value: Any, *, default: str) -> str:
 
 def _timestamp_value(value: Any) -> str:
     if hasattr(value, "isoformat"):
-        return value.isoformat()
+        return str(value.isoformat())
     if value is None:
         return ""
     return str(value)
@@ -212,9 +226,51 @@ def _to_markdown_artifact(result: dict[str, Any]) -> dict[str, Any]:
     return {"type": "markdown", "content": "\n".join(lines)}
 
 
+def serialize_depot_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_runtime_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        depot_result=result,
+    )
+
+
+def serialize_depot_flow_result(
+    result: Any,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+) -> dict[str, Any]:
+    return compose_platform_flow_payload(
+        runtime_context=_runtime_context_payload(runtime_context),
+        flow_result=result,
+    )
+
+
+def to_prefect_depot_artifact(
+    result: dict[str, Any],
+    *,
+    artifact_key: str = "depot_result",
+) -> dict[str, Any]:
+    return {
+        "key": artifact_key,
+        "type": "table",
+        "data": [
+            {"metric": "operation_type", "value": result.get("operation_type")},
+            {"metric": "status", "value": result.get("status")},
+            {"metric": "operation_id", "value": result.get("operation_id")},
+            {"metric": "error_code", "value": result.get("error_code") or ""},
+        ],
+    }
+
+
 __all__ = [
     "ResultSerializer",
     "serialize_result",
+    "serialize_depot_result",
+    "serialize_depot_flow_result",
     "deserialize_result",
     "to_prefect_artifact",
+    "to_prefect_depot_artifact",
 ]

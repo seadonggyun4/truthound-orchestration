@@ -21,34 +21,41 @@ Example:
 """
 
 from truthound_dbt.hooks.base import (
-    # Protocols
-    DbtHook,
-    AsyncDbtHook,
-    # Event types
-    DbtEvent,
-    TestStartEvent,
-    TestEndEvent,
-    ParseStartEvent,
-    ParseEndEvent,
-    ConversionStartEvent,
-    ConversionEndEvent,
-    GenerationStartEvent,
-    GenerationEndEvent,
-    # Implementations
-    BaseDbtHook,
-    LoggingDbtHook,
-    MetricsDbtHook,
-    CompositeDbtHook,
     # Async implementations
     AsyncBaseDbtHook,
-    AsyncLoggingDbtHook,
     AsyncCompositeDbtHook,
-    # Adapter
-    SyncToAsyncDbtHookAdapter,
+    AsyncDbtHook,
+    AsyncLoggingDbtHook,
+    # Implementations
+    BaseDbtHook,
+    CompositeDbtHook,
+    ConversionEndEvent,
+    ConversionStartEvent,
+    # Event types
+    DbtEvent,
+    # Protocols
+    DbtHook,
+    GenerationEndEvent,
+    GenerationStartEvent,
     # Exceptions
     HookError,
     HookExecutionError,
+    LoggingDbtHook,
+    MetricsDbtHook,
+    ParseEndEvent,
+    ParseStartEvent,
+    # Adapter
+    SyncToAsyncDbtHookAdapter,
+    TestEndEvent,
+    TestStartEvent,
 )
+from truthound_dbt.hooks.depot import (
+    DepotHookConfig,
+    execute_depot_hook_operation,
+    release_tag_operation,
+    validate_branch_operation,
+)
+
 
 __all__ = [
     # Protocols
@@ -78,4 +85,9 @@ __all__ = [
     # Exceptions
     "HookError",
     "HookExecutionError",
+    # Depot helpers
+    "DepotHookConfig",
+    "execute_depot_hook_operation",
+    "validate_branch_operation",
+    "release_tag_operation",
 ]

@@ -56,6 +56,11 @@ from truthound_kestra.flows.config import (
     TriggerConfig,
     TriggerType,
 )
+from truthound_kestra.flows.depot import (
+    generate_depot_release_flow,
+    generate_depot_scheduled_validate_flow,
+    generate_depot_validate_flow,
+)
 from truthound_kestra.flows.templates import (
     FlowGenerator,
     generate_check_flow,
@@ -85,6 +90,9 @@ __all__ = [
     # Template functions
     "generate_flow_yaml",
     "generate_check_flow",
+    "generate_depot_validate_flow",
+    "generate_depot_scheduled_validate_flow",
+    "generate_depot_release_flow",
     "generate_profile_flow",
     "generate_learn_flow",
     "generate_quality_pipeline",
