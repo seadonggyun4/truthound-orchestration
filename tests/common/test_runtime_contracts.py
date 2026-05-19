@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any, cast
 
+from common.depot.models import DepotOperationStatus
+from common.depot.testing import (
+    FakeDepotRuntimeClient,
+    build_operation_request,
+    build_operation_result,
+)
 from common.engines import (
     EngineCreationRequest,
     build_compatibility_report,
@@ -11,12 +18,14 @@ from common.engines import (
     resolve_data_source,
     run_preflight,
 )
+from common.engines.base import DataQualityEngine
 from common.orchestration import (
     OpenLineageEmitter,
-    execute_operation,
     QualityGateConfig,
     StreamRequest,
     evaluate_quality_gate,
+    execute_depot_operation,
+    execute_operation,
     prepare_check_invocation,
     run_stream_check,
 )
@@ -52,7 +61,7 @@ def test_build_compatibility_report_flags_missing_connection_for_sql() -> None:
     source = resolve_data_source(sql="SELECT * FROM users")
 
     report = build_compatibility_report(
-        _FakeEngine(),
+        cast(DataQualityEngine, _FakeEngine()),
         runtime_context=runtime_context,
         resolved_source=source,
     )
@@ -88,7 +97,7 @@ def test_evaluate_quality_gate_stream_uses_shared_stream_summary() -> None:
     engine.configure_check(success=True, passed_count=1)
 
     decision = evaluate_quality_gate(
-        engine,
+        cast(DataQualityEngine, engine),
         iter([{"id": 1}, {"id": 2}, {"id": 3}]),
         rules=[],
         config=QualityGateConfig(min_pass_rate=1.0),
@@ -105,7 +114,7 @@ def test_run_stream_check_tracks_checkpointed_record_counts() -> None:
 
     envelopes = list(
         run_stream_check(
-            engine,
+            cast(DataQualityEngine, engine),
             StreamRequest(
                 stream=iter([{"id": 1}, {"id": 2}, {"id": 3}]),
                 rules=[],
@@ -122,7 +131,7 @@ def test_build_compatibility_report_flags_invalid_openlineage_endpoint() -> None
     engine = MockDataQualityEngine()
 
     report = build_compatibility_report(
-        engine,
+        cast(DataQualityEngine, engine),
         observability=ObservabilityConfig(
             backend=ObservabilityBackend.OPENLINEAGE,
             endpoint="ftp://invalid",
@@ -140,7 +149,7 @@ def test_execute_operation_emits_openlineage_host_execution() -> None:
 
     execute_operation(
         "check",
-        engine,
+        cast(DataQualityEngine, engine),
         data=[{"id": 1}],
         rules=None,
         runtime_context=normalize_runtime_context(
@@ -166,7 +175,7 @@ def test_execute_operation_posts_to_shared_openlineage_collector(
 
     execute_operation(
         "check",
-        engine,
+        cast(DataQualityEngine, engine),
         data=[{"id": 1}],
         rules=None,
         runtime_context=normalize_runtime_context(
@@ -186,3 +195,45 @@ def test_execute_operation_posts_to_shared_openlineage_collector(
     facet = payload["run"]["facets"]["truthound"]
     assert facet["host_execution"]["flow_run_id"] == "flow-1"
     assert facet["host_execution"]["task_run_id"] == "task-1"
+
+
+def test_execute_depot_operation_does_not_change_validation_runtime_contract() -> None:
+    engine = MockDataQualityEngine(name="truthound", version="3.1.0")
+    engine.configure_check(success=True, passed_count=1)
+    client = FakeDepotRuntimeClient()
+    client.queue_submit(build_operation_result(status=DepotOperationStatus.SUCCEEDED))
+
+    depot_result = execute_depot_operation(
+        build_operation_request(),
+        runtime_context=normalize_runtime_context(platform="airflow"),
+        client=client,
+    )
+    validation_result = execute_operation(
+        "check",
+        cast(DataQualityEngine, engine),
+        data=[{"id": 1}],
+        rules=None,
+        runtime_context=normalize_runtime_context(platform="airflow"),
+    )
+
+    assert depot_result.status == DepotOperationStatus.SUCCEEDED
+    assert validation_result.passed_count == 1
+
+
+def test_execute_depot_operation_emits_openlineage_depot_facet() -> None:
+    client = FakeDepotRuntimeClient()
+    client.queue_submit(build_operation_result(status=DepotOperationStatus.SUCCEEDED))
+    emitter = OpenLineageEmitter(namespace="truthound", job_name="runtime-contract")
+
+    execute_depot_operation(
+        build_operation_request(),
+        runtime_context=normalize_runtime_context(
+            platform="prefect",
+            host_execution={"flow_run_id": "flow-1"},
+        ),
+        client=client,
+        emitter=emitter,
+    )
+
+    payload = emitter.emitted_events[-1]
+    assert payload["run"]["facets"]["truthound"]["depot"]["status"] == "succeeded"

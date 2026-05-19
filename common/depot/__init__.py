@@ -1,0 +1,101 @@
+"""Shared Depot orchestration contracts and helpers."""
+
+from common.depot.client import (
+    DepotClient,
+    DepotClientConfig,
+    DepotClientResponse,
+)
+from common.depot.failures import (
+    DepotClientError,
+    DepotFailure,
+    DepotFailureCode,
+    DepotIntegrationError,
+    DepotPollingTimeoutError,
+    DepotProtocolError,
+    RetryDisposition,
+    build_failure,
+    build_failure_from_exception,
+    build_failure_from_result,
+    classify_exception_failure,
+    classify_operation_result_failure,
+    failure_code_to_retry_disposition,
+    is_retryable_failure,
+    is_wait_state_failure,
+    normalize_failure_code,
+    retry_disposition_for_exception,
+)
+from common.depot.idempotency import (
+    assert_mutation_request_has_ids,
+    build_idempotency_key,
+    normalize_idempotency_key,
+    normalize_operation_id,
+    requires_mutation_identity,
+)
+from common.depot.models import (
+    DepotArtifactRefs,
+    DepotOperationRequest,
+    DepotOperationResult,
+    DepotOperationStatus,
+    DepotOperationType,
+    DepotPlatformMetadata,
+    make_json_safe,
+)
+from common.depot.observability import CompositeEmitter, StructuredLogEmitter
+from common.depot.polling import (
+    PollingConfig,
+    classify_status,
+    is_terminal_status,
+    is_waiting_status,
+    wait_for_terminal_operation,
+)
+from common.depot.serialization import (
+    deserialize_operation_result_wire,
+    serialize_operation_result_wire,
+    to_platform_payload,
+)
+
+
+__all__ = [
+    "DepotArtifactRefs",
+    "DepotClient",
+    "DepotClientConfig",
+    "DepotClientError",
+    "DepotClientResponse",
+    "DepotFailure",
+    "DepotFailureCode",
+    "DepotIntegrationError",
+    "DepotOperationRequest",
+    "DepotOperationResult",
+    "DepotOperationStatus",
+    "DepotOperationType",
+    "DepotPlatformMetadata",
+    "DepotPollingTimeoutError",
+    "DepotProtocolError",
+    "PollingConfig",
+    "RetryDisposition",
+    "assert_mutation_request_has_ids",
+    "build_failure",
+    "build_failure_from_exception",
+    "build_failure_from_result",
+    "build_idempotency_key",
+    "classify_exception_failure",
+    "classify_operation_result_failure",
+    "CompositeEmitter",
+    "deserialize_operation_result_wire",
+    "failure_code_to_retry_disposition",
+    "is_retryable_failure",
+    "is_terminal_status",
+    "is_wait_state_failure",
+    "is_waiting_status",
+    "make_json_safe",
+    "normalize_failure_code",
+    "normalize_idempotency_key",
+    "normalize_operation_id",
+    "requires_mutation_identity",
+    "retry_disposition_for_exception",
+    "serialize_operation_result_wire",
+    "StructuredLogEmitter",
+    "to_platform_payload",
+    "wait_for_terminal_operation",
+    "classify_status",
+]

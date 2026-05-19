@@ -23,10 +23,17 @@ import json
 from abc import abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, ClassVar, Protocol, Self, TypeVar, runtime_checkable
+from typing import Any, ClassVar, Protocol, Self, TypeVar, cast, runtime_checkable
 
 from common.base import AnomalyResult, CheckResult, DriftResult, LearnResult, ProfileResult
+from common.depot.models import DepotOperationResult
+from common.depot.serialization import (
+    deserialize_operation_result_wire,
+    serialize_operation_result_wire,
+    to_platform_payload,
+)
 from common.exceptions import DeserializeError, SerializationError, SerializeError
+from common.runtime import DepotFlowResult
 
 
 # =============================================================================
@@ -1144,6 +1151,96 @@ def deserialize_result_wire(
     return payload
 
 
+def serialize_depot_runtime_wire(result: DepotOperationResult) -> dict[str, Any]:
+    """Serialize a Depot runtime result into the shared Depot wire contract."""
+
+    payload = serialize_operation_result_wire(result)
+    payload["payload_type"] = "depot_operation"
+    return payload
+
+
+def deserialize_depot_runtime_wire(data: dict[str, Any]) -> DepotOperationResult:
+    """Deserialize a Depot runtime wire payload back into a Depot operation result."""
+
+    payload = dict(data)
+    payload.pop("payload_type", None)
+    return deserialize_operation_result_wire(payload)
+
+
+def serialize_depot_flow_wire(result: DepotFlowResult) -> dict[str, Any]:
+    """Serialize a shared Depot flow result into the flow wire contract."""
+
+    payload = result.to_dict()
+    payload["payload_type"] = "depot_flow"
+    return payload
+
+
+def deserialize_depot_flow_wire(data: dict[str, Any]) -> DepotFlowResult:
+    """Deserialize a Depot flow wire payload back into a shared flow result."""
+
+    payload = dict(data)
+    payload.pop("payload_type", None)
+    return DepotFlowResult.from_dict(payload)
+
+
+def serialize_runtime_wire(
+    result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult | DepotOperationResult,
+    *,
+    include_result_type: bool = False,
+    result_type_key: str = "result_type",
+) -> dict[str, Any]:
+    """Serialize either a validation result or a Depot result through one shared facade."""
+
+    if isinstance(result, DepotOperationResult):
+        return serialize_depot_runtime_wire(result)
+    return serialize_result_wire(
+        result,
+        include_result_type=include_result_type,
+        result_type_key=result_type_key,
+    )
+
+
+def compose_platform_runtime_payload(
+    *,
+    runtime_context: dict[str, Any] | None,
+    depot_result: DepotOperationResult,
+    core_result_ref: str | None = None,
+    core_gate_result_ref: str | None = None,
+    host_wrapper_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compose a host-safe shared payload for platform wrappers."""
+
+    payload = to_platform_payload(depot_result)
+    payload["payload_type"] = "depot_operation"
+    artifact_refs = dict(payload["artifact_refs"])
+    if core_result_ref is not None and not artifact_refs.get("core_result_ref"):
+        artifact_refs["core_result_ref"] = core_result_ref
+    if core_gate_result_ref is not None and not artifact_refs.get("core_gate_result_ref"):
+        artifact_refs["core_gate_result_ref"] = core_gate_result_ref
+    payload["artifact_refs"] = artifact_refs
+    if runtime_context is not None:
+        payload["runtime_context"] = runtime_context
+    if host_wrapper_metadata:
+        payload["host_wrapper_metadata"] = host_wrapper_metadata
+    return payload
+
+
+def compose_platform_flow_payload(
+    *,
+    runtime_context: dict[str, Any] | None,
+    flow_result: DepotFlowResult,
+    host_wrapper_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compose a host-safe shared payload for Depot flow wrappers."""
+
+    payload = serialize_depot_flow_wire(flow_result)
+    if runtime_context is not None:
+        payload["runtime_context"] = runtime_context
+    if host_wrapper_metadata:
+        payload["host_wrapper_metadata"] = host_wrapper_metadata
+    return payload
+
+
 def serialize_result(
     result: CheckResult | ProfileResult | LearnResult | DriftResult | AnomalyResult,
     format: str = "dict",
@@ -1183,7 +1280,7 @@ def deserialize_result(
         DeserializeError: If deserialization fails.
     """
     serializer = _default_factory.get(format)
-    return serializer.deserialize(data, result_type)
+    return cast(T, serializer.deserialize(data, result_type))
 
 
 def get_serializer(name: str) -> Any:

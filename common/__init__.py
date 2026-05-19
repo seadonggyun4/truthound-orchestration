@@ -108,6 +108,32 @@ __version__ = "3.0.1"
 # =============================================================================
 # Cache
 # =============================================================================
+# =============================================================================
+# Base Types
+# =============================================================================
+from common.base import (
+    # Protocols
+    AsyncWorkflowIntegration,
+    # Config Types
+    CheckConfig,
+    # Result Types
+    CheckResult,
+    CheckResultBuilder,
+    # Enums
+    CheckStatus,
+    ColumnProfile,
+    FailureAction,
+    LearnConfig,
+    LearnedRule,
+    LearnResult,
+    LearnStatus,
+    ProfileConfig,
+    ProfileResult,
+    ProfileStatus,
+    Severity,
+    ValidationFailure,
+    WorkflowIntegration,
+)
 from common.cache import (
     DEFAULT_CACHE_CONFIG,
     LARGE_CACHE_CONFIG,
@@ -159,33 +185,6 @@ from common.cache import (
     create_cache,
     get_cache,
     get_cache_registry,
-)
-
-# =============================================================================
-# Base Types
-# =============================================================================
-from common.base import (
-    # Protocols
-    AsyncWorkflowIntegration,
-    # Config Types
-    CheckConfig,
-    # Result Types
-    CheckResult,
-    CheckResultBuilder,
-    # Enums
-    CheckStatus,
-    ColumnProfile,
-    FailureAction,
-    LearnConfig,
-    LearnedRule,
-    LearnResult,
-    LearnStatus,
-    ProfileConfig,
-    ProfileResult,
-    ProfileStatus,
-    Severity,
-    ValidationFailure,
-    WorkflowIntegration,
 )
 
 # =============================================================================
@@ -241,12 +240,38 @@ from common.config import (
 )
 
 # =============================================================================
+# Depot
+# =============================================================================
+from common.depot import (
+    CompositeEmitter,
+    DepotClient,
+    DepotClientConfig,
+    DepotClientError,
+    DepotFailureCode,
+    DepotOperationRequest,
+    DepotOperationResult,
+    DepotOperationStatus,
+    DepotOperationType,
+    DepotPollingTimeoutError,
+    DepotProtocolError,
+    PollingConfig,
+    StructuredLogEmitter,
+    build_failure_from_exception,
+    build_failure_from_result,
+    build_idempotency_key,
+    classify_exception_failure,
+    classify_operation_result_failure,
+    normalize_failure_code,
+    retry_disposition_for_exception,
+)
+
+# =============================================================================
 # Engines
 # =============================================================================
 from common.engines import (
-    AutoConfigPolicy,
     # Base Types
     AsyncDataQualityEngine,
+    AutoConfigPolicy,
     CompatibilityCheck,
     CompatibilityReport,
     DataQualityEngine,
@@ -256,17 +281,17 @@ from common.engines import (
     EngineInfo,
     # Registry
     EngineRegistry,
-    ObservabilityBackend,
-    ObservabilityConfig,
-    PreflightReport,
-    PlatformRuntimeContext,
-    ResolvedDataSource,
-    build_compatibility_report,
-    create_engine,
     # Engines
     GreatExpectationsAdapter,
+    ObservabilityBackend,
+    ObservabilityConfig,
     PanderaAdapter,
+    PlatformRuntimeContext,
+    PreflightReport,
+    ResolvedDataSource,
     TruthoundEngine,
+    build_compatibility_report,
+    create_engine,
     get_default_engine,
     get_engine,
     get_engine_registry,
@@ -281,53 +306,6 @@ from common.engines.registry import (
     EngineAlreadyRegisteredError,
     EngineNotFoundError,
 )
-
-# =============================================================================
-# Rule Validation
-# =============================================================================
-from common.rule_validation import (
-    # Enums
-    FieldType,
-    RuleCategory,
-    # Exceptions
-    RuleValidationError,
-    UnknownRuleTypeError,
-    MissingFieldError,
-    InvalidFieldTypeError,
-    InvalidFieldValueError,
-    MultipleRuleValidationErrors,
-    # Schema Types
-    FieldSchema,
-    RuleSchema,
-    RuleValidationResult,
-    BatchValidationResult,
-    # Validators
-    RuleValidator,
-    StandardRuleValidator,
-    TruthoundRuleValidator,
-    GreatExpectationsRuleValidator,
-    PanderaRuleValidator,
-    # Registry
-    RuleRegistry,
-    get_rule_registry,
-    reset_rule_registry,
-    COMMON_RULE_SCHEMAS,
-    # Normalizer
-    RuleNormalizer,
-    # Convenience Functions
-    validate_rule,
-    validate_rules,
-    normalize_rules,
-    get_validator_for_engine,
-    register_rule_schema,
-    get_supported_rule_types,
-    # Engine Integration
-    ValidatingEngineWrapper,
-    wrap_engine_with_validation,
-    validate_rules_decorator,
-    create_validating_check,
-)
-
 from common.exceptions import (
     AuthenticationError,
     ConfigurationError,
@@ -345,6 +323,27 @@ from common.exceptions import (
     TruthoundIntegrationError,
     ValidationExecutionError,
     wrap_exception,
+)
+
+# =============================================================================
+# Prometheus Exporter
+# =============================================================================
+from common.exporters import (
+    DEFAULT_PROMETHEUS_CONFIG,
+    PUSHGATEWAY_PROMETHEUS_CONFIG,
+    # Configuration
+    PrometheusConfig,
+    # Core Exporter
+    PrometheusExporter,
+    PrometheusFormatter,
+    # HTTP Server
+    PrometheusHttpServer,
+    # Push Gateway
+    PrometheusPushGatewayClient,
+    # Factory Functions
+    create_prometheus_exporter,
+    create_prometheus_http_server,
+    create_pushgateway_exporter,
 )
 
 # =============================================================================
@@ -434,27 +433,6 @@ from common.logging import (
     log_call,
     log_errors,
     set_context,
-)
-
-# =============================================================================
-# Prometheus Exporter
-# =============================================================================
-from common.exporters import (
-    # Configuration
-    PrometheusConfig,
-    DEFAULT_PROMETHEUS_CONFIG,
-    PUSHGATEWAY_PROMETHEUS_CONFIG,
-    # Core Exporter
-    PrometheusExporter,
-    PrometheusFormatter,
-    # Push Gateway
-    PrometheusPushGatewayClient,
-    # HTTP Server
-    PrometheusHttpServer,
-    # Factory Functions
-    create_prometheus_exporter,
-    create_pushgateway_exporter,
-    create_prometheus_http_server,
 )
 
 # =============================================================================
@@ -615,6 +593,58 @@ from common.retry import (
 )
 
 # =============================================================================
+# Rule Validation
+# =============================================================================
+from common.rule_validation import (
+    COMMON_RULE_SCHEMAS,
+    BatchValidationResult,
+    # Schema Types
+    FieldSchema,
+    # Enums
+    FieldType,
+    GreatExpectationsRuleValidator,
+    InvalidFieldTypeError,
+    InvalidFieldValueError,
+    MissingFieldError,
+    MultipleRuleValidationErrors,
+    PanderaRuleValidator,
+    RuleCategory,
+    # Normalizer
+    RuleNormalizer,
+    # Registry
+    RuleRegistry,
+    RuleSchema,
+    # Exceptions
+    RuleValidationError,
+    RuleValidationResult,
+    # Validators
+    RuleValidator,
+    StandardRuleValidator,
+    TruthoundRuleValidator,
+    UnknownRuleTypeError,
+    # Engine Integration
+    ValidatingEngineWrapper,
+    create_validating_check,
+    get_rule_registry,
+    get_supported_rule_types,
+    get_validator_for_engine,
+    normalize_rules,
+    register_rule_schema,
+    reset_rule_registry,
+    # Convenience Functions
+    validate_rule,
+    validate_rules,
+    validate_rules_decorator,
+    wrap_engine_with_validation,
+)
+from common.runtime import (
+    DepotFlowRequest,
+    DepotFlowResult,
+    DepotFlowStatus,
+    DepotFlowStepResult,
+)
+
+# =============================================================================
 # Serializers
 # =============================================================================
 from common.serializers import (
@@ -626,13 +656,13 @@ from common.serializers import (
     PrefectArtifactSerializer,
     ResultSerializer,
     SerializerFactory,
+    deserialize_result,
     deserialize_result_wire,
     detect_result_type,
-    deserialize_result,
     get_serializer,
     register_serializer,
-    serialize_result_wire,
     serialize_result,
+    serialize_result_wire,
 )
 
 # =============================================================================
@@ -739,6 +769,31 @@ __all__ = [
     "normalize_runtime_context",
     "resolve_data_source",
     "run_preflight",
+    # Depot
+    "DepotClient",
+    "DepotClientConfig",
+    "DepotClientError",
+    "CompositeEmitter",
+    "DepotFailureCode",
+    "DepotOperationRequest",
+    "DepotOperationResult",
+    "DepotOperationStatus",
+    "DepotOperationType",
+    "DepotFlowRequest",
+    "DepotFlowResult",
+    "DepotFlowStatus",
+    "DepotFlowStepResult",
+    "DepotPollingTimeoutError",
+    "DepotProtocolError",
+    "PollingConfig",
+    "build_idempotency_key",
+    "build_failure_from_exception",
+    "build_failure_from_result",
+    "classify_exception_failure",
+    "classify_operation_result_failure",
+    "normalize_failure_code",
+    "retry_disposition_for_exception",
+    "StructuredLogEmitter",
     # Serializers
     "AirflowXComConfig",
     "AirflowXComSerializer",

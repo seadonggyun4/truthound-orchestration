@@ -12,19 +12,39 @@ consistent across Airflow, Dagster, Prefect, Mage, Kestra, and dbt:
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable, AsyncIterator, Callable, Iterable, Iterator, Sequence
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from enum import Enum
 import inspect
 import json
 import time
-from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from collections.abc import AsyncIterator, Iterator, Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any, Protocol, cast, runtime_checkable
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from common.base import CheckResult, CheckStatus
+from common.depot.failures import (
+    DepotFailureCode,
+    DepotPollingTimeoutError,
+    classify_exception_failure,
+)
+from common.depot.idempotency import build_idempotency_key
+from common.depot.models import (
+    DepotArtifactRefs,
+    DepotOperationRequest,
+    DepotOperationResult,
+    DepotOperationStatus,
+    DepotOperationType,
+    DepotPlatformMetadata,
+)
+from common.depot.observability import (
+    CompositeEmitter,
+    StructuredLogEmitter,
+    build_openlineage_depot_flow_truthound_facet,
+    build_openlineage_depot_truthound_facet,
+)
+from common.depot.polling import PollingConfig, classify_status, is_terminal_status
 from common.engines.base import (
     DataQualityEngine,
     supports_anomaly,
@@ -33,11 +53,20 @@ from common.engines.base import (
 )
 from common.runtime import (
     DataSourceKind,
+    DepotFlowRequest,
+    DepotFlowResult,
+    DepotFlowStatus,
+    DepotFlowStepResult,
+    DepotRuntimeEnvelope,
     ObservabilityBackend,
     ObservabilityConfig,
     PlatformRuntimeContext,
     ResolvedDataSource,
+    attach_depot_artifact_refs,
+    build_depot_platform_metadata,
+    normalize_depot_runtime_request,
     normalize_observability_config,
+    normalize_runtime_context,
     resolve_data_source,
 )
 from common.serializers import serialize_result_wire
@@ -47,7 +76,7 @@ def _utc_now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-class OperationKind(str, Enum):
+class OperationKind(StrEnum):
     """Supported first-party operation kinds."""
 
     CHECK = "check"
@@ -123,9 +152,9 @@ def build_capability_matrix(engine: DataQualityEngine) -> CapabilityMatrix:
 
     capability_source = None
     if hasattr(engine, "get_capabilities"):
-        capability_source = engine.get_capabilities()  # type: ignore[attr-defined]
+        capability_source = engine.get_capabilities()
     elif hasattr(engine, "capabilities"):
-        capability_source = engine.capabilities  # type: ignore[attr-defined]
+        capability_source = engine.capabilities
 
     supports_check_op = getattr(capability_source, "supports_check", True)
     supports_profile_op = getattr(capability_source, "supports_profile", True)
@@ -223,7 +252,7 @@ def prepare_check_invocation(
     return effective_rules, effective_kwargs
 
 
-class OperationEventType(str, Enum):
+class OperationEventType(StrEnum):
     """Lifecycle event types emitted by the shared runtime."""
 
     STARTED = "started"
@@ -263,6 +292,120 @@ class ObservabilityEvent:
         }
 
 
+class DepotOperationEventType(StrEnum):
+    """Lifecycle event types emitted by the shared Depot runtime."""
+
+    STARTED = "started"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    WAITING = "waiting"
+    RESUMED = "resumed"
+
+
+class DepotFlowEventType(StrEnum):
+    """Lifecycle event types emitted by shared Depot orchestration flows."""
+
+    FLOW_STARTED = "flow_started"
+    FLOW_WAITING = "flow_waiting"
+    FLOW_COMPLETED = "flow_completed"
+    FLOW_FAILED = "flow_failed"
+    FLOW_NO_OP = "flow_no_op"
+
+
+@dataclass(frozen=True, slots=True)
+class DepotObservabilityEvent:
+    """Structured Depot runtime event emitted through shared observability."""
+
+    event_type: DepotOperationEventType
+    operation_id: str
+    operation_type: DepotOperationType
+    status: DepotOperationStatus
+    depot_id: str
+    asset_id: str
+    branch_id: str | None = None
+    snapshot_id: str | None = None
+    merge_request_id: str | None = None
+    release_tag: str | None = None
+    quality_gate_id: str | None = None
+    platform: str = "common"
+    timestamp: str = field(default_factory=_utc_now_iso)
+    host_execution: dict[str, Any] = field(default_factory=dict)
+    artifact_refs: DepotArtifactRefs = field(default_factory=DepotArtifactRefs)
+    platform_metadata: DepotPlatformMetadata | None = None
+    request_id: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_type": self.event_type.value,
+            "operation_id": self.operation_id,
+            "operation_type": self.operation_type.value,
+            "status": self.status.value,
+            "depot_id": self.depot_id,
+            "asset_id": self.asset_id,
+            "branch_id": self.branch_id,
+            "snapshot_id": self.snapshot_id,
+            "merge_request_id": self.merge_request_id,
+            "release_tag": self.release_tag,
+            "quality_gate_id": self.quality_gate_id,
+            "platform": self.platform,
+            "timestamp": self.timestamp,
+            "host_execution": self.host_execution,
+            "artifact_refs": self.artifact_refs.to_dict(),
+            "platform_metadata": (
+                self.platform_metadata.to_dict() if self.platform_metadata is not None else None
+            ),
+            "request_id": self.request_id,
+            "error_code": self.error_code,
+            "error_message": self.error_message,
+            "metadata": self.metadata,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DepotFlowObservabilityEvent:
+    """Structured shared event for Depot orchestration-level flows."""
+
+    event_type: DepotFlowEventType
+    flow_type: str
+    status: DepotFlowStatus
+    depot_id: str
+    asset_id: str
+    final_result: DepotOperationResult
+    steps: tuple[DepotFlowStepResult, ...] = ()
+    branch_id: str | None = None
+    release_tag: str | None = None
+    platform: str = "common"
+    timestamp: str = field(default_factory=_utc_now_iso)
+    host_execution: dict[str, Any] = field(default_factory=dict)
+    artifact_refs: DepotArtifactRefs = field(default_factory=DepotArtifactRefs)
+    platform_metadata: DepotPlatformMetadata | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_type": self.event_type.value,
+            "flow_type": self.flow_type,
+            "status": self.status.value,
+            "depot_id": self.depot_id,
+            "asset_id": self.asset_id,
+            "branch_id": self.branch_id,
+            "release_tag": self.release_tag,
+            "platform": self.platform,
+            "timestamp": self.timestamp,
+            "host_execution": self.host_execution,
+            "artifact_refs": self.artifact_refs.to_dict(),
+            "platform_metadata": (
+                self.platform_metadata.to_dict() if self.platform_metadata is not None else None
+            ),
+            "final_result": self.final_result.to_dict(),
+            "steps": [step.to_dict() for step in self.steps],
+            "metadata": self.metadata,
+        }
+
+
 @runtime_checkable
 class ObservabilityEmitter(Protocol):
     """Protocol for runtime observability emitters."""
@@ -277,10 +420,30 @@ class ObservabilityEmitter(Protocol):
         """Validate that the emitter is ready for execution."""
 
 
+@runtime_checkable
+class DepotOperationClient(Protocol):
+    """Protocol for Depot operation clients consumed by the shared runtime."""
+
+    def submit_operation(self, request: DepotOperationRequest) -> DepotOperationResult:
+        """Submit a Depot operation."""
+
+    def get_operation(self, operation_id: str) -> DepotOperationResult:
+        """Read a Depot operation by id."""
+
+
 class NoOpEmitter:
     """Default emitter used when no observability sink is configured."""
 
     def emit(self, event: ObservabilityEvent) -> None:  # pragma: no cover - intentionally empty
+        del event
+
+    def emit_depot(self, event: DepotObservabilityEvent) -> None:  # pragma: no cover - intentionally empty
+        del event
+
+    def emit_depot_flow(  # pragma: no cover - intentionally empty
+        self,
+        event: DepotFlowObservabilityEvent,
+    ) -> None:
         del event
 
     def flush(self) -> None:  # pragma: no cover - intentionally empty
@@ -333,7 +496,61 @@ class OpenLineageEmitter:
                 method="POST",
             )
             try:
-                with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    if response.status >= 400:
+                        raise RuntimeError(
+                            f"OpenLineage emitter received HTTP {response.status}"
+                        )
+                return
+            except Exception:
+                if attempt >= attempts - 1:
+                    raise
+                time.sleep(self.retry_backoff_seconds)
+
+    def emit_depot(self, event: DepotObservabilityEvent) -> None:
+        payload = self._build_openlineage_depot_payload(event)
+        self.emitted_events.append(payload)
+        if self.endpoint is None:
+            return
+
+        body = json.dumps(payload).encode("utf-8")
+        attempts = max(self.retry_count, 0) + 1
+        for attempt in range(attempts):
+            request = Request(
+                self.endpoint,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
+                    if response.status >= 400:
+                        raise RuntimeError(
+                            f"OpenLineage emitter received HTTP {response.status}"
+                        )
+                return
+            except Exception:
+                if attempt >= attempts - 1:
+                    raise
+                time.sleep(self.retry_backoff_seconds)
+
+    def emit_depot_flow(self, event: DepotFlowObservabilityEvent) -> None:
+        payload = self._build_openlineage_depot_flow_payload(event)
+        self.emitted_events.append(payload)
+        if self.endpoint is None:
+            return
+
+        body = json.dumps(payload).encode("utf-8")
+        attempts = max(self.retry_count, 0) + 1
+        for attempt in range(attempts):
+            request = Request(
+                self.endpoint,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urlopen(request, timeout=self.timeout_seconds) as response:
                     if response.status >= 400:
                         raise RuntimeError(
                             f"OpenLineage emitter received HTTP {response.status}"
@@ -407,6 +624,85 @@ class OpenLineageEmitter:
             "outputs": [],
         }
 
+    def _build_openlineage_depot_payload(self, event: DepotObservabilityEvent) -> dict[str, Any]:
+        host_execution = {
+            key: value
+            for key, value in event.host_execution.items()
+            if value is not None
+        }
+        run_id = (
+            host_execution.get("run_id")
+            or host_execution.get("task_run_id")
+            or host_execution.get("flow_run_id")
+            or host_execution.get("execution_id")
+            or host_execution.get("invocation_id")
+            or event.metadata.get("run_id")
+            or event.operation_id
+        )
+        if event.event_type in {DepotOperationEventType.STARTED, DepotOperationEventType.RESUMED}:
+            event_type = "START"
+        elif event.event_type == DepotOperationEventType.FAILED:
+            event_type = "FAIL"
+        else:
+            event_type = "COMPLETE"
+        truthound_facet = build_openlineage_depot_truthound_facet(event, producer=self.producer)
+        return {
+            "eventType": event_type,
+            "eventTime": event.timestamp,
+            "producer": self.producer,
+            "job": {
+                "namespace": f"{self.namespace}/{event.platform}",
+                "name": f"{self.job_name}.{event.operation_type.value}",
+                "facets": {},
+            },
+            "run": {
+                "runId": str(run_id),
+                "facets": {"truthound": truthound_facet},
+            },
+            "inputs": [],
+            "outputs": [],
+        }
+
+    def _build_openlineage_depot_flow_payload(
+        self,
+        event: DepotFlowObservabilityEvent,
+    ) -> dict[str, Any]:
+        host_execution = {
+            key: value
+            for key, value in event.host_execution.items()
+            if value is not None
+        }
+        run_id = (
+            host_execution.get("run_id")
+            or host_execution.get("flow_run_id")
+            or host_execution.get("execution_id")
+            or host_execution.get("invocation_id")
+            or event.final_result.operation_id
+        )
+        if event.event_type == DepotFlowEventType.FLOW_STARTED:
+            event_type = "START"
+        elif event.event_type == DepotFlowEventType.FLOW_FAILED:
+            event_type = "FAIL"
+        else:
+            event_type = "COMPLETE"
+        truthound_facet = build_openlineage_depot_flow_truthound_facet(
+            event,
+            producer=self.producer,
+        )
+        return {
+            "eventType": event_type,
+            "eventTime": event.timestamp,
+            "producer": self.producer,
+            "job": {
+                "namespace": f"{self.namespace}/{event.platform}",
+                "name": f"{self.job_name}.{event.flow_type}",
+                "facets": {},
+            },
+            "run": {"runId": str(run_id), "facets": {"truthound": truthound_facet}},
+            "inputs": [],
+            "outputs": [],
+        }
+
 
 def create_observability_emitter(
     config: ObservabilityConfig | dict[str, Any] | None = None,
@@ -414,19 +710,35 @@ def create_observability_emitter(
     """Create a shared observability emitter from typed config."""
 
     normalized = normalize_observability_config(config)
-    if normalized.backend == ObservabilityBackend.NONE:
-        return NoOpEmitter()
+    emitters: list[Any] = []
     if normalized.backend == ObservabilityBackend.OPENLINEAGE:
-        return OpenLineageEmitter(
-            namespace=normalized.namespace,
-            job_name=normalized.job_name,
-            endpoint=normalized.endpoint,
-            producer=normalized.producer,
-            timeout_seconds=normalized.timeout_seconds,
-            retry_count=normalized.retry_count,
-            retry_backoff_seconds=normalized.retry_backoff_seconds,
+        emitters.append(
+            OpenLineageEmitter(
+                namespace=normalized.namespace,
+                job_name=normalized.job_name,
+                endpoint=normalized.endpoint,
+                producer=normalized.producer,
+                timeout_seconds=normalized.timeout_seconds,
+                retry_count=normalized.retry_count,
+                retry_backoff_seconds=normalized.retry_backoff_seconds,
+            )
         )
-    raise ValueError(f"Unsupported observability backend: {normalized.backend.value}")
+    elif normalized.backend != ObservabilityBackend.NONE:
+        raise ValueError(f"Unsupported observability backend: {normalized.backend.value}")
+
+    if normalized.structured_logging:
+        emitters.append(
+            StructuredLogEmitter(
+                logger_name=normalized.logger_name,
+                log_level=normalized.log_level,
+            )
+        )
+
+    if not emitters:
+        return NoOpEmitter()
+    if len(emitters) == 1:
+        return cast(ObservabilityEmitter, emitters[0])
+    return cast(ObservabilityEmitter, CompositeEmitter(tuple(emitters)))
 
 
 def _resolve_runtime_emitter(
@@ -485,6 +797,805 @@ def emit_runtime_event(
     )
 
 
+def emit_depot_runtime_event(
+    emitter: ObservabilityEmitter | None,
+    *,
+    event_type: DepotOperationEventType,
+    result: DepotOperationResult,
+    runtime_context: PlatformRuntimeContext | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Emit a shared Depot runtime event through the configured emitter."""
+
+    if emitter is None or not hasattr(emitter, "emit_depot"):
+        return
+    event = DepotObservabilityEvent(
+        event_type=event_type,
+        operation_id=result.operation_id,
+        operation_type=result.operation_type,
+        status=result.status,
+        depot_id=result.depot_id,
+        asset_id=result.asset_id,
+        branch_id=result.branch_id,
+        snapshot_id=result.snapshot_id,
+        merge_request_id=result.merge_request_id,
+        release_tag=result.release_tag,
+        quality_gate_id=result.quality_gate_id,
+        platform=runtime_context.platform if runtime_context is not None else "common",
+        host_execution=(
+            dict(runtime_context.host_execution)
+            if runtime_context is not None
+            else (
+                result.platform_metadata.host_execution
+                if result.platform_metadata is not None
+                else {}
+            )
+        ),
+        artifact_refs=result.artifact_refs,
+        platform_metadata=result.platform_metadata,
+        request_id=cast(str | None, result.metadata.get("request_id")),
+        error_code=result.error_code,
+        error_message=result.error_message,
+        metadata={**result.metadata, **(metadata or {})},
+    )
+    cast(Any, emitter).emit_depot(event)
+
+
+def emit_depot_flow_event(
+    emitter: ObservabilityEmitter | None,
+    *,
+    event_type: DepotFlowEventType,
+    result: DepotFlowResult,
+    runtime_context: PlatformRuntimeContext | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Emit a shared Depot orchestration flow event through the configured emitter."""
+
+    if emitter is None or not hasattr(emitter, "emit_depot_flow"):
+        return
+    event = DepotFlowObservabilityEvent(
+        event_type=event_type,
+        flow_type=result.flow_type,
+        status=result.status,
+        depot_id=result.depot_id,
+        asset_id=result.asset_id,
+        branch_id=result.branch_id,
+        release_tag=result.release_tag,
+        final_result=result.final_result,
+        steps=result.steps,
+        platform=runtime_context.platform if runtime_context is not None else "common",
+        host_execution=(
+            dict(runtime_context.host_execution)
+            if runtime_context is not None
+            else (
+                result.platform_metadata.host_execution
+                if result.platform_metadata is not None
+                else {}
+            )
+        ),
+        artifact_refs=result.artifact_refs,
+        platform_metadata=result.platform_metadata,
+        metadata={**result.metadata, **result.final_result.metadata, **(metadata or {})},
+    )
+    cast(Any, emitter).emit_depot_flow(event)
+
+
+def normalize_depot_runtime_failure(
+    exc: Exception,
+) -> tuple[DepotFailureCode, str]:
+    """Map shared Depot runtime exceptions into platform-safe failure codes."""
+
+    failure = classify_exception_failure(exc)
+    return failure.code, failure.message
+
+
+def result_from_runtime_failure(
+    request: DepotOperationRequest,
+    *,
+    runtime_context: PlatformRuntimeContext | None = None,
+    artifact_refs: DepotArtifactRefs | None = None,
+    exc: Exception,
+) -> DepotOperationResult:
+    """Build a compact failed Depot result from a runtime boundary error."""
+
+    failure = classify_exception_failure(exc)
+    effective_runtime_context = normalize_runtime_context(
+        runtime_context,
+        platform=(
+            request.platform_metadata.platform
+            if runtime_context is None and request.platform_metadata is not None
+            else None
+        ),
+    )
+    result = DepotOperationResult(
+        operation_id=request.operation_id,
+        operation_type=request.operation_type,
+        status=DepotOperationStatus.FAILED,
+        depot_id=request.depot_id,
+        asset_id=request.asset_id,
+        branch_id=request.branch_id,
+        snapshot_id=request.snapshot_id,
+        merge_request_id=request.merge_request_id,
+        release_tag=request.release_tag,
+        error_code=failure.code.value,
+        error_message=failure.message,
+        artifact_refs=artifact_refs or DepotArtifactRefs(),
+        platform_metadata=build_depot_platform_metadata(
+            effective_runtime_context,
+            platform_metadata=request.platform_metadata,
+        ),
+        metadata={
+            "error_type": type(exc).__name__,
+            "failure": failure.to_dict(),
+        },
+    )
+    return attach_depot_artifact_refs(result, artifact_refs)
+
+
+def _finalize_depot_result(
+    result: DepotOperationResult,
+    *,
+    envelope: DepotRuntimeEnvelope,
+) -> DepotOperationResult:
+    with_refs = attach_depot_artifact_refs(result, envelope.request.artifact_refs)
+    platform_metadata = build_depot_platform_metadata(
+        envelope.request.runtime_context,
+        platform_metadata=with_refs.platform_metadata or envelope.platform_metadata,
+    )
+    metadata = {
+        **envelope.request.operation.metadata,
+        **with_refs.metadata,
+        **envelope.metadata,
+        "execution_refs": envelope.execution_refs.to_dict(),
+    }
+    return DepotOperationResult(
+        operation_id=with_refs.operation_id,
+        operation_type=with_refs.operation_type,
+        status=with_refs.status,
+        depot_id=with_refs.depot_id,
+        asset_id=with_refs.asset_id,
+        branch_id=with_refs.branch_id,
+        snapshot_id=with_refs.snapshot_id,
+        merge_request_id=with_refs.merge_request_id,
+        quality_gate_id=with_refs.quality_gate_id,
+        release_tag=with_refs.release_tag,
+        started_at=with_refs.started_at,
+        completed_at=with_refs.completed_at,
+        error_code=with_refs.error_code,
+        error_message=with_refs.error_message,
+        artifact_refs=with_refs.artifact_refs,
+        platform_metadata=platform_metadata,
+        metadata=metadata,
+    )
+
+
+def submit_depot_operation(
+    request: DepotOperationRequest,
+    *,
+    runtime_context: PlatformRuntimeContext | None,
+    client: DepotOperationClient,
+    artifact_refs: DepotArtifactRefs | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> DepotOperationResult:
+    """Submit one Depot operation through the shared runtime facade."""
+
+    envelope = normalize_depot_runtime_request(
+        request,
+        runtime_context=runtime_context,
+        artifact_refs=artifact_refs,
+        metadata=metadata,
+    )
+    runtime_emitter = _resolve_runtime_emitter(observability, emitter=emitter)
+    started = DepotOperationResult(
+        operation_id=envelope.request.operation.operation_id,
+        operation_type=envelope.request.operation.operation_type,
+        status=DepotOperationStatus.PENDING,
+        depot_id=envelope.request.operation.depot_id,
+        asset_id=envelope.request.operation.asset_id,
+        branch_id=envelope.request.operation.branch_id,
+        snapshot_id=envelope.request.operation.snapshot_id,
+        merge_request_id=envelope.request.operation.merge_request_id,
+        release_tag=envelope.request.operation.release_tag,
+        artifact_refs=artifact_refs or DepotArtifactRefs(),
+        platform_metadata=envelope.platform_metadata,
+        metadata={"phase": "submit", **(metadata or {})},
+    )
+    emit_depot_runtime_event(
+        runtime_emitter,
+        event_type=DepotOperationEventType.STARTED,
+        result=started,
+        runtime_context=envelope.request.runtime_context,
+        metadata=envelope.metadata,
+    )
+    try:
+        submitted = client.submit_operation(envelope.request.operation)
+        finalized = _finalize_depot_result(submitted, envelope=envelope)
+        final_event = (
+            DepotOperationEventType.WAITING
+            if classify_status(finalized.status) == "wait"
+            else (
+                DepotOperationEventType.FAILED
+                if finalized.status == DepotOperationStatus.FAILED
+                else DepotOperationEventType.COMPLETED
+            )
+        )
+        emit_depot_runtime_event(
+            runtime_emitter,
+            event_type=final_event,
+            result=finalized,
+            runtime_context=envelope.request.runtime_context,
+            metadata=envelope.metadata,
+        )
+        return finalized
+    except Exception as exc:
+        failed = result_from_runtime_failure(
+            envelope.request.operation,
+            runtime_context=envelope.request.runtime_context,
+            artifact_refs=artifact_refs,
+            exc=exc,
+        )
+        emit_depot_runtime_event(
+            runtime_emitter,
+            event_type=DepotOperationEventType.FAILED,
+            result=failed,
+            runtime_context=envelope.request.runtime_context,
+            metadata=envelope.metadata,
+        )
+        raise
+
+
+def get_depot_operation(
+    operation_id: str,
+    *,
+    runtime_context: PlatformRuntimeContext | None,
+    client: DepotOperationClient,
+    artifact_refs: DepotArtifactRefs | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> DepotOperationResult:
+    """Read and normalize a Depot operation without mutating Depot state."""
+
+    result = client.get_operation(operation_id)
+    runtime_context = normalize_runtime_context(
+        runtime_context,
+        platform=result.platform_metadata.platform if result.platform_metadata is not None else None,
+    )
+    envelope = normalize_depot_runtime_request(
+        DepotOperationRequest(
+            operation_id=result.operation_id,
+            operation_type=result.operation_type,
+            depot_id=result.depot_id,
+            asset_id=result.asset_id,
+            branch_id=result.branch_id,
+            snapshot_id=result.snapshot_id,
+            merge_request_id=result.merge_request_id,
+            release_tag=result.release_tag,
+            platform_metadata=result.platform_metadata,
+            metadata=metadata or {},
+        ),
+        runtime_context=runtime_context,
+        artifact_refs=artifact_refs,
+        metadata=metadata,
+    )
+    return _finalize_depot_result(result, envelope=envelope)
+
+
+def wait_for_depot_operation(
+    operation_id: str,
+    *,
+    runtime_context: PlatformRuntimeContext | None,
+    client: DepotOperationClient,
+    artifact_refs: DepotArtifactRefs | None = None,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+    initial_result: DepotOperationResult | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> DepotOperationResult:
+    """Poll Depot until a terminal operation result is available."""
+
+    runtime_emitter = _resolve_runtime_emitter(observability, emitter=emitter)
+    effective_runtime_context = normalize_runtime_context(
+        runtime_context,
+        platform=(
+            initial_result.platform_metadata.platform
+            if initial_result is not None and initial_result.platform_metadata is not None
+            else None
+        ),
+    )
+    config = polling or PollingConfig()
+    started = time.monotonic()
+    polls = 0
+    current = initial_result or get_depot_operation(
+        operation_id,
+        runtime_context=effective_runtime_context,
+        client=client,
+        artifact_refs=artifact_refs,
+        metadata=metadata,
+    )
+    while not is_terminal_status(current.status):
+        polls += 1
+        if current.status == DepotOperationStatus.WAITING:
+            emit_depot_runtime_event(
+                runtime_emitter,
+                event_type=DepotOperationEventType.WAITING,
+                result=current,
+                runtime_context=effective_runtime_context,
+                metadata=metadata,
+            )
+        if polls >= config.max_polls or (time.monotonic() - started) >= config.timeout_seconds:
+            raise DepotPollingTimeoutError(
+                "Depot operation polling timed out",
+                details={
+                    "operation_id": operation_id,
+                    "polls": polls,
+                    "timeout_seconds": config.timeout_seconds,
+                    "last_status": current.status.value,
+                },
+            )
+        time.sleep(config.poll_interval_seconds)
+        current = client.get_operation(operation_id)
+        current = get_depot_operation(
+            operation_id,
+            runtime_context=effective_runtime_context,
+            client=_SingleResultDepotClient(current),
+            artifact_refs=artifact_refs,
+            metadata=metadata,
+        )
+    final_event = (
+        DepotOperationEventType.FAILED
+        if current.status == DepotOperationStatus.FAILED
+        else DepotOperationEventType.COMPLETED
+    )
+    emit_depot_runtime_event(
+        runtime_emitter,
+        event_type=final_event,
+        result=current,
+        runtime_context=effective_runtime_context,
+        metadata=metadata,
+    )
+    return current
+
+
+def execute_depot_operation(
+    request: DepotOperationRequest,
+    *,
+    runtime_context: PlatformRuntimeContext | None,
+    client: DepotOperationClient,
+    artifact_refs: DepotArtifactRefs | None = None,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> DepotOperationResult:
+    """Execute a shared Depot operation through the parallel runtime facade."""
+
+    submitted = submit_depot_operation(
+        request,
+        runtime_context=runtime_context,
+        client=client,
+        artifact_refs=artifact_refs,
+        emitter=emitter,
+        observability=observability,
+        metadata=metadata,
+    )
+    if not wait:
+        return submitted
+    if is_terminal_status(submitted.status):
+        return submitted
+    return wait_for_depot_operation(
+        submitted.operation_id,
+        runtime_context=runtime_context,
+        client=client,
+        artifact_refs=artifact_refs,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+        initial_result=submitted,
+        metadata=metadata,
+    )
+
+
+def wait_for_depot_approval(
+    operation_id: str,
+    *,
+    runtime_context: PlatformRuntimeContext | None,
+    client: DepotOperationClient,
+    artifact_refs: DepotArtifactRefs | None = None,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+    initial_result: DepotOperationResult | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> DepotOperationResult:
+    """Wait for a Depot approval-gated operation without reinterpreting its semantics."""
+
+    return wait_for_depot_operation(
+        operation_id,
+        runtime_context=runtime_context,
+        client=client,
+        artifact_refs=artifact_refs,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+        initial_result=initial_result,
+        metadata=metadata,
+    )
+
+
+def run_scheduled_sync_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    """Run the canonical scheduled sync Depot flow."""
+
+    return _run_single_operation_flow(
+        flow_request,
+        client=client,
+        operation_type=DepotOperationType.SCHEDULED_SYNC,
+        step_name="scheduled_sync",
+        wait=wait,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+    )
+
+
+def run_scheduled_validation_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    """Run the canonical scheduled validation Depot flow."""
+
+    return _run_single_operation_flow(
+        flow_request,
+        client=client,
+        operation_type=DepotOperationType.VALIDATE_BRANCH,
+        step_name="scheduled_validation",
+        wait=wait,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+    )
+
+
+def run_release_tag_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    """Run the canonical release tag Depot flow."""
+
+    return _run_single_operation_flow(
+        flow_request,
+        client=client,
+        operation_type=DepotOperationType.RELEASE_TAG,
+        step_name="release_tag",
+        wait=wait,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+    )
+
+
+def run_rollback_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    """Run the canonical rollback Depot flow."""
+
+    return _run_single_operation_flow(
+        flow_request,
+        client=client,
+        operation_type=DepotOperationType.ROLLBACK_TO_SNAPSHOT,
+        step_name="rollback",
+        wait=wait,
+        polling=polling,
+        emitter=emitter,
+        observability=observability,
+    )
+
+
+def execute_depot_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    wait: bool = False,
+    polling: PollingConfig | None = None,
+    emitter: ObservabilityEmitter | None = None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    """Execute a shared Depot orchestration flow through one canonical facade."""
+
+    flow_type = flow_request.flow_type.lower()
+    if flow_type == "scheduled_sync":
+        return run_scheduled_sync_flow(
+            flow_request,
+            client=client,
+            wait=wait,
+            polling=polling,
+            emitter=emitter,
+            observability=observability,
+        )
+    if flow_type == "scheduled_validation":
+        return run_scheduled_validation_flow(
+            flow_request,
+            client=client,
+            wait=wait,
+            polling=polling,
+            emitter=emitter,
+            observability=observability,
+        )
+    if flow_type == "release_tag":
+        return run_release_tag_flow(
+            flow_request,
+            client=client,
+            wait=wait,
+            polling=polling,
+            emitter=emitter,
+            observability=observability,
+        )
+    if flow_type == "rollback":
+        return run_rollback_flow(
+            flow_request,
+            client=client,
+            wait=wait,
+            polling=polling,
+            emitter=emitter,
+            observability=observability,
+        )
+    raise ValueError(f"Unsupported Depot flow type: {flow_request.flow_type}")
+
+
+def _run_single_operation_flow(
+    flow_request: DepotFlowRequest,
+    *,
+    client: DepotOperationClient,
+    operation_type: DepotOperationType,
+    step_name: str,
+    wait: bool,
+    polling: PollingConfig | None,
+    emitter: ObservabilityEmitter | None,
+    observability: ObservabilityConfig | ObservabilityEmitter | dict[str, Any] | None,
+) -> DepotFlowResult:
+    runtime_emitter = _resolve_runtime_emitter(observability, emitter=emitter)
+    started_flow = _build_flow_started_result(flow_request)
+    emit_depot_flow_event(
+        runtime_emitter,
+        event_type=DepotFlowEventType.FLOW_STARTED,
+        result=started_flow,
+        runtime_context=flow_request.runtime_context,
+        metadata=flow_request.metadata,
+    )
+    request = _build_flow_operation_request(flow_request, operation_type=operation_type)
+    try:
+        operation_result = execute_depot_operation(
+            request,
+            runtime_context=flow_request.runtime_context,
+            client=client,
+            artifact_refs=flow_request.artifact_refs,
+            wait=wait,
+            polling=polling,
+            emitter=runtime_emitter,
+            metadata=flow_request.metadata,
+        )
+        flow_result = _build_flow_result(
+            flow_request,
+            operation_result=operation_result,
+            step_name=step_name,
+        )
+    except Exception as exc:
+        failed_result = result_from_runtime_failure(
+            request,
+            runtime_context=flow_request.runtime_context,
+            artifact_refs=flow_request.artifact_refs,
+            exc=exc,
+        )
+        flow_result = _build_flow_result(
+            flow_request,
+            operation_result=failed_result,
+            step_name=step_name,
+            step_metadata={"raised_exception": type(exc).__name__},
+        )
+        emit_depot_flow_event(
+            runtime_emitter,
+            event_type=DepotFlowEventType.FLOW_FAILED,
+            result=flow_result,
+            runtime_context=flow_request.runtime_context,
+            metadata=flow_request.metadata,
+        )
+        return flow_result
+
+    event_type = _flow_event_type_for_result(flow_result)
+    emit_depot_flow_event(
+        runtime_emitter,
+        event_type=event_type,
+        result=flow_result,
+        runtime_context=flow_request.runtime_context,
+        metadata=flow_request.metadata,
+    )
+    return flow_result
+
+
+def _build_flow_started_result(flow_request: DepotFlowRequest) -> DepotFlowResult:
+    pending = DepotOperationResult(
+        operation_id=f"{flow_request.flow_type}:{flow_request.depot_id}:{flow_request.asset_id}:pending",
+        operation_type=DepotOperationType.SCHEDULED_SYNC,
+        status=DepotOperationStatus.PENDING,
+        depot_id=flow_request.depot_id,
+        asset_id=flow_request.asset_id,
+        branch_id=flow_request.branch_id,
+        release_tag=flow_request.release_tag,
+        artifact_refs=flow_request.artifact_refs or DepotArtifactRefs(),
+        platform_metadata=build_depot_platform_metadata(flow_request.runtime_context),
+        metadata={"phase": "flow_started", **flow_request.metadata},
+    )
+    return DepotFlowResult(
+        flow_type=flow_request.flow_type,
+        status=DepotFlowStatus.WAITING,
+        depot_id=flow_request.depot_id,
+        asset_id=flow_request.asset_id,
+        branch_id=flow_request.branch_id,
+        release_tag=flow_request.release_tag,
+        final_result=pending,
+        platform_metadata=pending.platform_metadata,
+        artifact_refs=pending.artifact_refs,
+        metadata={"phase": "flow_started", **flow_request.metadata},
+    )
+
+
+def _build_flow_operation_request(
+    flow_request: DepotFlowRequest,
+    *,
+    operation_type: DepotOperationType,
+) -> DepotOperationRequest:
+    host_execution = flow_request.runtime_context.host_execution
+    run_identity = (
+        host_execution.get("run_id")
+        or host_execution.get("flow_run_id")
+        or host_execution.get("execution_id")
+        or "manual"
+    )
+    operation_id = (
+        f"{operation_type.value}:{flow_request.depot_id}:{flow_request.asset_id}:{run_identity}"
+    )
+    return DepotOperationRequest(
+        operation_id=operation_id,
+        operation_type=operation_type,
+        depot_id=flow_request.depot_id,
+        asset_id=flow_request.asset_id,
+        branch_id=flow_request.branch_id,
+        snapshot_id=flow_request.snapshot_id,
+        target_branch_id=flow_request.target_branch_id,
+        release_tag=flow_request.release_tag,
+        requested_by=flow_request.requested_by,
+        idempotency_key=build_idempotency_key(
+            operation_type,
+            flow_request.depot_id,
+            flow_request.asset_id,
+            branch_id=flow_request.branch_id,
+            snapshot_id=flow_request.snapshot_id,
+            release_tag=flow_request.release_tag,
+            target_branch_id=flow_request.target_branch_id,
+        ),
+        metadata={
+            **flow_request.metadata,
+            "flow_type": flow_request.flow_type,
+        },
+    )
+
+
+def _build_flow_result(
+    flow_request: DepotFlowRequest,
+    *,
+    operation_result: DepotOperationResult,
+    step_name: str,
+    step_metadata: dict[str, Any] | None = None,
+) -> DepotFlowResult:
+    step = DepotFlowStepResult(
+        step_name=step_name,
+        operation_type=operation_result.operation_type.value,
+        result=operation_result,
+        metadata=step_metadata or {},
+    )
+    artifact_refs = _aggregate_flow_artifact_refs(
+        flow_request.artifact_refs,
+        operation_result.artifact_refs,
+    )
+    return DepotFlowResult(
+        flow_type=flow_request.flow_type,
+        status=_flow_status_from_operation_result(operation_result),
+        depot_id=flow_request.depot_id,
+        asset_id=flow_request.asset_id,
+        branch_id=flow_request.branch_id,
+        release_tag=flow_request.release_tag,
+        steps=(step,),
+        final_result=operation_result,
+        platform_metadata=operation_result.platform_metadata,
+        artifact_refs=artifact_refs,
+        metadata={
+            **flow_request.metadata,
+            "step_count": 1,
+        },
+    )
+
+
+def _aggregate_flow_artifact_refs(
+    caller_refs: DepotArtifactRefs | None,
+    final_refs: DepotArtifactRefs,
+) -> DepotArtifactRefs:
+    if caller_refs is None:
+        return final_refs
+    return DepotArtifactRefs(
+        core_result_ref=final_refs.core_result_ref or caller_refs.core_result_ref,
+        core_gate_result_ref=final_refs.core_gate_result_ref or caller_refs.core_gate_result_ref,
+        core_evidence_ref=final_refs.core_evidence_ref or caller_refs.core_evidence_ref,
+        depot_operation_ref=final_refs.depot_operation_ref or caller_refs.depot_operation_ref,
+        merge_request_ref=final_refs.merge_request_ref or caller_refs.merge_request_ref,
+        release_ref=final_refs.release_ref or caller_refs.release_ref,
+        extras={**caller_refs.extras, **final_refs.extras},
+    )
+
+
+def _flow_status_from_operation_result(result: DepotOperationResult) -> DepotFlowStatus:
+    if result.status == DepotOperationStatus.NO_OP:
+        return DepotFlowStatus.NO_OP
+    if result.status == DepotOperationStatus.WAITING:
+        return DepotFlowStatus.WAITING
+    if result.status == DepotOperationStatus.CANCELLED:
+        return DepotFlowStatus.CANCELLED
+    if result.status == DepotOperationStatus.FAILED:
+        return DepotFlowStatus.FAILED
+    return DepotFlowStatus.SUCCEEDED
+
+
+def _flow_event_type_for_result(result: DepotFlowResult) -> DepotFlowEventType:
+    if result.status == DepotFlowStatus.NO_OP:
+        return DepotFlowEventType.FLOW_NO_OP
+    if result.status == DepotFlowStatus.WAITING:
+        return DepotFlowEventType.FLOW_WAITING
+    if result.status == DepotFlowStatus.FAILED:
+        return DepotFlowEventType.FLOW_FAILED
+    return DepotFlowEventType.FLOW_COMPLETED
+
+
+@dataclass(frozen=True, slots=True)
+class _SingleResultDepotClient:
+    """Adapter used to reuse normalization helpers for one already-fetched result."""
+
+    result: DepotOperationResult
+
+    def get_operation(self, operation_id: str) -> DepotOperationResult:
+        if operation_id != self.result.operation_id:
+            raise ValueError(f"Unexpected operation id {operation_id}")
+        return self.result
+
+    def submit_operation(self, request: DepotOperationRequest) -> DepotOperationResult:
+        del request
+        return self.result
+
+
 def _serialize_runtime_result(result: Any) -> dict[str, Any]:
     """Serialize shared runtime results, including simple test doubles."""
 
@@ -492,14 +1603,14 @@ def _serialize_runtime_result(result: Any) -> dict[str, Any]:
         try:
             return serialize_result_wire(result, include_result_type=True)
         except TypeError:
-            payload = result.to_dict()
+            payload = cast(dict[str, Any], result.to_dict())
             payload.setdefault("result_type", payload.get("type", "check"))
             return payload
 
     status = getattr(result, "status", None)
-    if hasattr(status, "name"):
+    if status is not None and hasattr(status, "name"):
         status_value = status.name
-    elif hasattr(status, "value"):
+    elif status is not None and hasattr(status, "value"):
         status_value = str(status.value)
     else:
         status_value = str(status) if status is not None else "unknown"
@@ -551,7 +1662,7 @@ def execute_operation(
     try:
         if normalized == OperationKind.CHECK:
             effective_rules, effective_kwargs = prepare_check_invocation(engine, rules, **kwargs)
-            result = engine.check(data, effective_rules, **effective_kwargs)
+            result: Any = engine.check(data, effective_rules, **effective_kwargs)
         elif normalized == OperationKind.PROFILE:
             result = engine.profile(data, **kwargs)
         elif normalized == OperationKind.LEARN:
@@ -986,9 +2097,9 @@ def evaluate_quality_gate(
                 pass
 
         status = getattr(result, "status", None)
-        if hasattr(status, "name"):
+        if status is not None and hasattr(status, "name"):
             status_value = status.name
-        elif hasattr(status, "value"):
+        elif status is not None and hasattr(status, "value"):
             status_value = str(status.value)
         else:
             status_value = str(status) if status is not None else "unknown"
@@ -1003,7 +2114,7 @@ def evaluate_quality_gate(
 
     gate_config = config or QualityGateConfig()
     source = resolve_data_source(data)
-    if source.kind == DataSourceKind.SYNC_STREAM:
+    if source is not None and source.kind == DataSourceKind.SYNC_STREAM:
         envelopes = list(
             run_stream_check(
                 engine,
@@ -1209,7 +2320,7 @@ def _resume_stream(stream: Any, *, skip_records: int) -> Iterator[Any]:
             next(iterator)
         except StopIteration:
             return iter(())
-    return iterator
+    return cast(Iterator[Any], iterator)
 
 
 async def _resume_async_stream(stream: Any, *, skip_records: int) -> AsyncIterator[Any]:
@@ -1257,7 +2368,7 @@ def _resolve_row_count(data: Any) -> int:
             return 0
     if hasattr(data, "__len__"):
         try:
-            return int(len(data))
+            return len(data)
         except Exception:
             return 0
     return 0
