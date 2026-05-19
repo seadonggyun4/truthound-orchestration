@@ -23,42 +23,49 @@ jobs:
     uses: ./.github/workflows/shared-runtime.yml
     with:
       lane: nightly
+      suite_tier: full
 
   airflow:
     needs: foundation
     uses: ./.github/workflows/airflow.yml
     with:
       lane: nightly
+      suite_tier: full
 
   prefect:
     needs: foundation
     uses: ./.github/workflows/prefect.yml
     with:
       lane: nightly
+      suite_tier: full
 
   dagster:
     needs: foundation
     uses: ./.github/workflows/dagster.yml
     with:
       lane: nightly
+      suite_tier: full
 
   mage:
     needs: foundation
     uses: ./.github/workflows/mage.yml
     with:
       lane: nightly
+      suite_tier: full
 
   kestra:
     needs: foundation
     uses: ./.github/workflows/kestra.yml
     with:
       lane: nightly
+      suite_tier: full
 
   dbt:
     needs: foundation
     uses: ./.github/workflows/dbt.yml
     with:
       lane: nightly
+      suite_tier: full
 
   advanced-tier:
     runs-on: ubuntu-latest

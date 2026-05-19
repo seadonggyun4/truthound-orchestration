@@ -50,6 +50,7 @@ jobs:
     uses: ./.github/workflows/shared-runtime.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   airflow:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'
@@ -59,6 +60,7 @@ jobs:
     uses: ./.github/workflows/airflow.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   prefect:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'
@@ -68,6 +70,7 @@ jobs:
     uses: ./.github/workflows/prefect.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   dagster:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'
@@ -77,6 +80,7 @@ jobs:
     uses: ./.github/workflows/dagster.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   mage:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'
@@ -86,6 +90,7 @@ jobs:
     uses: ./.github/workflows/mage.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   kestra:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'
@@ -95,6 +100,7 @@ jobs:
     uses: ./.github/workflows/kestra.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   dbt:
     if: needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'
@@ -104,6 +110,7 @@ jobs:
     uses: ./.github/workflows/dbt.yml
     with:
       lane: pr
+      suite_tier: smoke
 
   summary:
     if: always()

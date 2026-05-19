@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: kestra-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: kestra-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -66,11 +78,22 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,kestra,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
       - name: Run Kestra suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/kestra
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="packages/kestra/tests"
+          else
+            TESTS="
+            packages/kestra/tests/test_scripts.py
+            packages/kestra/tests/test_outputs.py
+            packages/kestra/tests/test_depot.py
+            "
+          fi
           python -m pytest -q \
-            packages/kestra/tests \
+            ${TESTS} \
             --junitxml="artifacts/kestra/junit.xml" \
             --cov=common \
             --cov=packages/kestra/src/truthound_kestra \

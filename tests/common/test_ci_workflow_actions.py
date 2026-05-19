@@ -142,3 +142,91 @@ def test_release_gate_passes_expected_tag_to_foundation() -> None:
 
     assert "expected_tag:" in workflow_text
     assert "github.ref_name" in workflow_text
+
+
+def test_pr_ci_uses_smoke_suite_tier_for_all_reusable_workflows() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "ci-pr.yml").read_text(encoding="utf-8")
+
+    assert workflow_text.count("suite_tier: smoke") == 7
+
+
+def test_main_and_nightly_use_full_suite_tier_for_reusable_workflows() -> None:
+    main_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
+    nightly_text = (ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+
+    assert main_text.count("suite_tier: full") == 7
+    assert nightly_text.count("suite_tier: full") == 7
+
+
+def test_reusable_workflows_expose_suite_tier_input() -> None:
+    workflows_dir = ROOT / ".github" / "workflows"
+    for workflow_name in (
+        "shared-runtime.yml",
+        "airflow.yml",
+        "prefect.yml",
+        "dagster.yml",
+        "mage.yml",
+        "kestra.yml",
+        "dbt.yml",
+    ):
+        workflow_text = (workflows_dir / workflow_name).read_text(encoding="utf-8")
+        assert "suite_tier:" in workflow_text
+        assert "default: smoke" in workflow_text
+
+
+def test_shared_runtime_workflow_uses_representative_smoke_and_full_contracts() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "shared-runtime.yml").read_text(encoding="utf-8")
+
+    assert 'if [ "${SUITE_TIER}" = "full" ]; then' in workflow_text
+    assert "tests/common/test_depot_models.py" in workflow_text
+    assert "tests/common/test_depot_failures.py" in workflow_text
+    assert "tests/common/test_depot_runtime_integration.py" in workflow_text
+    assert "tests/common/test_depot_flow_runtime.py" in workflow_text
+    assert "tests/common/test_depot_redaction.py" in workflow_text
+    assert "tests/common/test_depot_runtime_observability.py" in workflow_text
+    assert "tests/common/test_truthound_capabilities.py" in workflow_text
+    assert "tests/common/test_truthound_streaming.py" in workflow_text
+    assert "tests/common/test_truthound_v3_contract.py" in workflow_text
+    assert "tests/opentelemetry/test_config.py" in workflow_text
+    assert "python -m pytest -q \\" in workflow_text
+    assert "tests/common \\" not in workflow_text
+
+
+def test_reference_adapter_workflows_include_depot_smoke_files() -> None:
+    workflows_dir = ROOT / ".github" / "workflows"
+
+    airflow_text = (workflows_dir / "airflow.yml").read_text(encoding="utf-8")
+    prefect_text = (workflows_dir / "prefect.yml").read_text(encoding="utf-8")
+    dagster_text = (workflows_dir / "dagster.yml").read_text(encoding="utf-8")
+
+    assert "packages/airflow/tests/test_operators/test_depot.py" in airflow_text
+    assert "packages/prefect/tests/test_depot.py" in prefect_text
+    assert "packages/dagster/tests/test_depot.py" in dagster_text
+
+
+def test_mage_and_kestra_pr_workflows_do_not_rely_only_on_full_package_sweeps() -> None:
+    workflows_dir = ROOT / ".github" / "workflows"
+
+    mage_text = (workflows_dir / "mage.yml").read_text(encoding="utf-8")
+    kestra_text = (workflows_dir / "kestra.yml").read_text(encoding="utf-8")
+
+    assert 'if [ "${SUITE_TIER}" = "full" ]; then' in mage_text
+    assert "packages/mage/tests/test_blocks_base.py" in mage_text
+    assert "packages/mage/tests/test_blocks_depot.py" in mage_text
+    assert "packages/mage/tests/test_utils.py" in mage_text
+
+    assert 'if [ "${SUITE_TIER}" = "full" ]; then' in kestra_text
+    assert "packages/kestra/tests/test_scripts.py" in kestra_text
+    assert "packages/kestra/tests/test_outputs.py" in kestra_text
+    assert "packages/kestra/tests/test_depot.py" in kestra_text
+
+
+def test_dbt_workflow_keeps_compile_execution_split_and_smoke_python_contracts() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "dbt.yml").read_text(encoding="utf-8")
+
+    assert "compile-matrix:" in workflow_text
+    assert "postgres-execution:" in workflow_text
+    assert "packages/dbt/tests/test_depot.py" in workflow_text
+    assert "packages/dbt/tests/test_hooks.py" in workflow_text
+    assert "packages/dbt/tests/test_macros.py" in workflow_text
+    assert "tests/dbt/test_first_party_suite.py" in workflow_text

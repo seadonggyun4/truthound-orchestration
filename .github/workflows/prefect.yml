@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: prefect-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: prefect-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -99,14 +111,23 @@ jobs:
           python -m pip install "${install_args[@]}" -e ".[prefect]" "truthound${{ needs.matrix.outputs.truthound_range }}"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Prefect suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/prefect
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="packages/prefect/tests"
+          else
+            TESTS="
+            packages/prefect/tests/test_blocks.py
+            packages/prefect/tests/test_tasks.py
+            packages/prefect/tests/test_utils.py
+            packages/prefect/tests/test_depot.py
+            "
+          fi
           python -m pytest -q \
-            packages/prefect/tests/test_blocks.py \
-            packages/prefect/tests/test_tasks.py \
-            packages/prefect/tests/test_flows.py \
-            packages/prefect/tests/test_utils.py \
+            ${TESTS} \
             --junitxml="artifacts/prefect/junit-${{ matrix.version }}.xml" \
             --cov=common \
             --cov=packages/prefect/src/truthound_prefect \

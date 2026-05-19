@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: dbt-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: dbt-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -71,12 +83,26 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
       - name: Run dbt Python suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/dbt
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="
+            packages/dbt/tests
+            tests/dbt/test_first_party_suite.py
+            "
+          else
+            TESTS="
+            packages/dbt/tests/test_depot.py
+            packages/dbt/tests/test_hooks.py
+            packages/dbt/tests/test_macros.py
+            tests/dbt/test_first_party_suite.py
+            "
+          fi
           python -m pytest -q \
-            packages/dbt/tests \
-            tests/dbt/test_first_party_suite.py \
+            ${TESTS} \
             --junitxml="artifacts/dbt/junit-python.xml" \
             --cov=common \
             --cov=packages/dbt/src/truthound_dbt \

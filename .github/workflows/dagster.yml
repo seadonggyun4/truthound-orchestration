@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: dagster-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: dagster-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -99,14 +111,23 @@ jobs:
           python -m pip install "${install_args[@]}" -e ".[dagster]" "truthound${{ needs.matrix.outputs.truthound_range }}"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Dagster suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/dagster
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="packages/dagster/tests"
+          else
+            TESTS="
+            packages/dagster/tests/test_resources.py
+            packages/dagster/tests/test_ops.py
+            packages/dagster/tests/test_utils.py
+            packages/dagster/tests/test_depot.py
+            "
+          fi
           python -m pytest -q \
-            packages/dagster/tests/test_resources.py \
-            packages/dagster/tests/test_assets.py \
-            packages/dagster/tests/test_ops.py \
-            packages/dagster/tests/test_utils.py \
+            ${TESTS} \
             --junitxml="artifacts/dagster/junit-${{ matrix.version }}.xml" \
             --cov=common \
             --cov=packages/dagster/src/truthound_dagster \

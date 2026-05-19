@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: shared-runtime-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: shared-runtime-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -69,19 +81,54 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
       - name: Run shared runtime suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/shared-runtime
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="
+            tests/common/test_ci_support_matrix.py
+            tests/common/test_ci_workflow_actions.py
+            tests/common/test_adapter_test_layout.py
+            tests/common/test_runtime_contracts.py
+            tests/common/test_platform_boundaries.py
+            tests/common/test_depot_client.py
+            tests/common/test_depot_failures.py
+            tests/common/test_depot_flow_models.py
+            tests/common/test_depot_flow_observability.py
+            tests/common/test_depot_flow_runtime.py
+            tests/common/test_depot_flow_serialization.py
+            tests/common/test_depot_idempotency.py
+            tests/common/test_depot_models.py
+            tests/common/test_depot_redaction.py
+            tests/common/test_depot_retry_policy.py
+            tests/common/test_depot_runtime_boundaries.py
+            tests/common/test_depot_runtime_integration.py
+            tests/common/test_depot_runtime_observability.py
+            tests/common/test_depot_runtime_serialization.py
+            tests/common/test_depot_serialization.py
+            tests/common/test_truthound_capabilities.py
+            tests/common/test_truthound_streaming.py
+            tests/common/test_truthound_v3_contract.py
+            tests/opentelemetry/test_config.py
+            "
+          else
+            TESTS="
+            tests/common/test_ci_support_matrix.py
+            tests/common/test_ci_workflow_actions.py
+            tests/common/test_adapter_test_layout.py
+            tests/common/test_runtime_contracts.py
+            tests/common/test_platform_boundaries.py
+            tests/common/test_depot_models.py
+            tests/common/test_depot_failures.py
+            tests/common/test_depot_runtime_integration.py
+            tests/common/test_depot_flow_runtime.py
+            tests/common/test_depot_redaction.py
+            "
+          fi
           python -m pytest -q \
-            tests/common/test_ci_support_matrix.py \
-            tests/common/test_ci_workflow_actions.py \
-            tests/common/test_adapter_test_layout.py \
-            tests/common/test_runtime_contracts.py \
-            tests/common/test_platform_boundaries.py \
-            tests/common/test_truthound_capabilities.py \
-            tests/common/test_truthound_streaming.py \
-            tests/common/test_truthound_v3_contract.py \
-            tests/opentelemetry/test_config.py \
+            ${TESTS} \
             --junitxml="artifacts/shared-runtime/junit-${{ matrix.python_version }}.xml" \
             --cov=common \
             --cov-report="xml:artifacts/shared-runtime/coverage-${{ matrix.python_version }}.xml" | tee "artifacts/shared-runtime/pytest-${{ matrix.python_version }}.log"

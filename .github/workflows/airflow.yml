@@ -7,6 +7,10 @@ on:
         required: false
         type: string
         default: pr
+      suite_tier:
+        required: false
+        type: string
+        default: smoke
   workflow_dispatch:
     inputs:
       lane:
@@ -19,9 +23,17 @@ on:
           - main
           - release
           - nightly
+      suite_tier:
+        description: Test breadth to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - full
 
 concurrency:
-  group: airflow-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}
+  group: airflow-${{ github.event.pull_request.number || github.ref }}-${{ inputs.lane || github.event.inputs.lane || 'manual' }}-${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
   cancel-in-progress: true
 
 jobs:
@@ -101,17 +113,27 @@ jobs:
           python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound${{ needs.matrix.outputs.truthound_range }}"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Airflow suites
+        env:
+          SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/airflow
+          if [ "${SUITE_TIER}" = "full" ]; then
+            TESTS="packages/airflow/tests"
+          else
+            TESTS="
+            packages/airflow/tests/test_hooks/test_base.py
+            packages/airflow/tests/test_operators/test_base.py
+            packages/airflow/tests/test_operators/test_check.py
+            packages/airflow/tests/test_operators/test_stream.py
+            packages/airflow/tests/test_operators/test_depot.py
+            packages/airflow/tests/test_sensors/test_quality.py
+            packages/airflow/tests/test_utils/test_connection.py
+            packages/airflow/tests/test_utils/test_serialization.py
+            "
+          fi
           python -m pytest -q \
-            packages/airflow/tests/test_hooks/test_base.py \
-            packages/airflow/tests/test_operators/test_base.py \
-            packages/airflow/tests/test_operators/test_check.py \
-            packages/airflow/tests/test_operators/test_stream.py \
-            packages/airflow/tests/test_sensors/test_quality.py \
-            packages/airflow/tests/test_utils/test_connection.py \
-            packages/airflow/tests/test_utils/test_serialization.py \
+            ${TESTS} \
             --junitxml="artifacts/airflow/junit-${{ matrix.version }}.xml" \
             --cov=common \
             --cov=packages/airflow/src/truthound_airflow \
