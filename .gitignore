@@ -189,6 +189,8 @@ service-account*.json
 *.secret
 .secrets/
 .credentials/
+.truthound_orchestration_keys
+.truthound_orchestration_keys.*
 
 # =============================================================================
 # Logs and Databases
