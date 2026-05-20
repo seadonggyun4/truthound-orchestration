@@ -144,6 +144,18 @@ def test_release_gate_passes_expected_tag_to_foundation() -> None:
     assert "github.ref_name" in workflow_text
 
 
+def test_publish_artifact_uses_orchestration_distribution_name() -> None:
+    workflows_dir = ROOT / ".github" / "workflows"
+    publish_text = (workflows_dir / "publish.yml").read_text(encoding="utf-8")
+    foundation_text = (workflows_dir / "ci-foundation.yml").read_text(encoding="utf-8")
+    release_text = (workflows_dir / "release-gate.yml").read_text(encoding="utf-8")
+
+    combined = "\n".join([publish_text, foundation_text, release_text])
+
+    assert "truthound-orchestration-dist" in combined
+    assert "truthound-foundation" not in combined
+
+
 def test_pr_ci_uses_smoke_suite_tier_for_all_reusable_workflows() -> None:
     workflow_text = (ROOT / ".github" / "workflows" / "ci-pr.yml").read_text(encoding="utf-8")
 

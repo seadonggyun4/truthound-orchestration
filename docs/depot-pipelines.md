@@ -4,7 +4,11 @@ title: Depot Pipelines
 
 # Depot Pipelines
 
-Depot pipelines are the shared orchestration surface for branch validation, scheduled sync, release tagging, rollback triggers, and approval-aware execution inside `truthound-orchestration`.
+Depot pipelines are the shared orchestration surface for branch validation,
+scheduled sync, release tagging, rollback triggers, and approval-aware
+execution inside `truthound-orchestration`. They project Truthound Depot's
+repository workflow into host-native systems without copying Depot business
+state into adapters.
 
 The most important boundary is this:
 
@@ -61,12 +65,12 @@ These are the shared operation types exposed by the Depot runtime layer:
 
 | Operation | Purpose | Typical terminal states |
 |-----------|---------|-------------------------|
-| `pull_snapshot` | ask Depot to resolve or pull a snapshot reference | `succeeded`, `failed`, `waiting` |
-| `validate_branch` | run branch validation through the shared Depot contract | `succeeded`, `failed`, `waiting` |
-| `merge_after_approval` | submit merge intent that remains Depot-owned for approval semantics | `succeeded`, `failed`, `waiting` |
-| `release_tag` | request a release tag through Depot-owned release policy | `succeeded`, `failed`, `waiting`, `no_op` |
-| `rollback_to_snapshot` | request rollback to a validated snapshot or release tag | `succeeded`, `failed` |
-| `scheduled_sync` | run a scheduled synchronization request | `succeeded`, `failed`, `no_op` |
+| `pull_snapshot` | synchronize target branch or release state into a host run | `succeeded`, `failed`, `waiting` |
+| `validate_branch` | execute branch validation and publish quality-gate status through the shared Depot contract | `succeeded`, `failed`, `waiting` |
+| `merge_after_approval` | submit merge execution only after Depot approval | `succeeded`, `failed`, `waiting` |
+| `release_tag` | request an immutable release tag through Depot-owned release policy | `succeeded`, `failed`, `waiting`, `no_op` |
+| `rollback_to_snapshot` | request rollback execution against a Depot-owned rollback target | `succeeded`, `failed`, `waiting` |
+| `scheduled_sync` | run the single-operation scheduled sync wrapper around one Depot operation | `succeeded`, `failed`, `waiting`, `no_op` |
 
 ## Supported Flow Surfaces
 

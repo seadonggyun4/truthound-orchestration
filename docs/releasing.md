@@ -1,6 +1,7 @@
 # Releasing
 
-`truthound-orchestration` publishes from the GitHub `Release Gate` workflow and uploads the built `truthound-foundation` artifact to PyPI.
+`truthound-orchestration` publishes from the GitHub `Release Gate` workflow and
+uploads the built `truthound-orchestration-dist` artifact to PyPI.
 
 ## One-Time Setup
 
@@ -33,7 +34,8 @@ Do not hand-edit release-version literals in:
 
 Release-version changes come from `ci/version-surfaces.toml`. Host compatibility changes still belong in `ci/support-matrix.toml`.
 
-The foundation lane runs `python scripts/ci/sync_version_surfaces.py check`, and tagged release gates also verify that the pushed tag matches the manifest.
+The root release lane runs `python scripts/ci/sync_version_surfaces.py check`,
+and tagged release gates also verify that the pushed tag matches the manifest.
 
 ## Retry Behavior
 

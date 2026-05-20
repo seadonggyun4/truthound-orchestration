@@ -109,11 +109,11 @@ jobs:
           python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log
           python docs/scripts/check_doc_contracts.py | tee artifacts/foundation/docs-contracts.log
           mkdocs build --strict | tee artifacts/foundation/mkdocs.log
-      - name: Upload foundation artifacts
+      - name: Upload orchestration distribution artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-foundation
+          name: truthound-orchestration-dist
           path: |
             dist/*
             artifacts/foundation/*
@@ -134,10 +134,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ needs.matrix.outputs.python_version }}
-      - name: Download built distribution
+      - name: Download built orchestration distribution
         uses: actions/download-artifact@v7
         with:
-          name: truthound-foundation
+          name: truthound-orchestration-dist
           path: artifacts/foundation-download
       - name: Install wheel smoke
         run: |

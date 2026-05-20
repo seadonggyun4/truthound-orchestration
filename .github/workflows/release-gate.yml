@@ -122,7 +122,7 @@ jobs:
     uses: ./.github/workflows/publish.yml
     secrets: inherit
     with:
-      artifact_name: truthound-foundation
+      artifact_name: truthound-orchestration-dist
 
   summary:
     if: always()

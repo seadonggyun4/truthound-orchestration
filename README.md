@@ -68,23 +68,26 @@ This release line exists to provide a clear compatibility boundary for the Truth
 
 ## Depot Pipeline Operations
 
-Depot support in `truthound-orchestration` is delivered as a **shared Depot contract plus host-native projection** layer.
+Depot support in `truthound-orchestration` is delivered as a **shared Depot
+contract plus host-native projection** layer. It is the execution companion for
+Truthound Depot's repository workflow, not a second Depot control plane.
 
 The ownership boundary is strict:
 
 - Orchestration owns execution, submit/poll/wait behavior, compact payload emission, and host-native projection
-- Depot owns approval, release safety, rollback safety, and business state
+- Depot owns approval, release safety, rollback safety, repository UI, and business state
 
 That means the adapters can expose Depot operations naturally in Airflow, Prefect, Dagster, dbt, Mage, and Kestra without becoming Depot business-state owners themselves.
 
-Supported shared Depot operation surfaces:
+Supported shared Depot operation surfaces map directly to repository workflow
+verbs:
 
-- `pull_snapshot`
-- `validate_branch`
-- `merge_after_approval`
-- `release_tag`
-- `rollback_to_snapshot`
-- `scheduled_sync`
+- `pull_snapshot`: synchronize target branch or release state into a host run
+- `validate_branch`: execute branch validation and publish quality-gate status
+- `merge_after_approval`: submit merge execution only after Depot approval
+- `release_tag`: request an immutable release tag through Depot-owned policy
+- `rollback_to_snapshot`: request rollback execution against Depot-owned state
+- `scheduled_sync`: run the single-operation scheduled sync wrapper
 
 Supported shared Depot flow surfaces:
 
@@ -94,7 +97,9 @@ Supported shared Depot flow surfaces:
 - `no_op`
 - failed terminal flows with compact failure payloads
 
-Use Depot pipelines when you need branch-aware validation, scheduled sync, approval-aware release requests, or rollback triggers that stay Depot-owned for policy decisions.
+Use Depot pipelines when you need branch-aware validation, scheduled sync,
+approval-aware merge or release requests, or rollback triggers that stay
+Depot-owned for policy decisions.
 
 Canonical documentation:
 

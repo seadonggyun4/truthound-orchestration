@@ -6,13 +6,13 @@ on:
       artifact_name:
         required: false
         type: string
-        default: truthound-foundation
+        default: truthound-orchestration-dist
   workflow_dispatch:
     inputs:
       artifact_name:
         description: Artifact containing built distributions
         required: true
-        default: truthound-foundation
+        default: truthound-orchestration-dist
         type: string
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
       - name: Download distributions
         uses: actions/download-artifact@v7
         with:
-          name: ${{ inputs.artifact_name || github.event.inputs.artifact_name || 'truthound-foundation' }}
+          name: ${{ inputs.artifact_name || github.event.inputs.artifact_name || 'truthound-orchestration-dist' }}
           path: dist-artifact
       - name: Install publishing dependencies
         run: |
