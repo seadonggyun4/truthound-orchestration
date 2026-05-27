@@ -42,17 +42,17 @@ Truthound release line: `>=3.0,<4.0`
 
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
-| PR | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `2.6.0` on `Python 3.11`, `3.2.0` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.22` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.2.0` on `Python 3.12` | `3.6.22` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| PR | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Main | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Release | `2.6.0` on `Python 3.11`, `3.2.0` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
 | Airflow | `2.6.0` on `Python 3.11` | `3.2.0` on `Python 3.12` |
-| Prefect | `2.14.0` on `Python 3.11` | `3.6.22` on `Python 3.12` |
+| Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
 | dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |

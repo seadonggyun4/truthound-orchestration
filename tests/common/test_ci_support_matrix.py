@@ -44,7 +44,7 @@ def test_prefect_main_matrix_is_primary_only_for_slim_main() -> None:
         "include": [
             {
                 "label": "primary",
-                "version": "3.6.22",
+                "version": "3.6.29",
                 "python_version": "3.12",
                 "constraints": [],
                 "constraint_urls": [],
@@ -136,14 +136,14 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     assert advisory["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
-        "prefect==3.6.22",
-        "starlette==0.49.1",
+        "prefect==3.6.29",
+        "starlette==1.0.1",
     ]
     assert blocking["prefect"]["constraints"] == [
         "cryptography>=46.0.5",
         "protobuf>=5.29.6",
         "pyjwt>=2.12.0",
-        "starlette==0.49.1",
+        "starlette==1.0.1",
     ]
     assert blocking["prefect"]["ignore_vulns"] == []
     assert blocking["dbt"]["host_requirements"] == [
