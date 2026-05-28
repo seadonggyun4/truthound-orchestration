@@ -107,10 +107,11 @@ constraint_urls = []
 extra = "airflow"
 host_requirements = ["truthound==3.0.0", "apache-airflow==3.2.0"]
 constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
-# Airflow 3.2.0 currently has known advisories that only clear on 3.2.1rc1.
-# Keep them visible in source control, but do not block the advisory lane on a
-# release candidate-only upgrade path until a stable upstream fix is available.
-ignore_vulns = ["CVE-2025-62727", "CVE-2026-40690", "CVE-2026-38743"]
+# Airflow 3.2.0 and its current stable dependency set carry advisories that do
+# not clear through a stable Airflow upgrade path yet. Keep them visible in
+# source control, but do not block the advisory lane until an upstream fix is
+# available on the stable dependency line.
+ignore_vulns = ["CVE-2025-62727", "CVE-2026-40690", "CVE-2026-38743", "PYSEC-2026-161"]
 constraint_urls = []
 
 [security.surfaces.prefect]

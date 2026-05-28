@@ -132,6 +132,7 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "CVE-2025-62727",
         "CVE-2026-40690",
         "CVE-2026-38743",
+        "PYSEC-2026-161",
     ]
     assert advisory["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
