@@ -1,0 +1,95 @@
+!!! note "Truthound Orchestration 한국어 문서"
+    이 페이지는 Truthound 문서의 한국어 미러입니다. 코드, 명령어, API 이름은 정확성을 위해 원문 표기를 유지하고, 설명은 데이터 품질 워크플로우 관점으로 제공합니다.
+
+---
+title: Truthound 오케스트레이션
+---
+
+# Truthound — Data Quality 워크플로우 오케스트레이션
+
+Truthound 오케스트레이션 is the official first-party 오케스트레이션 line for Truthound 3.x. It gives Airflow, Dagster, Prefect, dbt, Mage, and Kestra users a native host experience while keeping Truthound-first defaults, shared runtime contracts, and release-grade compatibility testing. It is the official first-party 오케스트레이션 compatibility line for teams that want supported Truthound releases inside host-native 워크플로우 systems.
+
+This site is written for engineers who need more than a package install command. It explains how the shared runtime works, what each host adapter owns, how zero-config behaves in production, and where to look when a 워크플로우 fails in CI or at runtime.
+
+## Who This Site Is For
+
+- platform engineers choosing a supported host for Truthound 3.x
+- data platform teams wiring quality checks into schedulers, assets, flows, and SQL builds
+- operators who need compatibility expectations, rollout guidance, and troubleshooting steps
+- contributors who need to understand the public runtime contract without reverse-engineering tests
+
+## What This Line Optimizes For
+
+- Truthound 3.x is the primary engine and documentation path.
+- First-party platform packages stay native to their host ecosystems instead of inventing a separate 오케스트레이션 DSL.
+- Shared runtime behavior is centralized in `common`, including engine creation, preflight, result serialization, compatibility reporting, and source normalization.
+- 워크플로우 pipeline execution stays centralized in the shared 오케스트레이션 layer, while approval, release safety, and rollback safety remain 워크플로우-owned.
+- Zero-config means "fast first run without hidden state", not "silent workspace writes or surprise persistence".
+- Release guarantees are tested as concrete host-plus-Python tuples in CI, not as vague version promises.
+
+## Supported First-Party Platforms
+
+| Platform | Primary Boundary | Best Fit | Zero-Config Default |
+|----------|------------------|----------|---------------------|
+| Airflow | Operators, Sensors, Hooks | DAG-based scheduling and quality gates in task graphs | Local file paths run without a connection; SQL still requires one |
+| Dagster | `DataQualityResource`, ops, asset helpers | Asset-centric pipelines and metadata-rich quality checks | `DataQualityResource()` resolves to Truthound safe auto |
+| Prefect | Blocks, Tasks, Flows | Python-first 오케스트레이션 with optional persisted configuration | Omitting a block creates an in-memory Truthound-backed path |
+| dbt | Generic tests, macros, operations | Warehouse-native 검증 with YAML authoring | Install the package, add tests, and rely on adapter dispatch |
+| Mage | Blocks and `io_config.yaml` discovery | Mage projects that want lightweight block-level quality checks | Project config discovery is read-only and falls back to safe auto |
+| Kestra | Python scripts and YAML flow templates | Kestra task runners and generated 검증 flows | Scripts and templates default to Truthound safe auto |
+
+## Shared Runtime Boundary
+
+The shared runtime owns the behavior that should remain consistent regardless of host:
+
+- `create_engine(...)` and `EngineCreationRequest` for deterministic engine resolution
+- `PlatformRuntimeContext` and `AutoConfigPolicy` for host metadata and zero-config rules
+- `resolve_data_source(...)` for DataFrames, local paths, URIs, SQL strings, streams, and callables
+- `run_preflight(...)` and `build_compatibility_report(...)` for capability and compatibility checks
+- shared wire serialization so Airflow XCom, Dagster metadata, Prefect artifacts, and script outputs do not invent incompatible payloads
+- shared observability events and OpenLineage-compatible execution metadata
+
+## 워크플로우 Pipelines
+
+워크플로우 is part of the official 오케스트레이션 surface for this repository, but it is intentionally positioned as a **pipeline execution layer**, not as a second business-state owner inside the adapters.
+
+Use 워크플로우 surfaces when you need:
+
+- scheduled sync or scheduled 검증
+- approval-aware merge or release requests
+- rollback triggers owned by 워크플로우 policy
+- compact shared operation or flow payloads across hosts
+
+Start with [워크플로우 Pipelines] for the canonical shared contract, then move into the host-specific pages for the native entrypoint on each platform.
+
+## Documentation Spine
+
+Use this path if you are new to the repository:
+
+1. [Getting Started](getting-started.md) for the fastest first run on each platform.
+2. [Choose a Platform](choose-a-platform.md) if you are still deciding where Truthound should live.
+3. [Architecture](architecture.md) to understand the adapter/runtime split.
+4. [Zero-Config](zero-config.md) to learn what is automatic and what still requires explicit configuration.
+5. [Compatibility](compatibility.md) before planning upgrades, release gates, or host-version support.
+6. [워크플로우 Pipelines] when you need branch, release, rollback, or scheduled execution through the shared 워크플로우 layer.
+7. [Adoption Playbook](adoption-playbook.md) when multiple teams or hosts need the same rollout pattern.
+8. [Production Readiness](production-readiness.md) when you are turning a working prototype into an operator-owned service.
+
+Then go deeper into:
+
+- [Shared Runtime](common/index.md) for source resolution, preflight, serialization, logging, retries, and resilience
+- platform sections for implementation patterns and troubleshooting
+- [Engines](engines/index.md) if you need Pandera, Great Expectations, streaming, drift, anomaly detection, or engine lifecycle controls
+- [Enterprise & Operations](enterprise/index.md) for secrets, notifications, tenant isolation, and production rollout guidance
+
+## What "Production Ready" Means Here
+
+Truthound 오케스트레이션 is considered production-ready when all of the following are true:
+
+- the host package is installed from a supported compatibility tuple
+- the shared runtime resolves the source shape you actually provide
+- preflight passes before execution starts
+- result payloads are consumed through the documented host contract
+- persistence, secrets, SLA thresholds, and notifications are explicit where needed
+
+The docs in this site are organized to help you validate each of those layers in order.

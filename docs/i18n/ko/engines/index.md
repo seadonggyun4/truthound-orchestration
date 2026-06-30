@@ -1,0 +1,102 @@
+!!! note "Truthound Orchestration 한국어 문서"
+    이 페이지는 Truthound 문서의 한국어 미러입니다. 코드, 명령어, API 이름은 정확성을 위해 원문 표기를 유지하고, 설명은 데이터 품질 워크플로우 관점으로 제공합니다.
+
+---
+title: Engines Overview
+---
+
+# Data Quality Engines
+
+The 오케스트레이션 adapters in this repository are host-specific, but the engine layer
+is host-agnostic. It lets the same 오케스트레이션 surface run on top of Truthound,
+Pandera, Great Expectations, and custom engine implementations.
+
+## What The Engine Layer Does
+
+- normalizes 검증 capabilities behind shared protocols
+- resolves and creates engines through a registry and resolver
+- runs preflight compatibility checks before execution
+- exposes optional advanced features such as batch execution, lifecycle hooks, and
+  capability-aware routing
+
+## Core Concepts
+
+### Protocols
+
+The shared contract starts with `DataQualityEngine` and related capability metadata in
+`common/engines/base.py`.
+
+### Registry And Resolver
+
+Use the registry when you need to list, fetch, or override engines by name:
+
+```python
+from common.engines import get_engine, list_engines, register_engine
+
+engine = get_engine("truthound")
+available = list_engines()
+```
+
+Use the resolver when you need a runtime-aware engine creation path:
+
+```python
+from common.engines import EngineCreationRequest, create_engine, run_preflight
+from common.runtime import normalize_runtime_context
+
+runtime_context = normalize_runtime_context(platform="prefect")
+request = EngineCreationRequest(engine_name="truthound", runtime_context=runtime_context)
+preflight = run_preflight(request)
+
+if preflight.compatible:
+    engine = create_engine(request)
+```
+
+## Decision Table
+
+| Need | Recommended Page |
+|------|------------------|
+| compare supported capabilities | [Capability Matrix](capability-matrix.md) |
+| choose one engine for a workload | [Selection Guide](selection-guide.md) |
+| preserve a non-Truthound investment | [Pandera](pandera.md) or [Great Expectations](great-expectations.md) |
+| author a new engine | [Custom Engine Authoring](custom-engines.md) |
+| understand error behavior | [Error Reporting](error-reporting.md) |
+
+## When To Change Engines
+
+Most teams should stay on the default Truthound engine unless they already have a
+strong Pandera or Great Expectations investment. Switching engines is valuable when:
+
+- a team wants to preserve existing schema assets
+- a project needs a stricter contract-first 워크플로우
+- a migration is happening gradually across multiple 검증 stacks
+
+## Advanced Capabilities
+
+The engine layer also includes:
+
+- [Capability Matrix](capability-matrix.md)
+- [Selection Guide](selection-guide.md)
+- [Truthound Engine](truthound.md)
+- [Pandera](pandera.md)
+- [Great Expectations](great-expectations.md)
+- [Custom Engine Authoring](custom-engines.md)
+- [Batch Processing](batch.md)
+- [Streaming 검증](streaming.md)
+- [Engine Chains](chain.md)
+- [Lifecycle Management](lifecycle.md)
+- [Drift Detection](drift-detection.md)
+- [Anomaly Detection](anomaly-detection.md)
+- [Error Reporting](error-reporting.md)
+
+## Production Guidance
+
+- treat preflight failures as configuration or compatibility failures, not just runtime
+  noise
+- keep engine selection explicit in production environments
+- use host-level docs for 오케스트레이션 patterns and engine docs for 검증
+  semantics
+
+## Related Pages
+
+- [Shared Runtime Overview](../common/index.md)
+- [Preflight and Compatibility](../common/preflight-compatibility.md)

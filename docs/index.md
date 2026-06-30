@@ -20,7 +20,7 @@ This site is written for engineers who need more than a package install command.
 - Truthound 3.x is the primary engine and documentation path.
 - First-party platform packages stay native to their host ecosystems instead of inventing a separate orchestration DSL.
 - Shared runtime behavior is centralized in `common`, including engine creation, preflight, result serialization, compatibility reporting, and source normalization.
-- Depot pipeline execution stays centralized in the shared orchestration layer, while approval, release safety, and rollback safety remain Depot-owned.
+- workflow pipeline execution stays centralized in the shared orchestration layer, while approval, release safety, and rollback safety remain Workflow-owned.
 - Zero-config means "fast first run without hidden state", not "silent workspace writes or surprise persistence".
 - Release guarantees are tested as concrete host-plus-Python tuples in CI, not as vague version promises.
 
@@ -46,18 +46,6 @@ The shared runtime owns the behavior that should remain consistent regardless of
 - shared wire serialization so Airflow XCom, Dagster metadata, Prefect artifacts, and script outputs do not invent incompatible payloads
 - shared observability events and OpenLineage-compatible execution metadata
 
-## Depot Pipelines
-
-Depot is part of the official orchestration surface for this repository, but it is intentionally positioned as a **pipeline execution layer**, not as a second business-state owner inside the adapters.
-
-Use Depot surfaces when you need:
-
-- scheduled sync or scheduled validation
-- approval-aware merge or release requests
-- rollback triggers owned by Depot policy
-- compact shared operation or flow payloads across hosts
-
-Start with [Depot Pipelines](depot-pipelines.md) for the canonical shared contract, then move into the host-specific pages for the native entrypoint on each platform.
 
 ## Documentation Spine
 
@@ -68,7 +56,7 @@ Use this path if you are new to the repository:
 3. [Architecture](architecture.md) to understand the adapter/runtime split.
 4. [Zero-Config](zero-config.md) to learn what is automatic and what still requires explicit configuration.
 5. [Compatibility](compatibility.md) before planning upgrades, release gates, or host-version support.
-6. [Depot Pipelines](depot-pipelines.md) when you need branch, release, rollback, or scheduled execution through the shared Depot layer.
+6. [Workflow Pipelines] when you need branch, release, rollback, or scheduled execution through the shared Workflow layer.
 7. [Adoption Playbook](adoption-playbook.md) when multiple teams or hosts need the same rollout pattern.
 8. [Production Readiness](production-readiness.md) when you are turning a working prototype into an operator-owned service.
 

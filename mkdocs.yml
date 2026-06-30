@@ -1,15 +1,43 @@
-site_name: Truthound Orchestration
-site_description: Official first-party orchestration integrations for Truthound 3.x
-docs_dir: docs
+site_name: Truthound Orchestration — Data Quality Workflow Automation
+site_description: Official first-party orchestration integrations for Truthound data quality workflows
+docs_dir: docs/i18n
 theme:
-  name: mkdocs
+  name: material
+  language: ko
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: ko
+          default: true
+          name: 한국어
+          build: true
+          site_name: Truthound Orchestration — Data Quality Workflow Automation
+        - locale: en
+          name: English
+          build: true
+          site_name: Truthound Orchestration — Data Quality Workflow Automation
+
+extra_javascript:
+  - javascripts/language-redirect.js
 
 nav:
   - Overview: index.md
   - Getting Started: getting-started.md
   - Choose a Platform: choose-a-platform.md
   - Architecture: architecture.md
-  - Depot Pipelines: depot-pipelines.md
   - Zero-Config: zero-config.md
   - Compatibility: compatibility.md
   - Adoption Playbook: adoption-playbook.md
