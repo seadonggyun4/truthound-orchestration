@@ -122,29 +122,24 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     }
     assert advisory["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
-        "apache-airflow==3.2.0",
+        "apache-airflow==3.2.2",
     ]
     assert advisory["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
         "pyjwt>=2.12.0",
     ]
-    assert advisory["airflow"]["ignore_vulns"] == [
-        "CVE-2025-62727",
-        "CVE-2026-40690",
-        "CVE-2026-38743",
-        "PYSEC-2026-161",
-    ]
+    assert advisory["airflow"]["ignore_vulns"] == []
     assert advisory["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.29",
-        "starlette==1.0.1",
+        "starlette==1.3.1",
     ]
     assert blocking["prefect"]["constraints"] == [
         "cryptography>=46.0.5",
         "protobuf>=5.29.6",
         "pyjwt>=2.12.0",
-        "starlette==1.0.1",
+        "starlette==1.3.1",
     ]
     assert blocking["prefect"]["ignore_vulns"] == []
     assert blocking["dbt"]["host_requirements"] == [
