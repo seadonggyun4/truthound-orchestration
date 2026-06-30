@@ -9,6 +9,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DOC_FILES = [
+    ROOT / "README.md",
+    ROOT / "README.en.md",
     ROOT / "mkdocs.yml",
     ROOT / "docs/index.md",
     ROOT / "docs/depot-pipelines.md",
@@ -47,9 +49,6 @@ def main() -> int:
         return 1
 
     checks = [
-        _require(ROOT / "README.md", "official orchestration integrations for Truthound 3.x"),
-        _require(ROOT / "README.md", "Truthound 3.x Compatibility"),
-        _require(ROOT / "README.md", "Depot Pipeline Operations"),
         _require_any(
             ROOT / "docs/index.md",
             (

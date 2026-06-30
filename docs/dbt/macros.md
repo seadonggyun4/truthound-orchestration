@@ -110,7 +110,7 @@ dbt run-operation truthound_depot_validate_branch --args '{
 dbt run-operation truthound_depot_release_tag --args '{
   "depot_id": "customer-platform",
   "asset_id": "users",
-  "release_tag": "v3.0.1"
+  "release_tag": "v3.0.2"
 }'
 ```
 

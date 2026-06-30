@@ -4,5 +4,5 @@ This module provides version information for the package.
 The version follows Semantic Versioning (SemVer).
 """
 
-__version__ = "3.0.1"
+__version__ = "3.0.2"
 __version_tuple__ = (3, 0, 1)
