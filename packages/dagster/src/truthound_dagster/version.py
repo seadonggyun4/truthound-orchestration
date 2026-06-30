@@ -1,5 +1,5 @@
 """Version information for truthound-dagster."""
 
-__version__ = "3.0.2"
-__version_tuple__ = (3, 0, 1)
+__version__ = "3.0.3"
+__version_tuple__ = (3, 0, 3)
 __version_info__ = __version_tuple__  # Alias for compatibility

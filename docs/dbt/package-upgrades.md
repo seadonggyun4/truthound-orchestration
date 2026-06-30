@@ -33,7 +33,7 @@ Update the package and refresh dependencies:
 ```yaml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.2,<4.0.0"
+    version: ">=3.0.3,<4.0.0"
 ```
 
 ```bash

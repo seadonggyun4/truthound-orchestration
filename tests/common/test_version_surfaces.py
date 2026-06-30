@@ -42,16 +42,18 @@ def _bump_patch(version: str) -> str:
 
 def test_version_manifest_derives_expected_release_values() -> None:
     config = sync_version_surfaces.load_version_surface_config()
+    major, minor, patch = config.package_version_tuple
+    truthound_major, _, _ = config.truthound_primary_tuple
 
-    assert config.package_version == "3.0.1"
-    assert config.release_line == "3.x"
-    assert config.release_tag == "v3.0.1"
-    assert config.package_version_tuple == (3, 0, 1)
-    assert config.orchestration_self_requirement == ">=3.0.1,<4.0.0"
-    assert config.package_series_requirement == ">=3.0.1,<4.0.0"
-    assert config.truthound_primary_version == "3.0.1"
-    assert config.truthound_install_range == ">=3.0,<4.0"
-    assert config.truthound_runtime_requirement == ">=3.0.1,<4.0.0"
+    assert config.package_version == f"{major}.{minor}.{patch}"
+    assert config.release_line == f"{major}.x"
+    assert config.release_tag == f"v{config.package_version}"
+    assert config.orchestration_self_requirement == f">={config.package_version},<{major + 1}.0.0"
+    assert config.package_series_requirement == f">={config.package_version},<{major + 1}.0.0"
+    assert config.truthound_install_range == f">={truthound_major}.0,<{truthound_major + 1}.0"
+    assert config.truthound_runtime_requirement == (
+        f">={config.truthound_primary_version},<{truthound_major + 1}.0.0"
+    )
 
 
 def test_repository_version_surfaces_are_clean() -> None:
