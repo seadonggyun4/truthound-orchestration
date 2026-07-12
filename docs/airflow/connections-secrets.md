@@ -39,10 +39,6 @@ with DAG("warehouse_quality", schedule="@daily", catchup=False) as dag:
         task_id="validate_users",
         sql="select * from analytics.dim_users",
         connection_id="warehouse_primary",
-        rules=[
-            {"column": "id", "check": "not_null"},
-            {"column": "email", "check": "email_format"},
-        ],
     )
 ```
 

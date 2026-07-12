@@ -54,7 +54,6 @@ check = DataQualityCheckOperator(
     task_id="quality_check",
     sql="select * from analytics.users",
     hook=hook,
-    rules=[{"column": "id", "type": "not_null"}],
 )
 ```
 

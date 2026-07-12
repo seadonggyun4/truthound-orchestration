@@ -41,10 +41,6 @@ with DAG("validated_publish", schedule="@daily", catchup=False) as dag:
     validate_curated = DataQualityCheckOperator(
         task_id="validate_curated",
         data_path="/opt/airflow/data/curated/users.parquet",
-        rules=[
-            {"column": "id", "check": "not_null"},
-            {"column": "email", "check": "unique"},
-        ],
     )
 
     publish = EmptyOperator(task_id="publish")
@@ -60,7 +56,6 @@ from truthound_airflow import DataQualitySensor
 wait_for_quality = DataQualitySensor(
     task_id="wait_for_quality",
     data_path="/opt/airflow/data/curated/users.parquet",
-    rules=[{"column": "id", "check": "not_null"}],
 )
 ```
 

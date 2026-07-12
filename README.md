@@ -136,13 +136,11 @@ df = pl.read_csv("data.csv")
 with engine:
     result = engine.check(df, auto_schema=True)
     print(f"Status: {result.status.name}")
-
-    drift = engine.detect_drift(baseline_df, current_df, method="ks")
-    print(f"Drifted: {drift.is_drifted}, Rate: {drift.drift_rate:.2%}")
-
-    anomalies = engine.detect_anomalies(df, detector="isolation_forest")
-    print(f"Anomalies: {anomalies.has_anomalies}, Rate: {anomalies.anomaly_rate:.2%}")
 ```
+
+이 기본 예제는 Truthound 3.x의 zero-config 자동 검증 경로만 사용하므로 위의
+기본 설치 명령만으로 실행할 수 있습니다. 드리프트·이상치 탐지처럼 선택 의존성이
+필요한 작업은 해당 기능 문서의 설치 안내를 먼저 확인하세요.
 
 ### Airflow 예시
 
@@ -158,14 +156,15 @@ with DAG(
 ) as dag:
     validate_data = DataQualityCheckOperator(
         task_id="validate_user_data",
-        rules=[
-            {"column": "user_id", "type": "not_null"},
-            {"column": "user_id", "type": "unique"},
-        ],
-        data_path="s3://data-lake/users/{{ ds }}/data.parquet",
+        data_path="/opt/airflow/data/users.parquet",
         fail_on_error=True,
     )
 ```
+
+기본 `TruthoundEngine`은 `rules`를 생략하면 Truthound 3.x의 zero-config 자동
+스키마 검증을 실행합니다. `rules=[{"type": ...}]` 형식은 이를 직접 해석하는
+대체 엔진용 공통 계약이며, 현재 Truthound 어댑터가 해당 사전을 Truthound
+검증기로 변환하는 공개 표면은 아닙니다.
 
 ---
 

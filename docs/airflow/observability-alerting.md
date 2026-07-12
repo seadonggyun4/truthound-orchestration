@@ -38,7 +38,6 @@ with DAG("quality_alerts", schedule="@daily", catchup=False) as dag:
     validate_users = DataQualityCheckOperator(
         task_id="validate_users",
         data_path="/opt/airflow/data/users.parquet",
-        rules=[{"column": "id", "check": "not_null"}],
         on_failure_callback=DataQualitySLACallback(),
     )
 ```

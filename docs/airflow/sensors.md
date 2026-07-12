@@ -70,7 +70,6 @@ with DAG(
     process_data = DataQualityCheckOperator(
         task_id="process_data",
         data_path="/opt/airflow/data/upstream_users.parquet",
-        rules=[{"column": "user_id", "type": "not_null"}],
     )
 
     wait_for_quality >> process_data

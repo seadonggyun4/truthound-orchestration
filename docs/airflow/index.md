@@ -50,12 +50,12 @@ with DAG("quality_pipeline", schedule="@daily", catchup=False) as dag:
     check_users = DataQualityCheckOperator(
         task_id="check_users",
         data_path="/opt/airflow/data/users.parquet",
-        rules=[
-            {"column": "user_id", "type": "not_null"},
-            {"column": "email", "type": "unique"},
-        ],
     )
 ```
+
+The default `TruthoundEngine` uses Truthound 3.x zero-config auto-schema
+validation when `rules` is omitted. Generic rule dictionaries are only for an
+alternative engine that explicitly supports that format.
 
 Add a sensor when a later task should wait on a quality threshold:
 
@@ -65,7 +65,6 @@ from truthound_airflow import DeferrableDataQualitySensor
 wait_for_users = DeferrableDataQualitySensor(
     task_id="wait_for_users_quality",
     data_path="/opt/airflow/data/users.parquet",
-    rules=[{"column": "id", "check": "not_null"}],
 )
 ```
 

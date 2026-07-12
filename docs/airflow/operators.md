@@ -17,12 +17,14 @@ check = DataQualityCheckOperator(
     task_id="quality_check",
     data_path="/opt/airflow/data/users.parquet",
     fail_on_error=True,
-    rules=[
-        {"column": "user_id", "type": "not_null"},
-        {"column": "email", "type": "unique"},
-    ],
 )
 ```
+
+With the default `TruthoundEngine`, leaving `rules` unset enables the
+Truthound 3.x zero-config auto-schema path. Host-neutral rule dictionaries are
+only appropriate for an alternative engine that explicitly documents support
+for that format; the Truthound adapter does not translate them into Truthound
+validators.
 
 Typical uses:
 
@@ -61,7 +63,8 @@ Common pattern:
 
 - baseline learn task
 - reviewed rule set
-- later `DataQualityCheckOperator` using the reviewed rules
+- later engine-specific validation using a rule or schema format that the
+  selected engine explicitly supports
 
 ## DataQualityStreamOperator
 

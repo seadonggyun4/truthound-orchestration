@@ -14,7 +14,6 @@ from truthound_airflow import DataQualityCheckOperator
 DataQualityCheckOperator(
     task_id="smoke_check_users",
     data_path="/opt/airflow/data/users.parquet",
-    rules=[{"column": "user_id", "type": "not_null"}],
 )
 ```
 

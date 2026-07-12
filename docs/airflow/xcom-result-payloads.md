@@ -37,7 +37,6 @@ from truthound_airflow import DataQualityCheckOperator
 quality_task = DataQualityCheckOperator(
     task_id="check_users",
     data_path="/opt/airflow/data/users.parquet",
-    rules=[{"column": "id", "check": "not_null"}],
 )
 
 @task
@@ -56,7 +55,6 @@ You can also set a custom key when an existing DAG standard already exists:
 DataQualityCheckOperator(
     task_id="check_users",
     data_path="/opt/airflow/data/users.parquet",
-    rules=[{"column": "id", "check": "not_null"}],
     xcom_push_key="quality_gate_result",
 )
 ```
