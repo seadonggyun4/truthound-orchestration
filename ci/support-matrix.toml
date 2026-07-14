@@ -123,7 +123,7 @@ constraint_urls = []
 
 [security.surfaces.dagster]
 extra = "dagster"
-host_requirements = ["truthound==3.0.0", "dagster==1.12.18"]
+host_requirements = ["truthound==3.0.0", "dagster==1.13.1"]
 constraints = []
 constraint_urls = []
 
