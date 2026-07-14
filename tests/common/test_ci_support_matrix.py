@@ -122,7 +122,7 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     }
     assert advisory["airflow"]["host_requirements"] == [
         "truthound==3.0.0",
-        "apache-airflow==3.2.2",
+        "apache-airflow==3.3.0",
     ]
     assert advisory["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
