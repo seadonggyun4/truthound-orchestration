@@ -51,6 +51,11 @@ dbt-postgres는 1.10.0을 유지합니다. Python extra와 SQL 패키지 모두 
 Core 1.11.14는 이 상한을 완화합니다. 1.10 계열은 수정 파서를 정상적으로 설치할
 수 없으므로 `--no-deps`로 패키지 메타데이터를 우회하지 마세요.
 
+Redshift 컴파일 검증은 `dbt-redshift>=1.11.1,<1.12.0`을 사용합니다.
+1.11.0까지는 adapter 자체가 `sqlparse<0.6.0`으로 제한하므로 dbt Core만
+올려서는 해결되지 않습니다. PostgreSQL·Snowflake·BigQuery·Databricks는
+기존 1.10 adapter 검증 범위를 유지합니다.
+
 OpenTelemetry API·SDK·두 OTLP exporter의 최소 버전은 **1.45.1**입니다.
 [OpenTelemetry 공식 보안 공지](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)의
 비정상 `tracestate` 헤더 파싱 비용 문제를 해결합니다. dbt 호스트의 전이 의존성도

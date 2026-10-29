@@ -49,6 +49,11 @@ explains that the old parser ceiling prevents fixes for denial of service on SQL
 compilation paths. Core 1.11.14 relaxes that ceiling. The 1.10 line still cannot
 resolve the fixed parser normally; do not override its metadata with `--no-deps`.
 
+Redshift compile verification requires `dbt-redshift>=1.11.1,<1.12.0`.
+Versions through 1.11.0 independently pin `sqlparse<0.6.0`, so upgrading only
+dbt Core is insufficient for that adapter. PostgreSQL, Snowflake, BigQuery and
+Databricks retain their 1.10 adapter lanes.
+
 OpenTelemetry API, SDK and both OTLP exporters now require **1.45.1 or newer**.
 This fixes unbounded parsing of malformed inbound `tracestate` headers described
 in the [upstream OpenTelemetry advisory](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h).

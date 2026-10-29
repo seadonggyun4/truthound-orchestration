@@ -249,3 +249,15 @@ def test_dbt_sql_package_enforces_security_supported_core() -> None:
     assert "1.11.13" not in supported
     assert "1.11.14" in supported
     assert "1.11.16" in supported
+
+
+def test_redshift_compile_lane_allows_the_fixed_sql_parser() -> None:
+    from packaging.requirements import Requirement
+
+    data = ci_support_matrix.load_support_matrix()
+    payload = ci_support_matrix.build_workflow_payload(data, "dbt", "release")
+    lane = next(row for row in payload["compile_matrix"]["include"] if row["target"] == "redshift")
+    requirement = Requirement(lane["adapter"])
+    assert "1.10.2" not in requirement.specifier
+    assert "1.11.0" not in requirement.specifier
+    assert "1.11.1" in requirement.specifier
