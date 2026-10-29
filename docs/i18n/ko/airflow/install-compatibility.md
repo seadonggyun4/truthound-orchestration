@@ -19,7 +19,7 @@ See [Compatibility](../compatibility.md) for the generated support matrix.
 ## Install
 
 ```bash
-pip install truthound-오케스트레이션[airflow] "truthound>=3.0,<4.0"
+pip install "truthound-orchestration[airflow]" "truthound>=3.0,<4.0" "apache-airflow>=3.3.2"
 ```
 
 If you are targeting one of the CI-backed Airflow lines, keep your runtime close to those tuples rather than assuming the newest transitive dependency set is safe.
