@@ -11,6 +11,10 @@ This page defines the official compatibility contract for `truthound-orchestrati
 
 ## 스케줄러 보안 기준 (2026-10-29)
 
+Core 3.3의 기본 병렬 검증이 사용하는 NumPy를 companion 실행 의존성에
+명시했습니다. 최소 Mage companion 설치에서 누락을 재현했고, 다른 호스트의
+전이 의존성에 기대지 않는 실제 Core 정상·불량 데이터 회귀 테스트를 추가했습니다.
+
 | 플랫폼 | 최소 / 기본 버전 | 검증 및 제한 |
 |---|---|---|
 | Prefect | 3.9.0 / 3.9.0 | Python 3.11 / 3.12, API 서버·Runner에서 Core 3.3.0 실행과 COMPLETED / FAILED 저장 |

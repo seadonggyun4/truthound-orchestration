@@ -8,6 +8,11 @@ This page defines the official compatibility contract for `truthound-orchestrati
 
 ## Scheduler security baseline (2026-10-29)
 
+The companion now declares NumPy as a runtime dependency: Core 3.3 imports it
+for default parallel validation. A fresh Mage companion install reproduced the
+missing-dependency failure; a real Core regression covers good and bad data
+without relying on NumPy installed transitively by another host.
+
 | Platform | Minimum / primary | Verification and limitations |
 |---|---|---|
 | Prefect | 3.9.0 / 3.9.0 | Python 3.11 / 3.12; API server, Runner and persisted COMPLETED / FAILED states with Core 3.3.0 |
