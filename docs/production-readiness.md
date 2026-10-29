@@ -4,6 +4,9 @@ title: Production Readiness
 
 # Production Readiness
 
+!!! warning "Alpha status"
+    Truthound Orchestration is currently in Alpha. APIs, configuration, and result contracts may change. This checklist guides evaluation of an individual workflow; it does not certify project-wide production readiness or stable release status. Validate the actual host, data sources, and result consumers before production rollout.
+
 This page is the operator-facing checklist for deciding whether a Truthound
 orchestration integration is ready to move from local validation to shared
 production workflows.

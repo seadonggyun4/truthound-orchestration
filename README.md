@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="docs/production-readiness.md"><img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha"></a>
   <a href="https://truthound.netlify.app/orchestration/"><img src="https://img.shields.io/badge/docs-truthound.netlify.app%2Forchestration-blue" alt="Documentation"></a>
   <a href="https://pypi.org/project/truthound-orchestration/"><img src="https://img.shields.io/pypi/v/truthound-orchestration.svg" alt="PyPI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python"></a>
@@ -34,6 +35,14 @@ This required format starts at:
   <div align="center">
 and ends at the closing </p> of the badge block above.
 -->
+
+---
+
+## 개발 상태: Alpha
+
+**Truthound Orchestration은 현재 알파(Alpha) 단계입니다.** 개발 과정에서 API, 설정, 결과 계약이 변경될 수 있습니다. 평가와 테스트를 중심으로 사용하고, 운영 도입 전에는 사용하는 플랫폼, 데이터 소스, 후속 결과 소비 경로를 직접 검증하세요. `3.x` 버전은 Truthound 호환성 계열을 나타내며 안정 릴리스 수준을 의미하지 않습니다.
+
+자세한 도입 점검 사항은 [운영 준비 안내](docs/production-readiness.md)를 참고하세요.
 
 ---
 

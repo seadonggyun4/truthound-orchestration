@@ -7,6 +7,10 @@ title: Truthound 오케스트레이션
 
 # Truthound — Data Quality 워크플로우 오케스트레이션
 
+## 개발 상태: Alpha
+
+**Truthound Orchestration은 현재 알파(Alpha) 단계입니다.** 개발 과정에서 API, 설정, 결과 계약이 변경될 수 있습니다. 평가와 테스트를 중심으로 사용하고, 운영 도입 전에는 사용하는 플랫폼, 데이터 소스, 후속 결과 소비 경로를 직접 검증하세요. `3.x` 버전은 Truthound 호환성 계열을 나타내며 안정 릴리스 수준을 의미하지 않습니다.
+
 Truthound 오케스트레이션 is the official first-party 오케스트레이션 line for Truthound 3.x. It gives Airflow, Dagster, Prefect, dbt, Mage, and Kestra users a native host experience while keeping Truthound-first defaults, shared runtime contracts, and release-grade compatibility testing. It is the official first-party 오케스트레이션 compatibility line for teams that want supported Truthound releases inside host-native 워크플로우 systems.
 
 This site is written for engineers who need more than a package install command. It explains how the shared runtime works, what each host adapter owns, how zero-config behaves in production, and where to look when a 워크플로우 fails in CI or at runtime.
@@ -84,7 +88,7 @@ Then go deeper into:
 
 ## What "Production Ready" Means Here
 
-Truthound 오케스트레이션 is considered production-ready when all of the following are true:
+현재 알파 단계에서 아래 항목은 개별 워크플로우의 운영 도입을 평가하기 위한 점검 기준입니다. 모든 항목을 충족해도 프로젝트가 안정 릴리스로 전환되는 것은 아닙니다:
 
 - the host package is installed from a supported compatibility tuple
 - the shared runtime resolves the source shape you actually provide

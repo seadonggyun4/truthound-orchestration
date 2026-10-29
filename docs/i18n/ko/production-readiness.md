@@ -7,6 +7,9 @@ title: Production Readiness
 
 # 운영 준비
 
+!!! warning "알파 단계"
+    Truthound Orchestration은 현재 알파(Alpha) 단계이며 API, 설정, 결과 계약이 변경될 수 있습니다. 이 체크리스트는 개별 워크플로우의 운영 도입을 평가하기 위한 안내이며, 프로젝트 전체의 운영 안정성이나 안정 릴리스 상태를 보증하지 않습니다. 운영 도입 전 실제 플랫폼과 데이터 소스, 결과 소비 경로를 검증하세요.
+
 This page is the operator-facing checklist for deciding whether a Truthound
 오케스트레이션 integration is ready to move from local 검증 to shared
 production 워크플로우s.

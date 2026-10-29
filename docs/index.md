@@ -4,6 +4,10 @@ title: Truthound Orchestration
 
 # Truthound Orchestration
 
+## Development Status: Alpha
+
+**Truthound Orchestration is currently in Alpha.** APIs, configuration, and result contracts may change as the project develops. Use this release for evaluation and testing, and validate your host, data sources, and downstream consumers before any production rollout. The `3.x` version identifies the Truthound compatibility line; it does not indicate stable release maturity.
+
 Truthound Orchestration is the official first-party orchestration line for Truthound 3.x. It gives Airflow, Dagster, Prefect, dbt, Mage, and Kestra users a native host experience while keeping Truthound-first defaults, shared runtime contracts, and release-grade compatibility testing. It is the official first-party orchestration compatibility line for teams that want supported Truthound releases inside host-native workflow systems.
 
 This site is written for engineers who need more than a package install command. It explains how the shared runtime works, what each host adapter owns, how zero-config behaves in production, and where to look when a workflow fails in CI or at runtime.
@@ -69,7 +73,7 @@ Then go deeper into:
 
 ## What "Production Ready" Means Here
 
-Truthound Orchestration is considered production-ready when all of the following are true:
+During Alpha, the following criteria help evaluate an individual workflow for production rollout. Meeting them does not change the project’s Alpha status or establish a stable release:
 
 - the host package is installed from a supported compatibility tuple
 - the shared runtime resolves the source shape you actually provide

@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="docs/i18n/en/production-readiness.md"><img src="https://img.shields.io/badge/status-alpha-orange" alt="Alpha"></a>
   <a href="https://truthound.netlify.app/orchestration/"><img src="https://img.shields.io/badge/docs-truthound.netlify.app%2Forchestration-blue" alt="Documentation"></a>
   <a href="https://pypi.org/project/truthound-orchestration/"><img src="https://img.shields.io/pypi/v/truthound-orchestration.svg" alt="PyPI"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python"></a>
@@ -34,6 +35,14 @@ This required format starts at:
   <div align="center">
 and ends at the closing </p> of the badge block above.
 -->
+
+---
+
+## Development Status: Alpha
+
+**Truthound Orchestration is currently in Alpha.** APIs, configuration, and result contracts may change as the project develops. Use this release for evaluation and testing, and validate your host, data sources, and downstream consumers before any production rollout. The `3.x` version identifies the Truthound compatibility line; it does not indicate stable release maturity.
+
+See [Production Readiness](docs/i18n/en/production-readiness.md) for rollout checks.
 
 ---
 
