@@ -55,3 +55,9 @@ literals individually.
 Publish uses twine --skip-existing to recover a partial upload, then compares
 the public files against the verified hashes. Existing different bytes fail
 verification; skipping an upload is never treated as proof of a correct release.
+
+## 3.0.4
+
+This patch introduces independent CI and same-commit release verification. It
+also ships the NumPy dependency required by Core 3.3 parallel execution and the
+verified platform security floors. Mage host security remains unsupported.

@@ -57,7 +57,7 @@ task retries, scheduling, or cross-system alert routing outside dbt itself.
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.3,<4.0.0"
+    version: ">=3.0.4,<4.0.0"
 ```
 
 ```yaml

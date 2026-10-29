@@ -36,7 +36,7 @@ See [Compatibility](../compatibility.md) for the current 오케스트레이션 s
 # packages.yml
 packages:
   - package: truthound/truthound
-    version: ">=3.0.3,<4.0.0"
+    version: ">=3.0.4,<4.0.0"
 ```
 
 Then install:
