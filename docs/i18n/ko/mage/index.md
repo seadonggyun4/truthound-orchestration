@@ -12,6 +12,13 @@ quality blocks without introducing a separate 오케스트레이션 control plan
 leans on Mage conventions such as transformers, sensors, conditions, and `io_config`
 discovery instead of forcing a custom runtime model.
 
+## Core 3.3 실행 조건
+
+Mage 0.9.80과 Core 3.3.0은 Typer 의존성이 충돌하므로 같은 Python 환경에
+설치할 수 없습니다. 아래 Transformer 예제는 별도 Core 인터프리터에서 실행하고
+Mage 블록은 그 프로세스를 호출해야 합니다. 실제 서버 검증과 재현 방법은
+[호환성 문서](../compatibility.md#실제-서버-및-최소-호스트-검증)를 참고하세요.
+
 ## Who This Is For
 
 - Mage teams building pipeline-local quality checks

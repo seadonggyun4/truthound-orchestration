@@ -29,7 +29,9 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
                 "version": "3.2.0",
                 "python_version": "3.12",
                 "constraints": [],
-                "constraint_urls": [],
+                "constraint_urls": [
+                    "https://raw.githubusercontent.com/apache/airflow/constraints-3.2.0/constraints-3.12.txt"
+                ],
             }
         ]
     }
@@ -46,7 +48,7 @@ def test_prefect_main_matrix_is_primary_only_for_slim_main() -> None:
                 "label": "primary",
                 "version": "3.6.29",
                 "python_version": "3.12",
-                "constraints": [],
+                "constraints": ["fastapi<0.130.0"],
                 "constraint_urls": [],
             },
         ]
@@ -185,3 +187,33 @@ def test_docs_support_matrix_block_is_in_sync() -> None:
     current = ci_support_matrix.extract_generated_block(text)
 
     assert current == ci_support_matrix.render_generated_support_block(data)
+
+
+def test_legacy_airflow_constraints_reference_a_published_python_lane() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    lane = ci_support_matrix.build_workflow_payload(data, "airflow", "release")["host_matrix"][
+        "include"
+    ][0]
+    assert lane["version"] == "2.6.0"
+    assert lane["python_version"] == "3.11"
+    assert lane["constraint_urls"] == [
+        "https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.10.txt"
+    ]
+
+
+def test_prefect_minimum_includes_server_dependencies() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    lane = ci_support_matrix.build_workflow_payload(data, "prefect", "release")["host_matrix"][
+        "include"
+    ][0]
+    assert "fastapi<0.100.0" in lane["constraints"]
+    assert "cachetools>=5.0.0" in lane["constraints"]
+
+
+def test_dbt_core_minimum_matches_postgres_protobuf_generation() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    assert data["platforms"]["dbt"]["core_range"] == "dbt-core>=1.10.9,<1.11.0"
+    payload = ci_support_matrix.build_workflow_payload(data, "dbt", "release")
+    assert payload["execution_matrix"] == {
+        "include": [{"core_version": "1.10.9"}, {"core_version": "1.10.20"}]
+    }

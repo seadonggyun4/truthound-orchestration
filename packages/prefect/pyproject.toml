@@ -33,6 +33,7 @@ classifiers = [
 ]
 dependencies = [
     "prefect>=2.14.0",
+    "cachetools>=5.0.0",
     "truthound-orchestration>=3.0.3,<4.0.0",
     "truthound>=3.0,<4.0",
 ]

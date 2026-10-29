@@ -61,6 +61,7 @@ dagster = [
 
 prefect = [
     "prefect>=2.14.0",
+    "cachetools>=5.0.0",
 ]
 
 mage = [
@@ -78,7 +79,7 @@ docs = [
 ]
 
 dbt = [
-    "dbt-core>=1.10.0,<1.11.0",
+    "dbt-core>=1.10.9,<1.11.0",
     "dbt-postgres>=1.10.0,<1.11.0",
 ]
 
@@ -103,11 +104,12 @@ all = [
     "apache-airflow>=2.6.0",
     "dagster>=1.5.0",
     "prefect>=2.14.0",
+    "cachetools>=5.0.0",
     "kestra>=1.3.0",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
     "mkdocs-static-i18n>=1.3.0",
-    "dbt-core>=1.10.0,<1.11.0",
+    "dbt-core>=1.10.9,<1.11.0",
     "dbt-postgres>=1.10.0,<1.11.0",
     "opentelemetry-api>=1.40.0",
     "opentelemetry-sdk>=1.40.0",

@@ -131,6 +131,19 @@ def build_workflow_payload(
             },
             "run_execution": bool(lane_config["dbt_execution"]),
             "execution_target": execution_target,
+            "execution_matrix": {
+                "include": [
+                    {"core_version": version}
+                    for version in dict.fromkeys(
+                        [
+                            data["platforms"]["dbt"]["core_range"]
+                            .split(">=", 1)[1]
+                            .split(",", 1)[0],
+                            data["platforms"]["dbt"]["execution_core_version"],
+                        ]
+                    )
+                ]
+            },
             "execution_adapter": compile_adapters[execution_target],
             "coverage_threshold": str(data["platforms"]["dbt"]["coverage_threshold"]),
         }
@@ -159,21 +172,16 @@ def build_security_audit_inputs(data: dict[str, Any]) -> dict[str, Any]:
         "python_version": data["python"][security["python"]],
         "blocking_matrix": {
             "include": [
-                build_security_surface(data, name)
-                for name in security["blocking_surfaces"]
+                build_security_surface(data, name) for name in security["blocking_surfaces"]
             ]
         },
         "advisory_matrix": {
             "include": [
-                build_security_surface(data, name)
-                for name in security.get("advisory_surfaces", [])
+                build_security_surface(data, name) for name in security.get("advisory_surfaces", [])
             ]
         },
         "canary_matrix": {
-            "include": [
-                build_security_surface(data, name)
-                for name in security["canary_surfaces"]
-            ]
+            "include": [build_security_surface(data, name) for name in security["canary_surfaces"]]
         },
     }
 
@@ -214,9 +222,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("dagster", data["lanes"]["main"]["dagster_versions"]),
             "Primary host smoke",
             "Primary host smoke",
-            ", ".join(
-                f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]
-            ),
+            ", ".join(f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]),
             "Yes (`postgres`)" if data["lanes"]["main"]["dbt_execution"] else "No",
         ),
         (
@@ -226,9 +232,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("dagster", data["lanes"]["release"]["dagster_versions"]),
             "Primary host smoke",
             "Primary host smoke",
-            ", ".join(
-                f"`{target}`" for target in data["lanes"]["release"]["dbt_compile_targets"]
-            ),
+            ", ".join(f"`{target}`" for target in data["lanes"]["release"]["dbt_compile_targets"]),
             "Yes (`postgres`)",
         ),
         (
@@ -238,9 +242,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("dagster", data["lanes"]["nightly"]["dagster_versions"]),
             "Primary host smoke + `mage-ai` runtime canary",
             "Primary host smoke",
-            ", ".join(
-                f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]
-            ),
+            ", ".join(f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]),
             "Yes (`postgres`)",
         ),
     ]
@@ -302,8 +304,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ]
     )
     lines.extend(
-        f"| {platform} | {minimum} | {primary} |"
-        for platform, minimum, primary in platform_rows
+        f"| {platform} | {minimum} | {primary} |" for platform, minimum, primary in platform_rows
     )
     lines.extend(
         [

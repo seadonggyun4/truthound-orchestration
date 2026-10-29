@@ -26,3 +26,21 @@ assert block.profile(good)['row_count'] == 3
         timeout=120,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_native_server_application_initializes(tmp_path):
+    """Catch server-only dependency and FastAPI incompatibilities hidden by Block tests."""
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "from prefect.server.api.server import create_app; "
+            "app = create_app(); assert app is not None",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr

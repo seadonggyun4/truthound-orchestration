@@ -110,7 +110,7 @@ jobs:
             install_args+=(-c artifacts/airflow/generated/constraints.txt)
           fi
           python -m pip install "${install_args[@]}" "apache-airflow==${{ matrix.version }}"
-          python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound==3.3.0"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Airflow suites
         env:
@@ -138,12 +138,21 @@ jobs:
             --cov=common \
             --cov=packages/airflow/src/truthound_airflow \
             --cov-report="xml:artifacts/airflow/coverage-${{ matrix.version }}.xml" | tee "artifacts/airflow/pytest-${{ matrix.version }}.log"
+      - name: Verify real server and persisted Core 3.3 results
+        run: |
+          python scripts/ci/verify_host_server.py airflow \
+            --output-dir "artifacts/airflow/server-${{ matrix.version }}"
       - name: Upload Airflow artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: truthound-airflow-${{ matrix.version }}
-          path: artifacts/airflow/*
+          path: |
+            artifacts/airflow/*.xml
+            artifacts/airflow/*.log
+            artifacts/airflow/server-*/verification.json
+            artifacts/airflow/server-*/runtime/*.log
+            artifacts/airflow/server-*/runtime/results.json
 
   summary:
     if: always()

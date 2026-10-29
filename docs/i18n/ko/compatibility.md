@@ -7,41 +7,42 @@ title: Compatibility
 
 # 호환성
 
-This page defines the official compatibility contract for `truthound-오케스트레이션 3.x`: what Truthound line it supports, which host versions are exercised in CI, and how to interpret "minimum supported" versus "primary supported" host lanes.
+This page defines the official compatibility contract for `truthound-orchestration 3.x`: what Truthound line it supports, which host versions are exercised in CI, and how to interpret "minimum supported" versus "primary supported" host lanes.
 
 ## Version Line
 
-`truthound-오케스트레이션 3.x` supports `Truthound 3.x` only.
+`truthound-orchestration 3.x` supports `Truthound 3.x` only.
 
 | Package Line | Supported Truthound Range | Status |
 |--------------|---------------------------|--------|
-| `truthound-오케스트레이션 3.x` | `>=3.0,<4.0` | Active first-party line |
-| `truthound-오케스트레이션 1.x` | Pre-Truthound-3 lines | Legacy |
+| `truthound-orchestration 3.x` | `>=3.0,<4.0` | Active first-party line |
+| `truthound-orchestration 1.x` | Pre-Truthound-3 lines | Legacy |
 
 ## How To Read This Contract
 
 - "minimum supported" means a release-blocking host-plus-Python tuple still exercised in CI
 - "primary supported" means the main documentation and default examples track that tuple
 - compatibility is defined at the surface level, not only by package version names
-- convenience aggregates such as `truthound-오케스트레이션[all]` are useful for canaries but are not the primary release contract
+- convenience aggregates such as `truthound-orchestration[all]` are useful for canaries but are not the primary release contract
 
 ## Platform Expectations
 
 | Platform | Runtime Expectation |
 |----------|---------------------|
-| Airflow | `truthound-오케스트레이션[airflow]` with `Truthound 3.x` |
-| Dagster | `truthound-오케스트레이션[dagster]` with `Truthound 3.x` |
-| Prefect | `truthound-오케스트레이션[prefect]` with `Truthound 3.x` |
-| Mage | `truthound-오케스트레이션[mage]` inside a Mage runtime that already provides `mage-ai` |
-| Kestra | `truthound-오케스트레이션[kestra]` with `Truthound 3.x` |
-| dbt | `truthound-오케스트레이션[dbt]` with the bundled first-party `truthound_dbt` package |
+| Airflow | `truthound-orchestration[airflow]` with `Truthound 3.x` |
+| Dagster | `truthound-orchestration[dagster]` with `Truthound 3.x` |
+| Prefect | `truthound-orchestration[prefect]` with `Truthound 3.x` |
+| Mage | `truthound-orchestration[mage]` with a separate Core interpreter for Mage 0.9.80 (see below) |
+| Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
+| dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
 
-Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-오케스트레이션[all]` remains available as a convenience aggregate and nightly canary surface.
+Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
 ## Core 3.3.0 검증
 
 이번 수정이 포함된 소스에서 빌드한 패키지를 공개 배포된 `truthound==3.3.0`
-wheel과 함께 Python 3.11.14 / macOS ARM64에서 검증했습니다. 프로젝트는
+wheel과 함께 검증했습니다. 초기 어댑터 검증은 Python 3.11.14 / macOS ARM64이며,
+후속 실제 서버·최소 버전 검증은 아래 별도 표에 기록했습니다. 프로젝트는
 계속 Alpha 단계입니다. 이 결과는 이번 수정본으로 만든 wheel에 적용되며,
 기존에 배포된 orchestration 3.0.3 패키지를 소급하여 인증하지 않습니다.
 이번 소스 업데이트는 새 패키지 발행을 의미하지 않습니다.
@@ -62,16 +63,15 @@ wheel과 함께 Python 3.11.14 / macOS ARM64에서 검증했습니다. 프로젝
 | Airflow | 3.2.0; 실제 Operator에서 로컬 CSV 검증 및 XCom 출력 캡처 |
 | Dagster | 1.12.18; in-process job 내부 Resource 실행 |
 | Prefect | 3.6.29; 실제 Block과 Core 실행, 별도 프로세스 회귀 테스트 |
-| Mage | 배포 패키지 Transformer와 실제 Core 실행; Mage 서버는 기동하지 않음 |
-| Kestra | Python SDK 1.3.0 및 script executor; Kestra 서버는 기동하지 않음 |
+| Mage | 배포 패키지 Transformer와 실제 Core 실행; 후속 실제 서버 결과는 아래 참조 |
+| Kestra | Python SDK 1.3.0 및 script executor; 후속 실제 서버 결과는 아래 참조 |
 | dbt | Core 1.10.20 / postgres adapter 1.10.0; 독립 PostgreSQL 14.20에서 compile·seed·run·test·매크로 실행 |
 | 고급 Core 기능 | NumPy/SciPy/scikit-learn 환경에서 실제 KS 드리프트 및 Isolation Forest·Z-score·Ensemble 이상치 탐지 |
 
 dbt 데이터 검증은 통과 12건, 불량 seed에 대한 예상 경고 7건, 오류 0건,
 스킵 0건이었습니다. Manifest coverage는 기존 80% 기준에서 100%였습니다.
 이는 PostgreSQL 실행 검증이며 Snowflake·BigQuery·Redshift·Databricks의
-실제 연결 검증은 포함하지 않습니다. 호스트 최소 버전, 다른 Python 버전,
-스케줄러·서버 전체 배포도 이번 로컬 검증 범위에 포함하지 않습니다.
+실제 연결 검증은 포함하지 않습니다. 후속 최소 버전 및 스케줄러·서버 실행 결과는 아래에 별도로 기록했습니다.
 Core 3.3은 어댑터의 기존 `lof` 이름에 해당하는 클래스를 내보내지 않으므로
 요청하면 명시적인 클래스 미지원 오류가 발생합니다. 위의 세 ML 탐지기가
 실행 확인된 선택지이며, 고급 기능에는 선택 ML 의존성이 필요합니다.
@@ -95,6 +95,65 @@ dbt는 독립 테스트 DB를 대상으로
 manifest coverage 검사를 실행하세요. 기존 선택 테스트의 스킵은 해당 엔진의
 호환성 통과 근거가 아닙니다.
 
+## 실제 서버 및 최소 호스트 검증
+
+macOS ARM64에서 공개 Core 3.3.0과 아래 조합의 실제 스케줄러·서버 실행을
+확인했습니다. 각 서버에 합성 작업을 제출하여 정상 입력은 성공, null 입력은
+실패 상태로 저장되는지 검증했습니다. 운영 배포가 아닌 격리 검증 환경입니다.
+
+| 호스트 | 버전 | Python | 검증한 실행 |
+| --- | --- | --- | --- |
+| Airflow | 2.6.0 / 3.2.0 | 3.11.14 / 3.12.11 | 스케줄러, 웹/API 서버, 작업 프로세스, 성공·실패 XCom 내용 |
+| Dagster | 1.5.0 / 1.12.18 | 3.11.14 / 3.12.11 | 웹서버, daemon, GraphQL 제출, 자식 실행 프로세스 |
+| Prefect | 2.14.0 / 3.6.29 | 3.11.14 / 3.12.11 | API 서버, served flow, Runner의 COMPLETED / FAILED |
+| Mage | 0.9.80 | 3.11.14 / 3.12.11; Core 인터프리터 분리 | API 스케줄과 블록 실행의 completed / failed |
+| Kestra | 서버 2.0.7; Python SDK 1.3.0 | 3.11.14; 서버 Java 25 | standalone 서버와 process worker의 SUCCESS / FAILED |
+| dbt | Core 1.10.9 / 1.10.20; postgres adapter 1.10.0 | 3.12.11 | PostgreSQL 14.20 compile·seed·run·test·매크로 |
+
+dbt 두 버전 모두 통과 12건, 예상 경고 7건, 오류·스킵 0건, manifest coverage
+100%였습니다. Airflow 최소·기본 버전의 패키지 테스트는 각각 273개, Prefect는
+각각 168개, Dagster 최소·기본 버전은 각각 200개 통과했습니다. 생성된 매트릭스의 Kestra 버전은
+Java 서버 최소 버전이 아닌 **Python SDK**입니다. 서버는 2.0.7만 검증했습니다.
+Mage는 Python 3.11과 3.12에서 각각 정상적으로 의존성을 해결한 호스트·Core 환경으로
+서버 실행을 통과했습니다. Python 3.12 실행은 최종 재빌드 wheel을 사용했습니다.
+
+선택한 호스트와 오케스트레이션 wheel을 각각 독립 환경에 설치하여 재현합니다.
+
+```bash
+python scripts/ci/verify_host_server.py airflow --output-dir /tmp/airflow-verification
+python scripts/ci/verify_host_server.py dagster --output-dir /tmp/dagster-verification
+python scripts/ci/verify_host_server.py prefect --output-dir /tmp/prefect-verification
+python scripts/ci/verify_mage_server.py --host-python /path/to/mage/bin/python \
+  --core-python /path/to/core/bin/python --output-dir /tmp/mage-verification
+```
+
+출력 폴더는 새 경로여야 합니다. 실행기는 로컬 증거를 보존하고 자신이 시작한
+프로세스를 종료합니다. DB·생성 설정·Mage 원본 서버 로그는 비공개로 보관하며,
+CI에는 선별된 요약 및 테스트 로그만 업로드합니다.
+
+설치 결함과 검증 조건은 다음과 같습니다.
+
+- Airflow 2.6.0의 `constraints-3.11.txt`는 배포되지 않아 기존 URL이 404입니다.
+  공개된 3.10 의존성 핀으로 Python 3.11을 검증합니다. upstream의 Python 3.11
+  지원을 주장하는 것은 아닙니다. macOS에서 기본 fork 경로가 네이티브
+  `setproctitle` 내부에서 멈추므로 검증 실행기는 Airflow의 custom task-runner
+  확장으로 별도 인터프리터를 실행합니다. Linux는 기본 실행기를 유지합니다.
+  Airflow 3.2.0은 공식 Python 3.12 제약으로 Pydantic 비호환 설치를 방지합니다.
+- Prefect 2.14.0 서버에 필요한 `cachetools`를 Prefect extra에 추가했습니다.
+  구형 Starlette 조합은 `fastapi<0.100`, Prefect 3.6.29는 새 버전에서 제거된
+  `Body(min_items=...)` 때문에 `fastapi<0.130`을 사용합니다. 호스트별 제약은
+  `ci/support-matrix.toml`에 기록했습니다.
+- dbt-core 1.10.0과 dbt-postgres 1.10.0은 Protobuf 주 버전이 충돌합니다.
+  호환되는 첫 1.10 Core 릴리스인 **1.10.9로 최소 버전을 정정**했고 최소·기본
+  버전 모두 PostgreSQL 실제 실행 CI를 추가했습니다.
+- Mage 0.9.80의 `typer[all]==0.9.0`과 Core 3.3.0의 `typer>=0.12.0`은 충돌하여
+  **같은 인터프리터 설치는 지원하지 않습니다**. 검증한 Mage 블록은 정상적으로
+  의존성을 해결한 별도 Core 인터프리터에서 공식 Transformer를 실행하고 실패를
+  Mage에 전달합니다. `--no-deps`로 충돌을 우회하지 마세요. 이 버전 조합에는
+  프로세스 분리가 필요합니다.
+- 다른 호스트 버전·클라우드 데이터웨어하우스 실연결·운영 인프라까지 인증하는
+  결과는 아닙니다. 프로젝트는 계속 Alpha 단계입니다.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 
@@ -115,22 +174,22 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
-| dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
+| dbt | `dbt-core>=1.10.9,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
 
 | Surface | Install Surface | Release Blocking |
 |---------|-----------------|------------------|
-| `base` | `truthound-오케스트레이션` | Yes |
-| `prefect` | `truthound-오케스트레이션[prefect]` | Yes |
-| `dagster` | `truthound-오케스트레이션[dagster]` | Yes |
-| `dbt` | `truthound-오케스트레이션[dbt]` | Yes |
-| `kestra` | `truthound-오케스트레이션[kestra]` | Yes |
-| `opentelemetry` | `truthound-오케스트레이션[opentelemetry]` | Yes |
-| `airflow` | `truthound-오케스트레이션[airflow]` | Push/release advisory only |
-| `all` | `truthound-오케스트레이션[all]` | Nightly canary only |
+| `base` | `truthound-orchestration` | Yes |
+| `prefect` | `truthound-orchestration[prefect]` | Yes |
+| `dagster` | `truthound-orchestration[dagster]` | Yes |
+| `dbt` | `truthound-orchestration[dbt]` | Yes |
+| `kestra` | `truthound-orchestration[kestra]` | Yes |
+| `opentelemetry` | `truthound-orchestration[opentelemetry]` | Yes |
+| `airflow` | `truthound-orchestration[airflow]` | Push/release advisory only |
+| `all` | `truthound-orchestration[all]` | Nightly canary only |
 
-First-party release guarantees apply to per-surface installs. `truthound-오케스트레이션[all]` remains available as a convenience aggregate and nightly canary surface.
+First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.
 Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.
 <!-- END GENERATED SUPPORT MATRIX -->

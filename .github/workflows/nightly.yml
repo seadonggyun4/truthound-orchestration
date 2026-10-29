@@ -115,8 +115,11 @@ jobs:
       - name: Install Mage host runtime
         run: |
           python -m pip install --upgrade pip
-          python -m pip install mage-ai
-          python -m pip install -e ".[dev,opentelemetry]" "truthound>=3.0,<4.0"
+          python -m venv .mage-host
+          .mage-host/bin/python -m pip install "mage-ai==0.9.80"
+          python -m pip install -e ".[dev,opentelemetry]" "truthound==3.3.0"
+          .mage-host/bin/python -m pip check
+          python -m pip check
       - name: Run Mage host smoke
         run: |
           mkdir -p artifacts/nightly
@@ -124,12 +127,21 @@ jobs:
             packages/mage/tests/test_blocks_transformer.py \
             packages/mage/tests/test_io_config.py \
             --junitxml=artifacts/nightly/mage-host.junit.xml | tee artifacts/nightly/mage-host.log
+      - name: Verify real Mage scheduler with isolated Core
+        run: |
+          python scripts/ci/verify_mage_server.py \
+            --host-python .mage-host/bin/python \
+            --core-python "$(command -v python)" \
+            --output-dir artifacts/nightly/mage-server
       - name: Upload Mage host artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: truthound-nightly-mage-host
-          path: artifacts/nightly/*
+          path: |
+            artifacts/nightly/*.xml
+            artifacts/nightly/*.log
+            artifacts/nightly/mage-server/results.json
 
   summary:
     if: always()

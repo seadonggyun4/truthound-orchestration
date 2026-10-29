@@ -107,8 +107,8 @@ jobs:
           if [ -s artifacts/dagster/generated/constraints.txt ]; then
             install_args+=(-c artifacts/dagster/generated/constraints.txt)
           fi
-          python -m pip install "${install_args[@]}" "dagster==${{ matrix.version }}"
-          python -m pip install "${install_args[@]}" -e ".[dagster]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install "${install_args[@]}" "dagster==${{ matrix.version }}" "dagster-webserver==${{ matrix.version }}"
+          python -m pip install "${install_args[@]}" -e ".[dagster]" "truthound==3.3.0"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Dagster suites
         env:
@@ -132,12 +132,21 @@ jobs:
             --cov=common \
             --cov=packages/dagster/src/truthound_dagster \
             --cov-report="xml:artifacts/dagster/coverage-${{ matrix.version }}.xml" | tee "artifacts/dagster/pytest-${{ matrix.version }}.log"
+      - name: Verify real server and persisted Core 3.3 results
+        run: |
+          python scripts/ci/verify_host_server.py dagster \
+            --output-dir "artifacts/dagster/server-${{ matrix.version }}"
       - name: Upload Dagster artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: truthound-dagster-${{ matrix.version }}
-          path: artifacts/dagster/*
+          path: |
+            artifacts/dagster/*.xml
+            artifacts/dagster/*.log
+            artifacts/dagster/server-*/verification.json
+            artifacts/dagster/server-*/runtime/*.log
+            artifacts/dagster/server-*/runtime/results.json
 
   summary:
     if: always()

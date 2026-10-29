@@ -29,7 +29,7 @@ This page defines the official compatibility contract for `truthound-orchestrati
 | Airflow | `truthound-orchestration[airflow]` with `Truthound 3.x` |
 | Dagster | `truthound-orchestration[dagster]` with `Truthound 3.x` |
 | Prefect | `truthound-orchestration[prefect]` with `Truthound 3.x` |
-| Mage | `truthound-orchestration[mage]` inside a Mage runtime that already provides `mage-ai` |
+| Mage | `truthound-orchestration[mage]` with a separate Core interpreter for Mage 0.9.80 (see below) |
 | Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
 | dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
 
@@ -38,7 +38,8 @@ Release-blocking compatibility and security guarantees apply to these per-surfac
 ## Core 3.3.0 verification
 
 The source revision containing these fixes was verified with the published
-`truthound==3.3.0` wheel on Python 3.11.14 / macOS ARM64. The project remains
+`truthound==3.3.0` wheel. Initial adapter checks used Python 3.11.14 / macOS
+ARM64; subsequent server and minimum-version results are recorded separately below. The project remains
 Alpha. These results apply to wheels built from this revision; they do not
 retroactively certify the previously published orchestration 3.0.3 package.
 No new package publication is implied by this source update.
@@ -59,16 +60,15 @@ recursing through dynamically fabricated conversion methods.
 | Airflow | 3.2.0; real operator with local CSV input and captured XCom output |
 | Dagster | 1.12.18; resource inside an in-process job |
 | Prefect | 3.6.29; native Block with real Core execution and a fresh-process regression |
-| Mage | Packaged transformer execution with real Core; Mage server not started |
-| Kestra | Python SDK 1.3.0 and script executor; Kestra server not started |
+| Mage | Packaged transformer execution with real Core; subsequent server results below |
+| Kestra | Python SDK 1.3.0 and script executor; subsequent server results below |
 | dbt | Core 1.10.20 / postgres adapter 1.10.0; compile, seed, run, test and macro execution on isolated PostgreSQL 14.20 |
 | Advanced Core | Real KS drift and Isolation Forest, Z-score and Ensemble anomaly detection with NumPy/SciPy/scikit-learn installed |
 
 The dbt data suite produced 12 passes, 7 expected warnings for invalid seed data,
 zero errors and zero skips. Manifest coverage was 100% against the existing 80%
 gate. This validates PostgreSQL execution, not live Snowflake, BigQuery, Redshift
-or Databricks connections. Host minimum-version lanes, other Python versions,
-and complete scheduler/server deployments are outside this local verification.
+or Databricks connections. Subsequent minimum-host and scheduler/server verification is recorded below.
 Core 3.3 does not export the adapter's legacy `lof` detector name; requesting it
 raises an explicit unsupported-class error. The three ML detectors above are the
 verified choices. Optional ML dependencies are required for that advanced lane.
@@ -92,6 +92,68 @@ For dbt, use `packages/dbt/scripts/run_first_party_suite.py --mode all --target
 postgres` against an isolated test database, then run the manifest coverage gate.
 Existing optional-test skips are not evidence that those optional engines passed.
 
+## Server and minimum-host verification
+
+Actual local scheduler/server execution now covers the following combinations on
+macOS ARM64 with published Core 3.3.0. Each server accepted synthetic work and
+persisted a successful result for valid input and a failed result for null input.
+These are isolated verification deployments, not production deployments.
+
+| Host | Versions | Python | Verified execution |
+| --- | --- | --- | --- |
+| Airflow | 2.6.0 / 3.2.0 | 3.11.14 / 3.12.11 | Scheduler, web/API server, task process and XCom success/failure payloads |
+| Dagster | 1.5.0 / 1.12.18 | 3.11.14 / 3.12.11 | Webserver, daemon, GraphQL submission and child run processes |
+| Prefect | 2.14.0 / 3.6.29 | 3.11.14 / 3.12.11 | API server, served flow and Runner; COMPLETED / FAILED states |
+| Mage | 0.9.80 | 3.11.14 / 3.12.11; separate Core interpreter | API schedule and scheduler block execution; completed / failed states |
+| Kestra | Server 2.0.7; Python SDK 1.3.0 | 3.11.14; server Java 25 | Standalone server and process worker; SUCCESS / FAILED states |
+| dbt | Core 1.10.9 / 1.10.20; postgres adapter 1.10.0 | 3.12.11 | PostgreSQL 14.20 compile, seed, run, test and macros |
+
+Both dbt versions returned 12 passes, 7 expected warnings, zero errors/skips and
+100% manifest coverage. Airflow's minimum and primary package suites each passed
+273 tests; Prefect's each passed 168. Both Dagster suites passed 200 tests.
+The Kestra version in the generated matrix is the **Python SDK**, not a minimum
+Java server version. This run verifies server 2.0.7 only. Mage server checks passed on both Python 3.11 and 3.12, with normally resolved
+host and Core environments. The Python 3.12 run used the final rebuilt wheel.
+
+Reproduce Airflow, Dagster and Prefect server checks after installing the selected
+host and orchestration wheel in separate environments:
+
+```bash
+python scripts/ci/verify_host_server.py airflow --output-dir /tmp/airflow-verification
+python scripts/ci/verify_host_server.py dagster --output-dir /tmp/dagster-verification
+python scripts/ci/verify_host_server.py prefect --output-dir /tmp/prefect-verification
+python scripts/ci/verify_mage_server.py --host-python /path/to/mage/bin/python \
+  --core-python /path/to/core/bin/python --output-dir /tmp/mage-verification
+```
+
+Output directories must be new. Runners retain local evidence and shut down their
+own processes. Keep databases, generated configuration and raw Mage server logs
+private; CI uploads only selected summaries and test logs.
+
+Installation findings and boundaries:
+
+- Airflow 2.6.0 has no published `constraints-3.11.txt`; the former CI URL returns
+  404. The minimum lane uses published 3.10 dependency pins on Python 3.11. This
+  is an orchestration-tested tuple, not an upstream Python 3.11 support claim.
+  On macOS only, the verification runner uses Airflow's custom task-runner hook
+  to spawn an interpreter: the default fork path hangs in native `setproctitle`.
+  Linux retains the default runner. Airflow 3.2.0 uses official Python 3.12
+  constraints to avoid an incompatible unconstrained Pydantic installation.
+- Prefect 2.14.0 server startup needs `cachetools`, now included in the Prefect
+  extra, and `fastapi<0.100` for its legacy Starlette generation. Prefect 3.6.29
+  uses `fastapi<0.130` because newer FastAPI removes its `Body(min_items=...)`
+  argument. These host constraints are recorded in `ci/support-matrix.toml`.
+- dbt-core 1.10.0 and dbt-postgres 1.10.0 conflict on Protobuf major versions.
+  The minimum is corrected to **dbt-core 1.10.9**, the first compatible 1.10
+  Core release; both minimum and primary now have PostgreSQL execution CI jobs.
+- Mage 0.9.80 pins `typer[all]==0.9.0`, while Core 3.3.0 requires `typer>=0.12.0`.
+  A same-interpreter install is **unsupported**. The verified Mage block calls
+  the packaged first-party transformer in a separately resolved Core interpreter
+  and propagates quality failures to Mage. Do not bypass dependency resolution
+  with `--no-deps`. This process boundary is required for this combination.
+- These results do not certify other host versions, live cloud warehouses or
+  production infrastructure. The project remains Alpha.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 
@@ -112,7 +174,7 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
-| dbt | `dbt-core>=1.10.0,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
+| dbt | `dbt-core>=1.10.9,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
 

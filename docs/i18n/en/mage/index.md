@@ -9,6 +9,13 @@ quality blocks without introducing a separate orchestration control plane. The p
 leans on Mage conventions such as transformers, sensors, conditions, and `io_config`
 discovery instead of forcing a custom runtime model.
 
+## Core 3.3 runtime boundary
+
+Mage 0.9.80 and Core 3.3.0 have incompatible Typer requirements and cannot share
+a Python environment. Run the transformer examples below in a separate Core
+interpreter and invoke it from the Mage block. See the [compatibility results](../compatibility.md#server-and-minimum-host-verification)
+for the tested server setup and reproduction commands.
+
 ## Who This Is For
 
 - Mage teams building pipeline-local quality checks

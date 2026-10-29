@@ -13,15 +13,17 @@ extra = "airflow"
 min = "2.6.0"
 primary = "3.2.0"
 
+# Airflow 2.6.0 published no Python 3.11 constraint file. Reuse the
+# published dependency pins and verify the Python 3.11 runtime separately.
 [platforms.airflow.ci.min]
 python = "3.11"
 constraints = []
-constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.11.txt"]
+constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.10.txt"]
 
 [platforms.airflow.ci.primary]
 python = "3.12"
 constraints = []
-constraint_urls = []
+constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-3.2.0/constraints-3.12.txt"]
 
 [platforms.prefect]
 required = true
@@ -36,12 +38,14 @@ constraints = [
     "griffe<1.0.0",
     "pendulum<3.0.0",
     "starlette<0.28.0",
+    "fastapi<0.100.0",
+    "cachetools>=5.0.0",
 ]
 constraint_urls = []
 
 [platforms.prefect.ci.primary]
 python = "3.12"
-constraints = []
+constraints = ["fastapi<0.130.0"]
 constraint_urls = []
 
 [platforms.dagster]
@@ -63,7 +67,7 @@ constraint_urls = []
 [platforms.mage]
 required = true
 extra = "mage"
-runtime_expectation = "Inside a Mage runtime that already provides mage-ai"
+runtime_expectation = "Mage 0.9.80 requires a separate Core 3.3 interpreter due to incompatible Typer dependencies"
 
 [platforms.kestra]
 required = true
@@ -76,7 +80,7 @@ runtime_expectation = "Kestra runtime with generated scripts and templates"
 required = true
 extra = "dbt"
 execution_target = "postgres"
-core_range = "dbt-core>=1.10.0,<1.11.0"
+core_range = "dbt-core>=1.10.9,<1.11.0"
 execution_core_version = "1.10.20"
 execution_adapter_version = "1.10.0"
 coverage_threshold = 0.8

@@ -49,6 +49,7 @@ jobs:
       run_execution: ${{ steps.export.outputs.run_execution }}
       execution_target: ${{ steps.export.outputs.execution_target }}
       execution_adapter: ${{ steps.export.outputs.execution_adapter }}
+      execution_matrix: ${{ steps.export.outputs.execution_matrix }}
       coverage_threshold: ${{ steps.export.outputs.coverage_threshold }}
     steps:
       - uses: actions/checkout@v5
@@ -159,6 +160,9 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.execution_matrix) }}
     services:
       postgres:
         image: postgres:16
@@ -185,7 +189,7 @@ jobs:
       - name: Install dbt execution dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}"
+          python -m pip install -e ".[dev,dbt]" "truthound${{ needs.matrix.outputs.truthound_range }}" "${{ needs.matrix.outputs.execution_adapter }}" "dbt-core==${{ matrix.core_version }}"
       - name: Run dbt PostgreSQL baseline
         env:
           POSTGRES_HOST: 127.0.0.1
@@ -206,7 +210,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-dbt-postgres
+          name: truthound-dbt-postgres-${{ matrix.core_version }}
           path: artifacts/dbt/*
 
   summary:

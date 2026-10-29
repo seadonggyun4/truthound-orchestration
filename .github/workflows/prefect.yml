@@ -108,7 +108,7 @@ jobs:
             install_args+=(-c artifacts/prefect/generated/constraints.txt)
           fi
           python -m pip install "${install_args[@]}" "prefect==${{ matrix.version }}"
-          python -m pip install "${install_args[@]}" -e ".[prefect]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install "${install_args[@]}" -e ".[prefect]" "truthound==3.3.0"
           python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
       - name: Run Prefect suites
         env:
@@ -132,12 +132,21 @@ jobs:
             --cov=common \
             --cov=packages/prefect/src/truthound_prefect \
             --cov-report="xml:artifacts/prefect/coverage-${{ matrix.version }}.xml" | tee "artifacts/prefect/pytest-${{ matrix.version }}.log"
+      - name: Verify real server and persisted Core 3.3 results
+        run: |
+          python scripts/ci/verify_host_server.py prefect \
+            --output-dir "artifacts/prefect/server-${{ matrix.version }}"
       - name: Upload Prefect artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: truthound-prefect-${{ matrix.version }}
-          path: artifacts/prefect/*
+          path: |
+            artifacts/prefect/*.xml
+            artifacts/prefect/*.log
+            artifacts/prefect/server-*/verification.json
+            artifacts/prefect/server-*/runtime/*.log
+            artifacts/prefect/server-*/runtime/results.json
 
   summary:
     if: always()
