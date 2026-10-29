@@ -52,7 +52,13 @@ dev = [
 ]
 
 airflow = [
-    "apache-airflow>=2.6.0",
+    "apache-airflow>=3.3.2",
+    "cryptography>=46.0.5",
+    "certifi>=2026.10.19",
+    "dnspython>=2.9.0",
+    "opentelemetry-api>=1.45.1",
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
 ]
 
 dagster = [
@@ -103,7 +109,13 @@ all = [
     "pre-commit>=3.6.0",
     "twine>=5.1.0",
     "pyyaml>=6.0.0",
-    "apache-airflow>=2.6.0",
+    "apache-airflow>=3.3.2",
+    "cryptography>=46.0.5",
+    "certifi>=2026.10.19",
+    "dnspython>=2.9.0",
+    "opentelemetry-api>=1.45.1",
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
     "dagster>=1.5.0",
     "prefect>=2.14.0",
     "cachetools>=5.0.0",
@@ -114,7 +126,6 @@ all = [
     "dbt-core>=1.11.14,<1.12.0",
     "dbt-postgres>=1.10.0,<1.11.0",
     "sqlparse>=0.6.0,<0.7.0",
-    "opentelemetry-api>=1.45.1",
     "opentelemetry-sdk>=1.45.1",
     "opentelemetry-exporter-otlp-proto-grpc>=1.45.1",
     "opentelemetry-exporter-otlp-proto-http>=1.45.1",

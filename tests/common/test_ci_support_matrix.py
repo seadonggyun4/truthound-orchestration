@@ -28,10 +28,8 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
                 "label": "primary",
                 "version": "3.3.2",
                 "python_version": "3.12",
-                "constraints": [],
-                "constraint_urls": [
-                    "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt"
-                ],
+                "constraints": data["security"]["surfaces"]["airflow"]["constraints"],
+                "constraint_urls": [],
             }
         ]
     }
@@ -129,7 +127,11 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     ]
     assert blocking["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
-        "pyjwt>=2.12.0",
+        "certifi>=2026.10.19",
+        "dnspython>=2.9.0",
+        "opentelemetry-api>=1.45.1",
+        "pyjwt>=2.15.0",
+        "urllib3>=2.8.0",
     ]
     assert blocking["airflow"]["ignore_vulns"] == []
     assert blocking["airflow"]["constraint_urls"] == []
@@ -190,17 +192,16 @@ def test_docs_support_matrix_block_is_in_sync() -> None:
     assert current == ci_support_matrix.render_generated_support_block(data)
 
 
-def test_legacy_airflow_constraints_reference_a_published_python_lane() -> None:
+def test_minimum_airflow_constraints_match_the_security_baseline() -> None:
     data = ci_support_matrix.load_support_matrix()
     lane = ci_support_matrix.build_workflow_payload(data, "airflow", "release")["host_matrix"][
         "include"
     ][0]
-    assert lane["test_constraints"] == ["pytest<9.2", "packaging<24"]
-    assert lane["version"] == "2.6.0"
+    assert not lane.get("test_constraints")
+    assert lane["version"] == "3.3.2"
     assert lane["python_version"] == "3.11"
-    assert lane["constraint_urls"] == [
-        "https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.10.txt"
-    ]
+    assert lane["constraint_urls"] == []
+    assert lane["constraints"] == data["security"]["surfaces"]["airflow"]["constraints"]
 
 
 def test_prefect_minimum_includes_server_dependencies() -> None:
@@ -279,3 +280,69 @@ def test_airflow_security_and_primary_host_stay_aligned() -> None:
     assert str(requirements["truthound"].specifier) == "==3.3.0"
     assert "airflow" in data["security"]["blocking_surfaces"]
     assert surface["ignore_vulns"] == []
+
+
+def test_airflow_package_surfaces_reject_hosts_below_security_floor() -> None:
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    root_metadata = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    provider = tomllib.loads((ROOT / "packages/airflow/pyproject.toml").read_text())
+    extras = root_metadata["project"]["optional-dependencies"]
+    for dependencies in (extras["airflow"], extras["all"], provider["project"]["dependencies"]):
+        requirement = next(
+            req for req in map(Requirement, dependencies) if req.name == "apache-airflow"
+        )
+        for unsupported in ("2.6.0", "3.2.0", "3.3.0", "3.3.1"):
+            assert unsupported not in requirement.specifier
+        assert "3.3.2" in requirement.specifier
+
+
+def test_airflow_release_tests_security_floor_on_both_python_versions() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    lanes = ci_support_matrix.build_workflow_payload(data, "airflow", "release")["host_matrix"][
+        "include"
+    ]
+    assert {(lane["version"], lane["python_version"]) for lane in lanes} == {
+        ("3.3.2", "3.11"),
+        ("3.3.2", "3.12"),
+    }
+    for lane in lanes:
+        assert not lane.get("test_constraints")
+        assert lane["constraint_urls"] == []
+        assert lane["constraints"] == data["security"]["surfaces"]["airflow"]["constraints"]
+
+
+def test_airflow_security_transitives_are_enforced_by_packages_and_ci() -> None:
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    metadata = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    provider = tomllib.loads((ROOT / "packages/airflow/pyproject.toml").read_text())
+    extras = metadata["project"]["optional-dependencies"]
+    floors = {
+        "certifi": ("2026.7.22", "2026.10.19"),
+        "dnspython": ("2.8.0", "2.9.0"),
+        "opentelemetry-api": ("1.44.0", "1.45.1"),
+        "pyjwt": ("2.14.0", "2.15.0"),
+        "urllib3": ("2.7.0", "2.8.0"),
+    }
+    data = ci_support_matrix.load_support_matrix()
+    surface = data["security"]["surfaces"]["airflow"]
+    sources = [
+        extras["airflow"],
+        extras["all"],
+        provider["project"]["dependencies"],
+        surface["constraints"],
+    ]
+    for lane in data["platforms"]["airflow"]["ci"].values():
+        assert lane["constraint_urls"] == []
+        assert lane["constraints"] == surface["constraints"]
+        sources.append(lane["constraints"])
+    for dependencies in sources:
+        requirements = {req.name.lower(): req for req in map(Requirement, dependencies)}
+        for name, (vulnerable, fixed) in floors.items():
+            assert vulnerable not in requirements[name].specifier
+            assert fixed in requirements[name].specifier

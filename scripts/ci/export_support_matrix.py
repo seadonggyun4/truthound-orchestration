@@ -61,11 +61,6 @@ def build_host_matrix(
                 "python_version": lane.get("python", data["python"]["primary"]),
                 "constraints": list(lane.get("constraints", [])),
                 "constraint_urls": list(lane.get("constraint_urls", [])),
-                **(
-                    {"test_constraints": list(lane["test_constraints"])}
-                    if "test_constraints" in lane
-                    else {}
-                ),
             }
         )
     return {"include": include}
@@ -335,7 +330,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             "First-party release guarantees apply to per-surface installs. "
             "`truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.",
             "Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.",
-            "Airflow security audits resolve the complete extra with the pinned secure host and security constraints; official host constraints are used separately for compatibility testing.",
+            "Airflow runtime lanes and security audits resolve the complete extra with the same security constraints and pinned supported host.",
         ]
     )
     return "\n".join(lines).strip()

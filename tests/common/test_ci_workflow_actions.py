@@ -328,6 +328,26 @@ def test_airflow_security_checks_native_auth_and_guards_empty_advisory_matrix() 
 
 def test_airflow_test_dependencies_preserve_host_compatibility() -> None:
     workflow = (ROOT / ".github/workflows/airflow.yml").read_text()
-    assert "toJSON(matrix.test_constraints)" in workflow
-    assert "-c artifacts/airflow/generated/test-constraints.txt pytest" in workflow
+    assert "matrix.test_constraints" not in workflow
+    assert "test-constraints.txt" not in workflow
     assert "python -m pip check" in workflow
+    assert "python scripts/ci/verify_airflow_security.py" in workflow
+    assert "python -m pip_audit --local" in workflow
+    assert (
+        "tests/opentelemetry/test_native_runtime.py::test_native_context_bridge_bounds_malformed_tracestate"
+        in workflow
+    )
+
+
+def test_airflow_matrix_artifacts_are_unique_when_versions_match() -> None:
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/airflow.yml").read_text())
+    upload = next(
+        step
+        for step in workflow["jobs"]["airflow"]["steps"]
+        if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    name = upload["with"]["name"]
+    assert "${{ matrix.label }}" in name
+    assert "${{ matrix.python_version }}" in name

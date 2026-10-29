@@ -8,7 +8,7 @@ title: Airflow Install And Compatibility
 
 Use the canonical compatibility page for the exact CI-backed tuples. For Airflow, the important support anchors are:
 
-- minimum supported: Airflow `2.6.0` on Python `3.11`
+- minimum supported: Airflow `3.3.2` on Python `3.11`
 - primary supported: Airflow `3.3.2` on Python `3.12`
 
 See [Compatibility](../compatibility.md) for the generated support matrix.
@@ -60,4 +60,4 @@ When upgrading Airflow:
 - [Hooks](hooks.md)
 - [Troubleshooting](troubleshooting.md)
 
-The production security baseline is Airflow 3.3.2 or later. Airflow 2.6.0 is retained for functional compatibility testing, not as a secure deployment baseline.
+The minimum supported Airflow version is 3.3.2. Older versions, including 2.6.0 and 3.3.1, are no longer supported and are rejected by both package dependency declarations. CI verifies 3.3.2 on Python 3.11 and 3.12 using the same audited security constraints.

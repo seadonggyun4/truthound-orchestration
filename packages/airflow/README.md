@@ -37,3 +37,9 @@ With the default `TruthoundEngine`, omitting `rules` selects Truthound 3.x
 zero-config auto-schema validation. The host-neutral `rules=[{"type": ...}]`
 contract is for alternative engines that explicitly consume that rule format;
 the Truthound adapter does not translate those dictionaries into validators.
+
+## Supported runtime
+
+Requires Apache Airflow 3.3.2 or later and Python 3.11 or later. CI verifies
+Airflow 3.3.2 on Python 3.11 and 3.12 with Truthound Core 3.3.0. Hosts below
+3.3.2 are no longer supported and are rejected by package dependency metadata.

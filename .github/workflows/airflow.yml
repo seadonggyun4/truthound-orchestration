@@ -87,8 +87,6 @@ jobs:
           from pathlib import Path
 
           constraints = json.loads(r'''${{ toJSON(matrix.constraints) }}''')
-          test_constraints = json.loads(r'''${{ toJSON(matrix.test_constraints) }}''') or []
-          (Path("artifacts/airflow/generated") / "test-constraints.txt").write_text("\n".join(test_constraints) + "\n")
           constraint_urls = json.loads(r'''${{ toJSON(matrix.constraint_urls) }}''')
           output_dir = Path("artifacts/airflow/generated")
           output_dir.mkdir(parents=True, exist_ok=True)
@@ -113,7 +111,7 @@ jobs:
           fi
           python -m pip install "${install_args[@]}" "apache-airflow==${{ matrix.version }}"
           python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound==3.3.0"
-          python -m pip install -c artifacts/airflow/generated/test-constraints.txt pytest pytest-cov pytest-asyncio pytest-xdist
+          python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist pip-audit
           python -m pip check
       - name: Run Airflow suites
         env:
@@ -122,9 +120,10 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/airflow
           if [ "${SUITE_TIER}" = "full" ]; then
-            TESTS="packages/airflow/tests"
+            TESTS="packages/airflow/tests tests/opentelemetry/test_native_runtime.py::test_native_context_bridge_bounds_malformed_tracestate"
           else
             TESTS="
+            tests/opentelemetry/test_native_runtime.py::test_native_context_bridge_bounds_malformed_tracestate
             packages/airflow/tests/test_hooks/test_base.py
             packages/airflow/tests/test_operators/test_base.py
             packages/airflow/tests/test_operators/test_check.py
@@ -141,6 +140,11 @@ jobs:
             --cov=common \
             --cov=packages/airflow/src/truthound_airflow \
             --cov-report="xml:artifacts/airflow/coverage-${{ matrix.version }}.xml" | tee "artifacts/airflow/pytest-${{ matrix.version }}.log"
+      - name: Verify native authentication and audit the installed host
+        run: |
+          set -euo pipefail
+          python scripts/ci/verify_airflow_security.py
+          python -m pip_audit --local --progress-spinner off | tee "artifacts/airflow/pip-audit-${{ matrix.version }}.log"
       - name: Verify real server and persisted Core 3.3 results
         run: |
           python scripts/ci/verify_host_server.py airflow \
@@ -149,7 +153,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-airflow-${{ matrix.version }}
+          name: truthound-airflow-${{ matrix.label }}-${{ matrix.version }}-py${{ matrix.python_version }}
           path: |
             artifacts/airflow/*.xml
             artifacts/airflow/*.log

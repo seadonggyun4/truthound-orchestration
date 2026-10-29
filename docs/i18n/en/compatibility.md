@@ -133,6 +133,10 @@ Existing optional-test skips are not evidence that those optional engines passed
 
 ## Server and minimum-host verification
 
+This section records earlier verification. Airflow 2.6.0 and 3.2.0 are no longer
+supported; use the Airflow security baseline and generated CI matrix below for
+the current support range.
+
 Actual local scheduler/server execution now covers the following combinations on
 macOS ARM64 with published Core 3.3.0. Each server accepted synthetic work and
 persisted a successful result for valid input and a failed result for null input.
@@ -204,19 +208,20 @@ The native authentication regression checks Bearer precedence, invalid-token
 rejection, valid cookie caching, and rejection of untrusted cached identities.
 It fails on 3.3.0 and passes on 3.3.2.
 
-Airflow **2.6.0 / Python 3.11** remains a legacy **functional compatibility**
-tuple, not a security-supported production baseline. The package's broad
-Airflow dependency floor preserves that compatibility; use Airflow 3.3.2 or
-later for the security baseline. Do not interpret a successful legacy server
-run as a vulnerability-free environment.
+The minimum and primary supported Airflow version is **3.3.2**. The minimum
+Python tuple is **3.11**, and the primary tuple is **3.12**, each using the same
+audited security constraints. Both root-package extras (`airflow` and `all`) and
+the `truthound-airflow` provider require `apache-airflow>=3.3.2`. Functional
+support for older hosts, including 2.6.0, has ended. Historical results below
+do not define the current support range.
 
 The blocking audit resolves the complete Airflow extra with
-`cryptography>=46.0.5` and `pyjwt>=2.12.0`, runs `pip check`, native authentication
+`cryptography>=46.0.5` and the dependency floors listed below, runs `pip check`, native authentication
 regressions, and `pip-audit` without ignored findings. Host compatibility CI
-separately installs official version-specific constraints and executes actual
+uses the same security constraints and executes actual
 servers and persisted success/failure XCom results.
 
-Revalidation on 2026-10-29 passed all 273 Airflow adapter tests in each host
+Before the minimum-version increase, verification on 2026-10-29 passed all 273 Airflow adapter tests in each host
 environment, four native authentication regressions on 3.3.2, and actual
 scheduler/web/API/task execution on 2.6.0/Python 3.11 and 3.3.2/Python 3.12.
 Both servers persisted `good=success`, `bad=failed` and matching XCom payloads
@@ -225,12 +230,45 @@ Initial concurrent local attempts encountered worker termination on 2.6.0
 and execution-API timeouts on 3.3.2; those failed records were retained. Fresh
 isolated reruns passed without changing host code or weakening assertions.
 
-The legacy test lane also constrains `pytest<9.2` and `packaging<24`:
-Airflow 2.6's `limits` requires the latter, while pytest 9.2 requires
-`packaging>=24`. Installing test tools without host-aware constraints had
-silently produced an inconsistent environment. The lane now runs `pip check`
-after test-tool installation. Reused local environments also need a Typer
-version compatible with their constrained Rich version.
+The 2.6-only `pytest<9.2` and `packaging<24` constraints have been removed.
+`pip check` still runs after test-tool installation. Artifact names include
+the lane and Python version to avoid upload collisions when both jobs test
+the same Airflow version. Regression coverage enforces the package floor,
+Python-specific runtime lanes and distinct artifact names.
+
+### Transitive dependency security floors
+
+Auditing the upstream 3.3.2 constraints snapshot found nine advisory reports
+across five packages (including duplicate certifi reports). The package extras,
+provider metadata, runtime CI and security audit now share these floors:
+
+| Dependency | Minimum |
+| --- | --- |
+| certifi | 2026.10.19 |
+| dnspython | 2.9.0 |
+| opentelemetry-api | 1.45.1 |
+| PyJWT | 2.15.0 |
+| urllib3 | 2.8.0 |
+| cryptography | 46.0.5 (existing security floor) |
+
+The fixes cover certificate trust, DNS/tracestate parsing, JWT validation and
+HTTP proxy/streaming handling. See the upstream [certifi release](https://github.com/certifi/python-certifi/releases/tag/2026.10.19),
+[dnspython release](https://github.com/rthalley/dnspython/releases/tag/v2.9.0),
+[PyJWT changelog](https://pyjwt.readthedocs.io/en/stable/changelog.html#v2-15-0),
+[urllib3 changelog](https://urllib3.readthedocs.io/en/stable/changelog.html#id1)
+and the OpenTelemetry advisory linked above. The old upstream constraints
+snapshot cannot be combined with these floors; CI resolves normally using the
+repository's security constraints, without ignored vulnerabilities or `--no-deps`.
+
+Current-floor verification passed on Airflow 3.3.2 with Core 3.3.0 on both
+Python 3.11 and 3.12: 274 adapter/header regression tests, four native auth
+regressions, `pip check`, and zero known vulnerabilities in each complete
+installed environment. Actual scheduler/API/task execution persisted
+`good=success`, `bad=failed` and matching XCom results. The Python 3.12 server
+loaded the built wheel from site-packages. Both built distributions' metadata
+and dependency resolution reject Airflow 3.3.1. Wheel/sdist validation, package
+privacy checks, strict documentation build and bilingual link checks passed.
+This verifies the revised source and artifacts; it does not publish a release.
 
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
@@ -241,14 +279,14 @@ Truthound release line: `>=3.0,<4.0`
 |------|---------|---------|---------|------|--------|-------------|-------------|
 | PR | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
 | Main | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `2.6.0` on `Python 3.11`, `3.3.2` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 | Nightly | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
-| Airflow | `2.6.0` on `Python 3.11` | `3.3.2` on `Python 3.12` |
+| Airflow | `3.3.2` on `Python 3.11` | `3.3.2` on `Python 3.12` |
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
@@ -269,7 +307,7 @@ Truthound release line: `>=3.0,<4.0`
 
 First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.
-Airflow security audits resolve the complete extra with the pinned secure host and security constraints; official host constraints are used separately for compatibility testing.
+Airflow runtime lanes and security audits resolve the complete extra with the same security constraints and pinned supported host.
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## What This Means In Practice
