@@ -12,6 +12,9 @@ quality blocks without introducing a separate 오케스트레이션 control plan
 leans on Mage conventions such as transformers, sensors, conditions, and `io_config`
 discovery instead of forcing a custom runtime model.
 
+
+**보안 제한:** 최신 Mage 0.9.80은 취약한 의존성을 고정하므로 현재 보안 지원 호스트가 없습니다. 별도 Core 인터프리터는 기능 호환성만 제공합니다. [보안 기준](../compatibility.md)을 확인하세요.
+
 ## Core 3.3 실행 조건
 
 Mage 0.9.80과 Core 3.3.0은 Typer 의존성이 충돌하므로 같은 Python 환경에

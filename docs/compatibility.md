@@ -6,6 +6,47 @@ title: Compatibility
 
 This page defines the official compatibility contract for `truthound-orchestration 3.x`: what Truthound line it supports, which host versions are exercised in CI, and how to interpret "minimum supported" versus "primary supported" host lanes.
 
+## Scheduler security baseline (2026-10-29)
+
+| Platform | Minimum / primary | Verification and limitations |
+|---|---|---|
+| Prefect | 3.9.0 / 3.9.0 | Python 3.11 / 3.12; API server, Runner and persisted COMPLETED / FAILED states with Core 3.3.0 |
+| Dagster | 1.13.1 / 1.13.27 | Python 3.11 / 3.12; webserver, daemon, GraphQL submission and SUCCESS / FAILURE runs |
+| Kestra Python SDK | 1.3.0 / 2.0.0 | Python 3.11 / 3.12; both execute on the separately versioned Java server 2.0.8 |
+| Kestra Java server | 2.0.8 | Authenticated native execution, quality failures and literal-IP / DNS deny-list regression |
+| Mage host | No security-supported released version | 0.9.80 is functionally verified only, with a separate Core 3.3 interpreter |
+
+Older Prefect/Dagster tuples recorded below are historical functional evidence,
+not current supported installations. Root extras, the aggregate extra and the
+standalone Prefect/Dagster package metadata enforce the new host floors.
+Prefect 3.6.29 passes a fresh dependency audit but fails server initialization
+with current FastAPI (Body(min_items=...) is no longer accepted); 3.9.0 passes
+the existing fresh-process regression and real server execution without legacy
+FastAPI/Starlette constraints. Both current Python lanes are audited after normal
+dependency resolution with pip check and pip-audit.
+
+Dagster 1.13.1 fixes dynamic-partition SQL injection:
+[GHSA-mjw2-v2hm-wj34](https://github.com/dagster-io/dagster/security/advisories/GHSA-mjw2-v2hm-wj34).
+Kestra 2.0.7 reproduced a DNS-name bypass of the HTTP deny list against a local
+synthetic HTTP canary. The same regression passes on 2.0.8 with both SDK versions:
+direct IP and DNS requests fail, and the canary receives no request. See
+[GHSA-f5h6-rg96-px74](https://github.com/kestra-io/kestra/security/advisories/GHSA-f5h6-rg96-px74).
+CI verifies the official 2.0.8 server artifact SHA-256 before execution:
+fcc48c9812e6b5a0534f80b5bff9fddcc021280115434900da43870152f8f8f8.
+The Python SDK audit is not an audit of Java dependencies; no complete Java SBOM
+vulnerability scan is claimed.
+
+Mage 0.9.80 still pins vulnerable transitive dependencies, including
+PyJWT==2.6.0, aiohttp==3.10.0, cryptography==42.0.4 and Werkzeug==3.0.3.
+A normal resolver rejects mage-ai==0.9.80 together with PyJWT>=2.15.0.
+There is no newer released host to raise the floor to.
+The real scheduler completes good data and fails bad data, but that functional
+result does not make the host security-supported. Interpreter separation resolves
+the Core/Mage Typer conflict only. Do not deploy this host as a security-compliant
+baseline or override dependency metadata with --no-deps. Upstream must publish
+a compatible patched dependency set before host security support can resume.
+Existing blocking security gates remain enabled; Mage host security is unresolved.
+
 ## Version Line
 
 `truthound-orchestration 3.x` supports `Truthound 3.x` only.
@@ -33,7 +74,7 @@ This page defines the official compatibility contract for `truthound-orchestrati
 | Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
 | dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
 
-Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+Release-blocking guarantees apply to the declared audited surfaces; Mage host security remains unsupported. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
 ## Security dependency baseline
 
@@ -283,19 +324,19 @@ Truthound release line: `>=3.0,<4.0`
 
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
-| PR | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| PR | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Main | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.11`, `3.9.0` on `Python 3.12` | `1.13.1` on `Python 3.11`, `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; security unsupported | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
 | Airflow | `3.3.2` on `Python 3.11` | `3.3.2` on `Python 3.12` |
-| Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
-| Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
-| Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
+| Prefect | `3.9.0` on `Python 3.11` | `3.9.0` on `Python 3.12` |
+| Dagster | `1.13.1` on `Python 3.11` | `1.13.27` on `Python 3.12` |
+| Kestra | `1.3.0` on `Python 3.11` | `2.0.0` on `Python 3.12` |
 | dbt | `dbt-core>=1.11.14,<1.12.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.11.16` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces

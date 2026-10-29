@@ -103,14 +103,14 @@ def build_workflow_payload(
             },
         }
 
-    if workflow in {"airflow", "prefect", "dagster"}:
+    if workflow in {"airflow", "prefect", "dagster", "kestra"}:
         version_key = f"{workflow}_versions"
         return {
             "truthound_range": truthound_range,
             "host_matrix": build_host_matrix(data, workflow, lane_config[version_key]),
         }
 
-    if workflow in {"mage", "kestra"}:
+    if workflow == "mage":
         return {
             "python_version": data["python"][lane_config[f"{workflow}_python"][0]],
             "truthound_range": truthound_range,
@@ -240,7 +240,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["nightly"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["nightly"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["nightly"]["dagster_versions"]),
-            "Primary host smoke + `mage-ai` runtime canary",
+            "Functional only; security unsupported",
             "Primary host smoke",
             ", ".join(f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]),
             "Yes (`postgres`)",
@@ -265,8 +265,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         ),
         (
             "Kestra",
-            f"`{data['platforms']['kestra']['min']}` on `Python {data['python']['primary']}`",
-            f"`{data['platforms']['kestra']['primary']}` on `Python {data['python']['primary']}`",
+            format_host_pairs("kestra", ["min"]),
+            format_host_pairs("kestra", ["primary"]),
         ),
         (
             "dbt",

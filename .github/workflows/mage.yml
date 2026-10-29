@@ -75,8 +75,8 @@ jobs:
             ci/support-matrix.toml
       - name: Install Mage dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,mage,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install --upgrade pip "setuptools>=84.1.0"
+          python -m pip install -e ".[dev,mage,opentelemetry]" "truthound==3.3.0"
       - name: Run Mage suites
         env:
           SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
@@ -98,12 +98,28 @@ jobs:
             --cov=common \
             --cov=packages/mage/src/truthound_mage \
             --cov-report="xml:artifacts/mage/coverage.xml" | tee artifacts/mage/pytest.log
+      - name: Install isolated Mage host
+        run: |
+          python -m venv "${{ runner.temp }}/mage-host"
+          "${{ runner.temp }}/mage-host/bin/python" -m pip install --upgrade pip
+          MAGE_VERSION=$(python -c 'import tomllib; print(tomllib.load(open("ci/support-matrix.toml", "rb"))["platforms"]["mage"]["host_version"])')
+          "${{ runner.temp }}/mage-host/bin/python" -m pip install "mage-ai==$MAGE_VERSION"
+          "${{ runner.temp }}/mage-host/bin/python" -m pip check
+      - name: Verify real Mage scheduler with isolated Core
+        run: |
+          python scripts/ci/verify_mage_server.py \
+            --host-python "${{ runner.temp }}/mage-host/bin/python" \
+            --core-python "$(command -v python)" \
+            --output-dir artifacts/mage/server
       - name: Upload Mage artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: truthound-mage
-          path: artifacts/mage/*
+          path: |
+            artifacts/mage/*.xml
+            artifacts/mage/*.log
+            artifacts/mage/server/results.json
 
   summary:
     if: always()

@@ -11,8 +11,8 @@ title: Prefect Install And Compatibility
 
 The current support anchors are:
 
-- minimum supported: Prefect `2.14.0` on Python `3.11`
-- primary supported: Prefect `3.6.29` on Python `3.12`
+- minimum supported: Prefect `3.9.0` on Python `3.11`
+- primary supported: Prefect `3.9.0` on Python `3.12`
 
 See [Compatibility](../compatibility.md) for the release-blocking matrix.
 

@@ -8,8 +8,8 @@ title: Dagster Install And Compatibility
 
 The current support anchors are:
 
-- minimum supported: Dagster `1.5.0` on Python `3.11`
-- primary supported: Dagster `1.12.18` on Python `3.12`
+- minimum supported: Dagster `1.13.1` on Python `3.11`
+- primary supported: Dagster `1.13.27` on Python `3.12`
 
 Always check [Compatibility](../compatibility.md) for the release-blocking matrix before upgrading.
 

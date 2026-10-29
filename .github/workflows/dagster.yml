@@ -78,7 +78,7 @@ jobs:
             ci/support-matrix.toml
       - name: Install Dagster dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip "setuptools>=84.1.0"
           mkdir -p artifacts/dagster/generated
           python - <<'PY'
           import json
@@ -109,7 +109,9 @@ jobs:
           fi
           python -m pip install "${install_args[@]}" "dagster==${{ matrix.version }}" "dagster-webserver==${{ matrix.version }}"
           python -m pip install "${install_args[@]}" -e ".[dagster]" "truthound==3.3.0"
-          python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
+          python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist pip-audit
+          python -m pip check
+          python -m pip_audit --format json --output artifacts/dagster/audit.json
       - name: Run Dagster suites
         env:
           SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
@@ -140,8 +142,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-dagster-${{ matrix.version }}
+          name: truthound-dagster-${{ matrix.label }}-${{ matrix.version }}-py${{ matrix.python_version }}
           path: |
+            artifacts/dagster/*.json
             artifacts/dagster/*.xml
             artifacts/dagster/*.log
             artifacts/dagster/server-*/verification.json

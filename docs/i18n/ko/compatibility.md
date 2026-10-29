@@ -9,6 +9,44 @@ title: Compatibility
 
 This page defines the official compatibility contract for `truthound-orchestration 3.x`: what Truthound line it supports, which host versions are exercised in CI, and how to interpret "minimum supported" versus "primary supported" host lanes.
 
+## 스케줄러 보안 기준 (2026-10-29)
+
+| 플랫폼 | 최소 / 기본 버전 | 검증 및 제한 |
+|---|---|---|
+| Prefect | 3.9.0 / 3.9.0 | Python 3.11 / 3.12, API 서버·Runner에서 Core 3.3.0 실행과 COMPLETED / FAILED 저장 |
+| Dagster | 1.13.1 / 1.13.27 | Python 3.11 / 3.12, 웹서버·daemon·GraphQL 제출과 SUCCESS / FAILURE 실행 |
+| Kestra Python SDK | 1.3.0 / 2.0.0 | Python 3.11 / 3.12, 별도 버전인 Java 서버 2.0.8에서 모두 실행 |
+| Kestra Java 서버 | 2.0.8 | 인증된 실제 실행, 품질 실패, IP·DNS 차단 목록 회귀 검증 |
+| Mage 호스트 | 보안 지원 가능한 배포 버전 없음 | 0.9.80은 별도 Core 3.3 인터프리터로 기능만 검증 |
+
+아래의 이전 Prefect·Dagster 버전 기록은 과거 기능 검증이며 현재 지원 기준이 아닙니다.
+루트 extra·all extra·독립 Prefect/Dagster 패키지의 의존성 하한을 일치시켰습니다.
+Prefect 3.6.29는 새 의존성의 보안 검사를 통과해도 최신 FastAPI에서
+제거된 Body(min_items=...) 때문에 서버 초기화가 실패합니다.
+3.9.0은 기존 별도 프로세스 회귀 테스트와 실제 서버 실행을 통과합니다.
+구형 FastAPI·Starlette 제약을 제거했고, 최소·기본 Python 환경 모두 정상 설치 후
+pip check와 pip-audit를 실행합니다.
+
+Dagster 1.13.1은 동적 파티션 SQL 주입 문제
+[GHSA-mjw2-v2hm-wj34](https://github.com/dagster-io/dagster/security/advisories/GHSA-mjw2-v2hm-wj34)를 수정합니다.
+Kestra 2.0.7에서 DNS 이름을 이용한 HTTP 차단 목록 우회를 로컬 합성 HTTP 서버로
+재현했습니다. 2.0.8에서는 두 SDK 모두 IP·DNS 요청이 실패하고 대상 서버에 요청이
+도달하지 않았습니다.
+[GHSA-f5h6-rg96-px74](https://github.com/kestra-io/kestra/security/advisories/GHSA-f5h6-rg96-px74)를 참고하세요.
+CI는 2.0.8 공식 서버 파일의 SHA-256
+fcc48c9812e6b5a0534f80b5bff9fddcc021280115434900da43870152f8f8f8을 확인합니다.
+Python SDK 검사는 Java 의존성 검사가 아니며, 전체 Java SBOM 취약점 검사를
+완료했다고 주장하지 않습니다.
+
+Mage 최신 0.9.80은 PyJWT==2.6.0, aiohttp==3.10.0,
+cryptography==42.0.4, Werkzeug==3.0.3 등 취약한 전이 의존성을 고정합니다.
+정상 resolver는 mage-ai==0.9.80과 PyJWT>=2.15.0의 동시 설치를 거부하며,
+상향할 최신 패치 배포판이 없습니다. 실제 스케줄러의 정상 데이터 완료·불량 데이터
+실패는 확인했지만 보안 지원을 의미하지 않습니다. 인터프리터 분리는 Typer 충돌만
+해결합니다. 보안 준수 환경으로 배포하거나 --no-deps로 의존성을 우회하지 마세요.
+업스트림의 호환 가능한 패치 의존성 배포가 필요합니다.
+기존 차단형 보안 게이트는 유지되며 Mage 호스트 보안은 미해결입니다.
+
 ## Version Line
 
 `truthound-orchestration 3.x` supports `Truthound 3.x` only.
@@ -36,7 +74,7 @@ This page defines the official compatibility contract for `truthound-orchestrati
 | Kestra | `truthound-orchestration[kestra]` with `Truthound 3.x` |
 | dbt | `truthound-orchestration[dbt]` with the bundled first-party `truthound_dbt` package |
 
-Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+Release-blocking guarantees apply to the declared audited surfaces; Mage host security remains unsupported. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
 ## 보안 의존성 기준
 
@@ -273,19 +311,19 @@ Truthound release line: `>=3.0,<4.0`
 
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
-| PR | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| PR | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Main | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.11`, `3.9.0` on `Python 3.12` | `1.13.1` on `Python 3.11`, `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; security unsupported | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
 | Airflow | `3.3.2` on `Python 3.11` | `3.3.2` on `Python 3.12` |
-| Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
-| Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
-| Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
+| Prefect | `3.9.0` on `Python 3.11` | `3.9.0` on `Python 3.12` |
+| Dagster | `1.13.1` on `Python 3.11` | `1.13.27` on `Python 3.12` |
+| Kestra | `1.3.0` on `Python 3.11` | `2.0.0` on `Python 3.12` |
 | dbt | `dbt-core>=1.11.14,<1.12.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.11.16` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces

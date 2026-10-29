@@ -26,35 +26,28 @@ constraint_urls = []
 [platforms.prefect]
 required = true
 extra = "prefect"
-min = "2.14.0"
-primary = "3.6.29"
+min = "3.9.0"
+primary = "3.9.0"
 
 [platforms.prefect.ci.min]
 python = "3.11"
-constraints = [
-    "anyio<4.0.0",
-    "griffe<1.0.0",
-    "pendulum<3.0.0",
-    "starlette<0.28.0",
-    "fastapi<0.100.0",
-    "cachetools>=5.0.0",
-]
+constraints = []
 constraint_urls = []
 
 [platforms.prefect.ci.primary]
 python = "3.12"
-constraints = ["fastapi<0.130.0"]
+constraints = []
 constraint_urls = []
 
 [platforms.dagster]
 required = true
 extra = "dagster"
-min = "1.5.0"
-primary = "1.12.18"
+min = "1.13.1"
+primary = "1.13.27"
 
 [platforms.dagster.ci.min]
 python = "3.11"
-constraints = ["pendulum<3.0.0"]
+constraints = []
 constraint_urls = []
 
 [platforms.dagster.ci.primary]
@@ -65,14 +58,24 @@ constraint_urls = []
 [platforms.mage]
 required = true
 extra = "mage"
-runtime_expectation = "Mage 0.9.80 requires a separate Core 3.3 interpreter due to incompatible Typer dependencies"
+host_version = "0.9.80"
+security_supported = false
+runtime_expectation = "Functional verification only: Mage 0.9.80 pins vulnerable dependencies; no security-supported host release. Core 3.3 requires a separate interpreter."
 
 [platforms.kestra]
 required = true
 extra = "kestra"
 min = "1.3.0"
-primary = "1.3.0"
+primary = "2.0.0"
+server_min = "2.0.8"
+server_sha256 = "fcc48c9812e6b5a0534f80b5bff9fddcc021280115434900da43870152f8f8f8"
 runtime_expectation = "Kestra runtime with generated scripts and templates"
+
+[platforms.kestra.ci.min]
+python = "3.11"
+
+[platforms.kestra.ci.primary]
+python = "3.12"
 
 [platforms.dbt]
 required = true
@@ -114,18 +117,13 @@ constraint_urls = []
 
 [security.surfaces.prefect]
 extra = "prefect"
-host_requirements = ["truthound==3.0.0", "prefect==3.6.29", "starlette==1.3.1"]
-constraints = [
-    "cryptography>=46.0.5",
-    "protobuf>=5.29.6",
-    "pyjwt>=2.12.0",
-    "starlette==1.3.1",
-]
+host_requirements = ["truthound==3.3.0", "prefect==3.9.0"]
+constraints = []
 constraint_urls = []
 
 [security.surfaces.dagster]
 extra = "dagster"
-host_requirements = ["truthound==3.0.0", "dagster==1.13.1"]
+host_requirements = ["truthound==3.3.0", "dagster==1.13.27", "dagster-webserver==1.13.27"]
 constraints = []
 constraint_urls = []
 
@@ -137,7 +135,7 @@ constraint_urls = []
 
 [security.surfaces.kestra]
 extra = "kestra"
-host_requirements = ["truthound==3.0.0", "kestra==1.3.0"]
+host_requirements = ["truthound==3.3.0", "kestra==2.0.0"]
 constraints = []
 constraint_urls = []
 
@@ -173,7 +171,7 @@ airflow_versions = ["primary"]
 prefect_versions = ["primary"]
 dagster_versions = ["primary"]
 mage_python = ["primary"]
-kestra_python = ["primary"]
+kestra_versions = ["primary"]
 dbt_compile_targets = ["postgres"]
 dbt_execution = false
 
@@ -184,7 +182,7 @@ airflow_versions = ["primary"]
 prefect_versions = ["primary"]
 dagster_versions = ["primary"]
 mage_python = ["primary"]
-kestra_python = ["primary"]
+kestra_versions = ["primary"]
 dbt_compile_targets = ["postgres"]
 dbt_execution = false
 
@@ -195,7 +193,7 @@ airflow_versions = ["min", "primary"]
 prefect_versions = ["min", "primary"]
 dagster_versions = ["min", "primary"]
 mage_python = ["primary"]
-kestra_python = ["primary"]
+kestra_versions = ["min", "primary"]
 dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
 dbt_execution = true
 
@@ -206,6 +204,6 @@ airflow_versions = ["primary"]
 prefect_versions = ["primary"]
 dagster_versions = ["primary"]
 mage_python = ["primary"]
-kestra_python = ["primary"]
+kestra_versions = ["primary"]
 dbt_compile_targets = ["postgres", "snowflake", "bigquery", "redshift", "databricks"]
 dbt_execution = true

@@ -44,25 +44,25 @@ def test_prefect_main_matrix_is_primary_only_for_slim_main() -> None:
         "include": [
             {
                 "label": "primary",
-                "version": "3.6.29",
+                "version": "3.9.0",
                 "python_version": "3.12",
-                "constraints": ["fastapi<0.130.0"],
+                "constraints": [],
                 "constraint_urls": [],
             },
         ]
     }
 
 
-def test_dagster_release_min_matrix_applies_legacy_pendulum_constraint() -> None:
+def test_dagster_release_min_matrix_uses_security_fixed_host() -> None:
     data = ci_support_matrix.load_support_matrix()
 
     payload = ci_support_matrix.build_workflow_payload(data, "dagster", "release")
 
     assert payload["host_matrix"]["include"][0] == {
         "label": "min",
-        "version": "1.5.0",
+        "version": "1.13.1",
         "python_version": "3.11",
-        "constraints": ["pendulum<3.0.0"],
+        "constraints": [],
         "constraint_urls": [],
     }
 
@@ -88,10 +88,9 @@ def test_mage_and_kestra_payloads_export_independent_python_lanes() -> None:
         "python_version": "3.12",
         "truthound_range": ">=3.0,<4.0",
     }
-    assert kestra_payload == {
-        "python_version": "3.12",
-        "truthound_range": ">=3.0,<4.0",
-    }
+    assert kestra_payload["host_matrix"] == ci_support_matrix.build_host_matrix(
+        data, "kestra", ["primary"]
+    )
 
 
 def test_security_audit_inputs_are_support_matrix_driven() -> None:
@@ -136,16 +135,10 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     assert blocking["airflow"]["ignore_vulns"] == []
     assert blocking["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
-        "truthound==3.0.0",
-        "prefect==3.6.29",
-        "starlette==1.3.1",
+        "truthound==3.3.0",
+        "prefect==3.9.0",
     ]
-    assert blocking["prefect"]["constraints"] == [
-        "cryptography>=46.0.5",
-        "protobuf>=5.29.6",
-        "pyjwt>=2.12.0",
-        "starlette==1.3.1",
-    ]
+    assert blocking["prefect"]["constraints"] == []
     assert blocking["prefect"]["ignore_vulns"] == []
     assert blocking["dbt"]["host_requirements"] == [
         "truthound==3.3.0",
@@ -154,8 +147,8 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     ]
     assert blocking["dbt"]["ignore_vulns"] == []
     assert blocking["kestra"]["host_requirements"] == [
-        "truthound==3.0.0",
-        "kestra==1.3.0",
+        "truthound==3.3.0",
+        "kestra==2.0.0",
     ]
     assert blocking["kestra"]["ignore_vulns"] == []
     assert blocking["opentelemetry"]["host_requirements"] == [
@@ -209,8 +202,8 @@ def test_prefect_minimum_includes_server_dependencies() -> None:
     lane = ci_support_matrix.build_workflow_payload(data, "prefect", "release")["host_matrix"][
         "include"
     ][0]
-    assert "fastapi<0.100.0" in lane["constraints"]
-    assert "cachetools>=5.0.0" in lane["constraints"]
+    assert lane["version"] == "3.9.0"
+    assert lane["constraints"] == []
 
 
 def test_dbt_core_minimum_allows_security_patched_sqlparse() -> None:
@@ -346,3 +339,59 @@ def test_airflow_security_transitives_are_enforced_by_packages_and_ci() -> None:
         for name, (vulnerable, fixed) in floors.items():
             assert vulnerable not in requirements[name].specifier
             assert fixed in requirements[name].specifier
+
+
+def test_platform_packages_reject_insecure_or_broken_host_floors() -> None:
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    root = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    for platform, rejected, accepted in (
+        ("prefect", ("2.14.0", "3.6.29"), "3.9.0"),
+        ("dagster", ("1.5.0", "1.13.0"), "1.13.1"),
+    ):
+        package = tomllib.loads((ROOT / f"packages/{platform}/pyproject.toml").read_text())
+        extras = root["project"]["optional-dependencies"]
+        for dependencies in (extras[platform], extras["all"], package["project"]["dependencies"]):
+            requirement = next(
+                req for req in map(Requirement, dependencies) if req.name == platform
+            )
+            for version in rejected:
+                assert version not in requirement.specifier
+            assert accepted in requirement.specifier
+
+
+def test_kestra_sdk_and_server_security_versions_are_independent() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    kestra = data["platforms"]["kestra"]
+    assert kestra["min"] == "1.3.0"
+    assert kestra["primary"] == "2.0.0"
+    assert kestra["server_min"] == "2.0.8"
+    assert len(kestra["server_sha256"]) == 64
+    lanes = ci_support_matrix.build_workflow_payload(data, "kestra", "release")["host_matrix"][
+        "include"
+    ]
+    assert [(row["version"], row["python_version"]) for row in lanes] == [
+        ("1.3.0", "3.11"),
+        ("2.0.0", "3.12"),
+    ]
+
+
+def test_mage_functional_support_does_not_claim_a_secure_host() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    mage = data["platforms"]["mage"]
+    assert mage["host_version"] == "0.9.80"
+    assert mage["security_supported"] is False
+    assert "no security-supported host release" in mage["runtime_expectation"]
+
+
+def test_host_audits_match_primary_runtime_versions() -> None:
+    data = ci_support_matrix.load_support_matrix()
+    for platform in ("prefect", "dagster", "kestra"):
+        surface = data["security"]["surfaces"][platform]
+        assert (
+            f"{platform}=={data['platforms'][platform]['primary']}" in surface["host_requirements"]
+        )
+        assert "truthound==3.3.0" in surface["host_requirements"]
+        assert not surface.get("ignore_vulns")

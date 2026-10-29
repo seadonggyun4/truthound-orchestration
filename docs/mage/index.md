@@ -9,6 +9,9 @@ quality blocks without introducing a separate orchestration control plane. The p
 leans on Mage conventions such as transformers, sensors, conditions, and `io_config`
 discovery instead of forcing a custom runtime model.
 
+
+**Security limitation:** Mage 0.9.80 pins vulnerable dependencies; no released host is currently security-supported. A separate Core interpreter provides functional compatibility only. See the [security baseline](../compatibility.md).
+
 ## Core 3.3 runtime boundary
 
 Mage 0.9.80 and Core 3.3.0 have incompatible Typer requirements and cannot share

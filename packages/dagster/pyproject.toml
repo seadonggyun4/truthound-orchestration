@@ -31,7 +31,7 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-    "dagster>=1.5.0",
+    "dagster>=1.13.1",
     "truthound-orchestration>=3.0.3,<4.0.0",
     "truthound>=3.0,<4.0",
 ]

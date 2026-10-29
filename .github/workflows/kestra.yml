@@ -43,7 +43,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      python_version: ${{ steps.export.outputs.python_version }}
+      host_matrix: ${{ steps.export.outputs.host_matrix }}
       truthound_range: ${{ steps.export.outputs.truthound_range }}
     steps:
       - uses: actions/checkout@v5
@@ -61,22 +61,28 @@ jobs:
   kestra:
     needs: matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.matrix.outputs.host_matrix) }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ needs.matrix.outputs.python_version }}
+          python-version: ${{ matrix.python_version }}
           cache: pip
           cache-dependency-path: |
             pyproject.toml
             ci/support-matrix.toml
       - name: Install Kestra dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,kestra,opentelemetry]" "truthound${{ needs.matrix.outputs.truthound_range }}"
+          python -m pip install --upgrade pip "setuptools>=84.1.0"
+          python -m pip install -e ".[dev,kestra,opentelemetry]" "truthound==3.3.0" "kestra==${{ matrix.version }}" pip-audit
+          mkdir -p artifacts/kestra
+          python -m pip check
+          python -m pip_audit --format json --output artifacts/kestra/audit.json
       - name: Run Kestra suites
         env:
           SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}
@@ -98,12 +104,41 @@ jobs:
             --cov=common \
             --cov=packages/kestra/src/truthound_kestra \
             --cov-report="xml:artifacts/kestra/coverage.xml" | tee artifacts/kestra/pytest.log
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Download and verify pinned Kestra server
+        run: |
+          python - <<'PYCODE'
+          import hashlib
+          import tomllib
+          import urllib.request
+          from pathlib import Path
+          data = tomllib.loads(Path("ci/support-matrix.toml").read_text())["platforms"]["kestra"]
+          version = data["server_min"]
+          jar = Path("${{ runner.temp }}") / "kestra-server"
+          urllib.request.urlretrieve(
+              f"https://github.com/kestra-io/kestra/releases/download/v{version}/kestra-{version}", jar
+          )
+          assert hashlib.sha256(jar.read_bytes()).hexdigest() == data["server_sha256"]
+          PYCODE
+      - name: Verify native Kestra execution and HTTP deny list
+        run: |
+          python scripts/ci/verify_kestra_server.py \
+            --java "$JAVA_HOME/bin/java" \
+            --server-jar "${{ runner.temp }}/kestra-server" \
+            --output-dir artifacts/kestra/server
       - name: Upload Kestra artifacts
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: truthound-kestra
-          path: artifacts/kestra/*
+          name: truthound-kestra-${{ matrix.label }}-${{ matrix.version }}-py${{ matrix.python_version }}
+          path: |
+            artifacts/kestra/*.xml
+            artifacts/kestra/*.json
+            artifacts/kestra/*.log
+            artifacts/kestra/server/results.json
 
   summary:
     if: always()

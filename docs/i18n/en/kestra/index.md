@@ -8,6 +8,9 @@ Truthound's Kestra integration is YAML-first. It gives Kestra users Python helpe
 script tasks, generated flow templates, structured outputs, and SLA-aware execution
 without asking them to abandon native Kestra flow design.
 
+
+The Java server minimum is **2.0.8**, independently versioned from the Python SDK (minimum 1.3.0, primary 2.0.0). See the [security baseline](../compatibility.md).
+
 ## Who This Is For
 
 - teams orchestrating data quality with Kestra flow YAML
