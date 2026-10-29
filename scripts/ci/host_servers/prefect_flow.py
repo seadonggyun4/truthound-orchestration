@@ -25,6 +25,8 @@ def quality_flow(bad: bool = False) -> dict[str, Any]:
 
 
 served_flow = flow(name="truthound-core33-server")(quality_flow)
+# Prefect 2 persists the original function name as its import entrypoint.
+quality_flow = served_flow
 
 
 if __name__ == "__main__":

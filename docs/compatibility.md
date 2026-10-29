@@ -110,7 +110,7 @@ These are isolated verification deployments, not production deployments.
 
 Both dbt versions returned 12 passes, 7 expected warnings, zero errors/skips and
 100% manifest coverage. Airflow's minimum and primary package suites each passed
-273 tests; Prefect's each passed 168. Both Dagster suites passed 200 tests.
+273 tests; Prefect's each passed 169. Both Dagster suites passed 200 tests.
 The Kestra version in the generated matrix is the **Python SDK**, not a minimum
 Java server version. This run verifies server 2.0.7 only. Mage server checks passed on both Python 3.11 and 3.12, with normally resolved
 host and Core environments. The Python 3.12 run used the final rebuilt wheel.

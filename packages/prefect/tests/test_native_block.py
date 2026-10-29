@@ -44,3 +44,26 @@ def test_native_server_application_initializes(tmp_path):
         timeout=180,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_native_server_fixture_entrypoint_loads(tmp_path):
+    """Prefect 2 must retrieve the decorated flow through its persisted name."""
+    from pathlib import Path
+
+    fixture = Path(__file__).resolve().parents[3] / "scripts/ci/host_servers/prefect_flow.py"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            "import sys; from prefect.flows import load_flow_from_entrypoint; "
+            "flow = load_flow_from_entrypoint(sys.argv[1]); "
+            "assert flow.name == 'truthound-core33-server'",
+            str(fixture) + ":quality_flow",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
