@@ -270,6 +270,12 @@ and dependency resolution reject Airflow 3.3.1. Wheel/sdist validation, package
 privacy checks, strict documentation build and bilingual link checks passed.
 This verifies the revised source and artifacts; it does not publish a release.
 
+The Linux Python 3.11 runner also bundled setuptools 79.0.1, which the audit
+reported separately from runtime dependencies. CI now upgrades bootstrap tools
+to `setuptools>=84.1.0` before host installation; it does not suppress those
+findings. See the [upstream setuptools advisory](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w).
+Existing environments should update their bootstrap tools as well.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 

@@ -19,6 +19,7 @@ See [Compatibility](../compatibility.md) for the generated support matrix.
 ## Install
 
 ```bash
+python -m pip install --upgrade pip "setuptools>=84.1.0"
 pip install "truthound-orchestration[airflow]" "truthound>=3.0,<4.0" "apache-airflow>=3.3.2"
 ```
 

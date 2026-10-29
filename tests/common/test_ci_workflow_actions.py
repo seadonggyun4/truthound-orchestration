@@ -351,3 +351,8 @@ def test_airflow_matrix_artifacts_are_unique_when_versions_match() -> None:
     name = upload["with"]["name"]
     assert "${{ matrix.label }}" in name
     assert "${{ matrix.python_version }}" in name
+
+
+def test_airflow_bootstrap_updates_python311_bundled_setuptools() -> None:
+    workflow = (ROOT / ".github/workflows/airflow.yml").read_text()
+    assert 'python -m pip install --upgrade pip "setuptools>=84.1.0"' in workflow

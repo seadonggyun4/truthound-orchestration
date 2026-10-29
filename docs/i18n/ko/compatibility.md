@@ -260,6 +260,12 @@ CI는 저장소의 보안 제약으로 정상 설치합니다. 취약점 제외�
 wheel·sdist 검증, 비공개 파일 제외 검사, strict 문서 빌드와 양언어 링크 검증도
 통과했습니다. 수정 소스·산출물의 검증이며 새 패키지를 발행한 것은 아닙니다.
 
+Linux Python 3.11 러너에는 setuptools 79.0.1이 포함되어 있어 실행 의존성과
+별도로 보안 검사에 보고됐습니다. CI는 호스트 설치 전에 `setuptools>=84.1.0`으로
+부트스트랩 도구를 업데이트하며 해당 보고를 제외하지 않습니다.
+[setuptools 공식 보안 공지](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w)를
+참고하세요. 기존 환경의 부트스트랩 도구도 함께 업데이트해야 합니다.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 
