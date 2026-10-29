@@ -3,14 +3,15 @@
 import json
 import os
 import subprocess
+from importlib import import_module
+from typing import Any
 
 
 if "data_loader" not in globals():
-    from mage_ai.data_preparation.decorators import data_loader
+    data_loader = import_module("mage_ai.data_preparation.decorators").data_loader
 
 
-@data_loader
-def load_data(*args, **kwargs):
+def load_data(*args: Any, **kwargs: Any) -> dict[str, Any]:
     completed = subprocess.run(
         [os.environ["TRUTHOUND_CORE_PYTHON"], "-I", os.environ["TRUTHOUND_CORE_CHECK"]],
         input=json.dumps(bool(kwargs.get("bad", False))),
@@ -20,4 +21,8 @@ def load_data(*args, **kwargs):
     )
     if completed.returncode:
         raise RuntimeError("Isolated Core validation failed: " + completed.stderr[-2000:])
-    return json.loads(completed.stdout)
+    result: dict[str, Any] = json.loads(completed.stdout)
+    return result
+
+
+load_data = data_loader(load_data)

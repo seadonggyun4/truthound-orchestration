@@ -3,10 +3,14 @@
 import importlib.metadata
 import json
 import sys
+from importlib import import_module
 
 import polars as pl
 
-from truthound_mage import CheckBlockConfig, CheckTransformer
+
+mage_adapter = import_module("truthound_mage")
+CheckBlockConfig = mage_adapter.CheckBlockConfig
+CheckTransformer = mage_adapter.CheckTransformer
 
 
 assert importlib.metadata.version("truthound") == "3.3.0"

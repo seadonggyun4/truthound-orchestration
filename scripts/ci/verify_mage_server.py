@@ -15,6 +15,7 @@ import subprocess
 import time
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 
 def main() -> None:
@@ -71,14 +72,15 @@ Block.create('quality','data_loader',repo_path=repo,pipeline=pipeline)
     )
     (project / "data_loaders/quality.py").write_text((fixtures / "mage_block.py").read_text())
 
-    def request(path, payload=None):
+    def request(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         req = urllib.request.Request(
             f"http://127.0.0.1:{port}/api" + path,
             data=json.dumps(payload).encode() if payload is not None else None,
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=30) as response:
-            return json.load(response)
+            result: dict[str, Any] = json.load(response)
+            return result
 
     with (work / "server.log").open("w") as log:
         process = subprocess.Popen(

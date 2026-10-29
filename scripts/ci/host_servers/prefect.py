@@ -23,10 +23,10 @@ env = dict(
     PREFECT_SERVER_ANALYTICS_ENABLED="false",
     PREFECT_LOGGING_LEVEL="INFO",
 )
-procs = []
+procs: list[subprocess.Popen[bytes]] = []
 
 
-def start(args, label):
+def start(args: list[str], label: str) -> subprocess.Popen[bytes]:
     f = (work / (label + ".log")).open("w")
     p = subprocess.Popen(
         (

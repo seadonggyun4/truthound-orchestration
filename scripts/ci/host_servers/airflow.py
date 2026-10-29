@@ -60,10 +60,10 @@ if sys.platform == "darwin" and not is_v3:
     )
     env["AIRFLOW__CORE__TASK_RUNNER"] = "verification_task_runner.ExecTaskRunner"
     env["PYTHONPATH"] = str(work)
-procs = []
+procs: list[subprocess.Popen[bytes]] = []
 
 
-def run(args, label):
+def run(args: list[str], label: str) -> None:
     with (work / (label + ".log")).open("w") as f:
         subprocess.run(
             [py, "-m", "airflow", *args],
@@ -76,7 +76,7 @@ def run(args, label):
         )
 
 
-def start(args, label):
+def start(args: list[str], label: str) -> None:
     f = (work / (label + ".log")).open("w")
     p = subprocess.Popen(
         [py, "-m", "airflow", *args],

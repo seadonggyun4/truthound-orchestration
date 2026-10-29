@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from typing import Any
 
 
 root = pathlib.Path(sys.argv[1])
@@ -33,14 +34,15 @@ p = subprocess.Popen(
 )
 
 
-def query(q, variables=None):
+def query(q: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/graphql",
         data=json.dumps({"query": q, "variables": variables or {}}).encode(),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=15) as r:
-        return json.load(r)
+        result: dict[str, Any] = json.load(r)
+        return result
 
 
 try:
