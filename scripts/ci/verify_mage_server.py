@@ -139,9 +139,12 @@ Block.create('quality','data_loader',repo_path=repo,pipeline=pipeline)
                     if run["status"] in ("completed", "failed", "cancelled"):
                         break
                     time.sleep(1)
-                assert run["status"] == ("failed" if bad else "completed"), run["status"]
+                errors = [(b.get("metrics") or {}).get("error") for b in run["block_runs"]]
+                assert run["status"] == ("failed" if bad else "completed"), {
+                    "status": run["status"],
+                    "synthetic_block_errors": errors,
+                }
                 if bad:
-                    errors = [(b.get("metrics") or {}).get("error") for b in run["block_runs"]]
                     assert "Isolated Core validation failed" in json.dumps(errors), errors
                 results.append({"bad": bad, "run_id": run["id"], "status": run["status"]})
             (work / "results.json").write_text(json.dumps(results, indent=2))

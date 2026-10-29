@@ -210,8 +210,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["pr"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["pr"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["pr"]["dagster_versions"]),
-            "Primary host smoke",
-            "Primary host smoke",
+            "Functional only; host security unsupported",
+            format_host_pairs("kestra", data["lanes"]["pr"]["kestra_versions"]),
             "`postgres`",
             "No",
         ),
@@ -220,8 +220,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["main"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["main"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["main"]["dagster_versions"]),
-            "Primary host smoke",
-            "Primary host smoke",
+            "Functional only; host security unsupported",
+            format_host_pairs("kestra", data["lanes"]["main"]["kestra_versions"]),
             ", ".join(f"`{target}`" for target in data["lanes"]["main"]["dbt_compile_targets"]),
             "Yes (`postgres`)" if data["lanes"]["main"]["dbt_execution"] else "No",
         ),
@@ -230,8 +230,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["release"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["release"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["release"]["dagster_versions"]),
-            "Primary host smoke",
-            "Primary host smoke",
+            "Functional only; host security unsupported",
+            format_host_pairs("kestra", data["lanes"]["release"]["kestra_versions"]),
             ", ".join(f"`{target}`" for target in data["lanes"]["release"]["dbt_compile_targets"]),
             "Yes (`postgres`)",
         ),
@@ -240,8 +240,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("airflow", data["lanes"]["nightly"]["airflow_versions"]),
             format_host_pairs("prefect", data["lanes"]["nightly"]["prefect_versions"]),
             format_host_pairs("dagster", data["lanes"]["nightly"]["dagster_versions"]),
-            "Functional only; security unsupported",
-            "Primary host smoke",
+            "Functional only; host security unsupported",
+            format_host_pairs("kestra", data["lanes"]["nightly"]["kestra_versions"]),
             ", ".join(f"`{target}`" for target in data["lanes"]["nightly"]["dbt_compile_targets"]),
             "Yes (`postgres`)",
         ),
@@ -264,9 +264,14 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
             format_host_pairs("dagster", ["primary"]),
         ),
         (
-            "Kestra",
+            "Kestra SDK",
             format_host_pairs("kestra", ["min"]),
             format_host_pairs("kestra", ["primary"]),
+        ),
+        (
+            "Kestra Java server",
+            f"`{data['platforms']['kestra']['server_min']}`",
+            f"`{data['platforms']['kestra']['server_min']}`",
         ),
         (
             "dbt",
@@ -327,7 +332,7 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "First-party release guarantees apply to per-surface installs. "
+            "First-party release guarantees apply to declared audited surfaces; Mage host security is unsupported. "
             "`truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.",
             "Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.",
             "Airflow runtime lanes and security audits resolve the complete extra with the same security constraints and pinned supported host.",

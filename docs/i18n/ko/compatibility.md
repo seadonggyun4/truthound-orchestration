@@ -311,10 +311,10 @@ Truthound release line: `>=3.0,<4.0`
 
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
-| PR | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.11`, `3.9.0` on `Python 3.12` | `1.13.1` on `Python 3.11`, `1.13.27` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; security unsupported | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| PR | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; host security unsupported | `2.0.0` on `Python 3.12` | `postgres` | No |
+| Main | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; host security unsupported | `2.0.0` on `Python 3.12` | `postgres` | No |
+| Release | `3.3.2` on `Python 3.11`, `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.11`, `3.9.0` on `Python 3.12` | `1.13.1` on `Python 3.11`, `1.13.27` on `Python 3.12` | Functional only; host security unsupported | `1.3.0` on `Python 3.11`, `2.0.0` on `Python 3.12` | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; host security unsupported | `2.0.0` on `Python 3.12` | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
@@ -323,7 +323,8 @@ Truthound release line: `>=3.0,<4.0`
 | Airflow | `3.3.2` on `Python 3.11` | `3.3.2` on `Python 3.12` |
 | Prefect | `3.9.0` on `Python 3.11` | `3.9.0` on `Python 3.12` |
 | Dagster | `1.13.1` on `Python 3.11` | `1.13.27` on `Python 3.12` |
-| Kestra | `1.3.0` on `Python 3.11` | `2.0.0` on `Python 3.12` |
+| Kestra SDK | `1.3.0` on `Python 3.11` | `2.0.0` on `Python 3.12` |
+| Kestra Java server | `2.0.8` | `2.0.8` |
 | dbt | `dbt-core>=1.11.14,<1.12.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.11.16` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
@@ -339,7 +340,7 @@ Truthound release line: `>=3.0,<4.0`
 | `opentelemetry` | `truthound-orchestration[opentelemetry]` | Yes |
 | `all` | `truthound-orchestration[all]` | Nightly canary only |
 
-First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
+First-party release guarantees apply to declared audited surfaces; Mage host security is unsupported. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.
 Airflow runtime lanes and security audits resolve the complete extra with the same security constraints and pinned supported host.
 <!-- END GENERATED SUPPORT MATRIX -->
