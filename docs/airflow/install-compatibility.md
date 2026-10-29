@@ -9,14 +9,14 @@ title: Airflow Install And Compatibility
 Use the canonical compatibility page for the exact CI-backed tuples. For Airflow, the important support anchors are:
 
 - minimum supported: Airflow `2.6.0` on Python `3.11`
-- primary supported: Airflow `3.2.0` on Python `3.12`
+- primary supported: Airflow `3.3.2` on Python `3.12`
 
 See [Compatibility](../compatibility.md) for the generated support matrix.
 
 ## Install
 
 ```bash
-pip install truthound-orchestration[airflow] "truthound>=3.0,<4.0"
+pip install "truthound-orchestration[airflow]" "truthound>=3.0,<4.0" "apache-airflow>=3.3.2"
 ```
 
 If you are targeting one of the CI-backed Airflow lines, keep your runtime close to those tuples rather than assuming the newest transitive dependency set is safe.
@@ -59,3 +59,5 @@ When upgrading Airflow:
 - [Airflow Overview](index.md)
 - [Hooks](hooks.md)
 - [Troubleshooting](troubleshooting.md)
+
+The production security baseline is Airflow 3.3.2 or later. Airflow 2.6.0 is retained for functional compatibility testing, not as a secure deployment baseline.

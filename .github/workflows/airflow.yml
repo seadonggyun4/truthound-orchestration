@@ -87,6 +87,8 @@ jobs:
           from pathlib import Path
 
           constraints = json.loads(r'''${{ toJSON(matrix.constraints) }}''')
+          test_constraints = json.loads(r'''${{ toJSON(matrix.test_constraints) }}''') or []
+          (Path("artifacts/airflow/generated") / "test-constraints.txt").write_text("\n".join(test_constraints) + "\n")
           constraint_urls = json.loads(r'''${{ toJSON(matrix.constraint_urls) }}''')
           output_dir = Path("artifacts/airflow/generated")
           output_dir.mkdir(parents=True, exist_ok=True)
@@ -111,7 +113,8 @@ jobs:
           fi
           python -m pip install "${install_args[@]}" "apache-airflow==${{ matrix.version }}"
           python -m pip install "${install_args[@]}" -e ".[airflow]" "truthound==3.3.0"
-          python -m pip install pytest pytest-cov pytest-asyncio pytest-xdist
+          python -m pip install -c artifacts/airflow/generated/test-constraints.txt pytest pytest-cov pytest-asyncio pytest-xdist
+          python -m pip check
       - name: Run Airflow suites
         env:
           SUITE_TIER: ${{ inputs.suite_tier || github.event.inputs.suite_tier || 'smoke' }}

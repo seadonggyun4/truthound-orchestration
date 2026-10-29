@@ -308,3 +308,26 @@ def test_security_audit_resolves_complete_extras_and_checks_installation() -> No
         assert "--no-deps -e" not in scripts
         assert 'python -m pip install "${install_args[@]}" -e "${package_target}"' in scripts
         assert "python -m pip check" in scripts
+
+
+def test_airflow_security_checks_native_auth_and_guards_empty_advisory_matrix() -> None:
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/security.yml").read_text())
+    steps = workflow["jobs"]["pip-audit"]["steps"]
+    native = next(
+        step for step in steps if step.get("name") == "Verify native Airflow credential precedence"
+    )
+    assert native["if"] == "matrix.label == 'airflow'"
+    assert native["run"] == "python scripts/ci/verify_airflow_security.py"
+    assert "AIRFLOW_HOME" in native["env"]
+    assert "include) != '[]'" in workflow["jobs"]["pip-audit-advisory"]["if"]
+
+    assert "advisory_matrix" not in workflow["jobs"]["pip-audit"]["if"]
+
+
+def test_airflow_test_dependencies_preserve_host_compatibility() -> None:
+    workflow = (ROOT / ".github/workflows/airflow.yml").read_text()
+    assert "toJSON(matrix.test_constraints)" in workflow
+    assert "-c artifacts/airflow/generated/test-constraints.txt pytest" in workflow
+    assert "python -m pip check" in workflow

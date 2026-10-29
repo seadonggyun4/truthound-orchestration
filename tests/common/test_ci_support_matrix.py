@@ -26,11 +26,11 @@ def test_airflow_pr_matrix_uses_primary_only() -> None:
         "include": [
             {
                 "label": "primary",
-                "version": "3.2.0",
+                "version": "3.3.2",
                 "python_version": "3.12",
                 "constraints": [],
                 "constraint_urls": [
-                    "https://raw.githubusercontent.com/apache/airflow/constraints-3.2.0/constraints-3.12.txt"
+                    "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt"
                 ],
             }
         ]
@@ -103,11 +103,12 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
 
     assert payload["python_version"] == "3.12"
     blocking = {entry["label"]: entry for entry in payload["blocking_matrix"]["include"]}
-    advisory = {entry["label"]: entry for entry in payload["advisory_matrix"]["include"]}
+    assert payload["advisory_matrix"]["include"] == []
     canary = {entry["label"]: entry for entry in payload["canary_matrix"]["include"]}
 
     assert list(blocking) == [
         "base",
+        "airflow",
         "prefect",
         "dagster",
         "dbt",
@@ -122,16 +123,16 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
         "ignore_vulns": [],
         "constraint_urls": [],
     }
-    assert advisory["airflow"]["host_requirements"] == [
-        "truthound==3.0.0",
-        "apache-airflow==3.3.0",
+    assert blocking["airflow"]["host_requirements"] == [
+        "truthound==3.3.0",
+        "apache-airflow==3.3.2",
     ]
-    assert advisory["airflow"]["constraints"] == [
+    assert blocking["airflow"]["constraints"] == [
         "cryptography>=46.0.5",
         "pyjwt>=2.12.0",
     ]
-    assert advisory["airflow"]["ignore_vulns"] == []
-    assert advisory["airflow"]["constraint_urls"] == []
+    assert blocking["airflow"]["ignore_vulns"] == []
+    assert blocking["airflow"]["constraint_urls"] == []
     assert blocking["prefect"]["host_requirements"] == [
         "truthound==3.0.0",
         "prefect==3.6.29",
@@ -194,6 +195,7 @@ def test_legacy_airflow_constraints_reference_a_published_python_lane() -> None:
     lane = ci_support_matrix.build_workflow_payload(data, "airflow", "release")["host_matrix"][
         "include"
     ][0]
+    assert lane["test_constraints"] == ["pytest<9.2", "packaging<24"]
     assert lane["version"] == "2.6.0"
     assert lane["python_version"] == "3.11"
     assert lane["constraint_urls"] == [
@@ -261,3 +263,19 @@ def test_redshift_compile_lane_allows_the_fixed_sql_parser() -> None:
     assert "1.10.2" not in requirement.specifier
     assert "1.11.0" not in requirement.specifier
     assert "1.11.1" in requirement.specifier
+
+
+def test_airflow_security_and_primary_host_stay_aligned() -> None:
+    """Do not silently audit a different host than the default runtime lane."""
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    data = ci_support_matrix.load_support_matrix()
+    primary = data["platforms"]["airflow"]["primary"]
+    surface = data["security"]["surfaces"]["airflow"]
+    requirements = {req.name: req for req in map(Requirement, surface["host_requirements"])}
+    assert Version(primary) >= Version("3.3.2")
+    assert str(requirements["apache-airflow"].specifier) == f"=={primary}"
+    assert str(requirements["truthound"].specifier) == "==3.3.0"
+    assert "airflow" in data["security"]["blocking_surfaces"]
+    assert surface["ignore_vulns"] == []

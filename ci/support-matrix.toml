@@ -11,19 +11,21 @@ primary = "3.0.1"
 required = true
 extra = "airflow"
 min = "2.6.0"
-primary = "3.2.0"
+primary = "3.3.2"
 
 # Airflow 2.6.0 published no Python 3.11 constraint file. Reuse the
 # published dependency pins and verify the Python 3.11 runtime separately.
 [platforms.airflow.ci.min]
 python = "3.11"
+# Airflow 2.6 limits requires packaging<24; pytest 9.2 requires >=24.
+test_constraints = ["pytest<9.2", "packaging<24"]
 constraints = []
 constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-2.6.0/constraints-3.10.txt"]
 
 [platforms.airflow.ci.primary]
 python = "3.12"
 constraints = []
-constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-3.2.0/constraints-3.12.txt"]
+constraint_urls = ["https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.12.txt"]
 
 [platforms.prefect]
 required = true
@@ -97,8 +99,8 @@ extras = ["base", "airflow", "prefect", "dagster", "dbt", "opentelemetry"]
 
 [security]
 python = "primary"
-blocking_surfaces = ["base", "prefect", "dagster", "dbt", "kestra", "opentelemetry"]
-advisory_surfaces = ["airflow"]
+blocking_surfaces = ["base", "airflow", "prefect", "dagster", "dbt", "kestra", "opentelemetry"]
+advisory_surfaces = []
 canary_surfaces = ["all"]
 
 [security.surfaces.base]
@@ -109,7 +111,7 @@ constraint_urls = []
 
 [security.surfaces.airflow]
 extra = "airflow"
-host_requirements = ["truthound==3.0.0", "apache-airflow==3.3.0"]
+host_requirements = ["truthound==3.3.0", "apache-airflow==3.3.2"]
 constraints = ["cryptography>=46.0.5", "pyjwt>=2.12.0"]
 ignore_vulns = []
 constraint_urls = []

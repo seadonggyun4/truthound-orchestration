@@ -193,6 +193,45 @@ Installation findings and boundaries:
 - These results do not certify other host versions, live cloud warehouses or
   production infrastructure. The project remains Alpha.
 
+## Airflow security baseline
+
+The primary host and blocking security audit use Airflow **3.3.2** with Truthound
+**3.3.0**. The former audit pinned Airflow 3.3.0 and reported 15 upstream
+advisories. Airflow 3.3.2 contains the fixes; no advisory is suppressed.
+In particular, [CVE-2026-82355](https://lists.apache.org/thread/3p7zpdvv40tn01m0xk5mt2rxg88mw8w1)
+allowed a cached session-cookie identity to override an explicit Bearer token.
+The native authentication regression checks Bearer precedence, invalid-token
+rejection, valid cookie caching, and rejection of untrusted cached identities.
+It fails on 3.3.0 and passes on 3.3.2.
+
+Airflow **2.6.0 / Python 3.11** remains a legacy **functional compatibility**
+tuple, not a security-supported production baseline. The package's broad
+Airflow dependency floor preserves that compatibility; use Airflow 3.3.2 or
+later for the security baseline. Do not interpret a successful legacy server
+run as a vulnerability-free environment.
+
+The blocking audit resolves the complete Airflow extra with
+`cryptography>=46.0.5` and `pyjwt>=2.12.0`, runs `pip check`, native authentication
+regressions, and `pip-audit` without ignored findings. Host compatibility CI
+separately installs official version-specific constraints and executes actual
+servers and persisted success/failure XCom results.
+
+Revalidation on 2026-10-29 passed all 273 Airflow adapter tests in each host
+environment, four native authentication regressions on 3.3.2, and actual
+scheduler/web/API/task execution on 2.6.0/Python 3.11 and 3.3.2/Python 3.12.
+Both servers persisted `good=success`, `bad=failed` and matching XCom payloads
+with Core 3.3.0. The complete 3.3.2 audit found zero known vulnerabilities.
+Initial concurrent local attempts encountered worker termination on 2.6.0
+and execution-API timeouts on 3.3.2; those failed records were retained. Fresh
+isolated reruns passed without changing host code or weakening assertions.
+
+The legacy test lane also constrains `pytest<9.2` and `packaging<24`:
+Airflow 2.6's `limits` requires the latter, while pytest 9.2 requires
+`packaging>=24`. Installing test tools without host-aware constraints had
+silently produced an inconsistent environment. The lane now runs `pip check`
+after test-tool installation. Reused local environments also need a Typer
+version compatible with their constrained Rich version.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 
@@ -200,16 +239,16 @@ Truthound release line: `>=3.0,<4.0`
 
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
-| PR | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Main | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
-| Release | `2.6.0` on `Python 3.11`, `3.2.0` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
-| Nightly | `3.2.0` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| PR | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Main | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres` | No |
+| Release | `2.6.0` on `Python 3.11`, `3.3.2` on `Python 3.12` | `2.14.0` on `Python 3.11`, `3.6.29` on `Python 3.12` | `1.5.0` on `Python 3.11`, `1.12.18` on `Python 3.12` | Primary host smoke | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
+| Nightly | `3.3.2` on `Python 3.12` | `3.6.29` on `Python 3.12` | `1.12.18` on `Python 3.12` | Primary host smoke + `mage-ai` runtime canary | Primary host smoke | `postgres`, `snowflake`, `bigquery`, `redshift`, `databricks` | Yes (`postgres`) |
 
 ## Supported Host Version Anchors
 
 | Platform | Minimum Supported | Primary Supported |
 |----------|-------------------|-------------------|
-| Airflow | `2.6.0` on `Python 3.11` | `3.2.0` on `Python 3.12` |
+| Airflow | `2.6.0` on `Python 3.11` | `3.3.2` on `Python 3.12` |
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
@@ -220,17 +259,17 @@ Truthound release line: `>=3.0,<4.0`
 | Surface | Install Surface | Release Blocking |
 |---------|-----------------|------------------|
 | `base` | `truthound-orchestration` | Yes |
+| `airflow` | `truthound-orchestration[airflow]` | Yes |
 | `prefect` | `truthound-orchestration[prefect]` | Yes |
 | `dagster` | `truthound-orchestration[dagster]` | Yes |
 | `dbt` | `truthound-orchestration[dbt]` | Yes |
 | `kestra` | `truthound-orchestration[kestra]` | Yes |
 | `opentelemetry` | `truthound-orchestration[opentelemetry]` | Yes |
-| `airflow` | `truthound-orchestration[airflow]` | Push/release advisory only |
 | `all` | `truthound-orchestration[all]` | Nightly canary only |
 
 First-party release guarantees apply to per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 Minimum compatibility guarantees are validated as tested host-plus-Python tuples, not as host versions on every Python runtime.
-Airflow security audits install with the official Airflow constraints file for the pinned version and Python version.
+Airflow security audits resolve the complete extra with the pinned secure host and security constraints; official host constraints are used separately for compatibility testing.
 <!-- END GENERATED SUPPORT MATRIX -->
 
 ## What This Means In Practice

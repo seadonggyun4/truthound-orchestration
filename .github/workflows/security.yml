@@ -158,6 +158,11 @@ jobs:
           fi
           python -m pip install "${install_args[@]}" -e "${package_target}"
           python -m pip check
+      - name: Verify native Airflow credential precedence
+        if: matrix.label == 'airflow'
+        env:
+          AIRFLOW_HOME: ${{ runner.temp }}/truthound-airflow-security
+        run: python scripts/ci/verify_airflow_security.py
       - name: Run pip-audit
         run: |
           set -euo pipefail
@@ -178,7 +183,9 @@ jobs:
           path: artifacts/security/*
 
   pip-audit-advisory:
-    if: github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')
+    if: >-
+      (github.event_name == 'push' || ((github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch') && (inputs.lane || github.event.inputs.lane || 'release') != 'pr' && (inputs.lane || github.event.inputs.lane || 'release') != 'nightly')) &&
+      toJSON(fromJSON(needs.matrix.outputs.advisory_matrix).include) != '[]'
     needs: matrix
     runs-on: ubuntu-latest
     timeout-minutes: 20
