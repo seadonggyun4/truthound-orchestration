@@ -10,9 +10,11 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from airflow.api_fastapi.core_api import security
-from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
-from starlette.requests import Request
+from airflow.api_fastapi.core_api.security import (
+    HTTPAuthorizationCredentials,
+    HTTPException,
+    Request,
+)
 
 
 class CredentialPrecedenceTests(unittest.IsolatedAsyncioTestCase):
