@@ -8,9 +8,10 @@ by the OpenTelemetry SDK. This module provides convenient wrappers
 and factory functions for creating them with our configuration.
 """
 
-from common.opentelemetry.config import OTelConfig, OTLPExporterConfig
+from common.opentelemetry.config import OTLPExporterConfig
 from common.opentelemetry.exceptions import OTelNotInstalledError
 from common.opentelemetry.types import ExporterType, OTLPCompression, OTLPProtocol
+
 
 __all__ = [
     "create_metric_exporter",
@@ -92,7 +93,8 @@ def create_metric_exporter(
 
             compression = None
             if config.compression == OTLPCompression.GZIP:
-                compression = "gzip"
+                from opentelemetry.exporter.otlp.proto.http import Compression as HTTPCompression
+                compression = HTTPCompression.Gzip
 
             return OTLPMetricExporter(
                 endpoint=config.endpoint,
@@ -172,7 +174,8 @@ def create_span_exporter(
 
             compression = None
             if config.compression == OTLPCompression.GZIP:
-                compression = "gzip"
+                from opentelemetry.exporter.otlp.proto.http import Compression as HTTPCompression
+                compression = HTTPCompression.Gzip
 
             return OTLPSpanExporter(
                 endpoint=config.endpoint,

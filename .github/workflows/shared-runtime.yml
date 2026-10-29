@@ -111,7 +111,7 @@ jobs:
             tests/common/test_truthound_capabilities.py
             tests/common/test_truthound_streaming.py
             tests/common/test_truthound_v3_contract.py
-            tests/opentelemetry/test_config.py
+            tests/opentelemetry
             "
           else
             TESTS="
@@ -125,6 +125,7 @@ jobs:
             tests/common/test_depot_runtime_integration.py
             tests/common/test_depot_flow_runtime.py
             tests/common/test_depot_redaction.py
+            tests/opentelemetry/test_native_runtime.py
             "
           fi
           python -m pytest -q \

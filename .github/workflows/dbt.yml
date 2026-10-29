@@ -100,6 +100,7 @@ jobs:
             packages/dbt/tests/test_hooks.py
             packages/dbt/tests/test_macros.py
             tests/dbt/test_first_party_suite.py
+            packages/dbt/tests/test_security_runtime.py
             "
           fi
           python -m pytest -q \

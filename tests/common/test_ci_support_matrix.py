@@ -145,8 +145,8 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     ]
     assert blocking["prefect"]["ignore_vulns"] == []
     assert blocking["dbt"]["host_requirements"] == [
-        "truthound==3.0.0",
-        "dbt-core==1.10.20",
+        "truthound==3.3.0",
+        "dbt-core==1.11.16",
         "dbt-postgres==1.10.0",
     ]
     assert blocking["dbt"]["ignore_vulns"] == []
@@ -156,11 +156,11 @@ def test_security_audit_inputs_are_support_matrix_driven() -> None:
     ]
     assert blocking["kestra"]["ignore_vulns"] == []
     assert blocking["opentelemetry"]["host_requirements"] == [
-        "truthound==3.0.0",
-        "opentelemetry-api==1.40.0",
-        "opentelemetry-sdk==1.40.0",
-        "opentelemetry-exporter-otlp-proto-grpc==1.40.0",
-        "opentelemetry-exporter-otlp-proto-http==1.40.0",
+        "truthound==3.3.0",
+        "opentelemetry-api==1.45.1",
+        "opentelemetry-sdk==1.45.1",
+        "opentelemetry-exporter-otlp-proto-grpc==1.45.1",
+        "opentelemetry-exporter-otlp-proto-http==1.45.1",
     ]
     assert blocking["opentelemetry"]["constraints"] == [
         "cryptography>=46.0.5",
@@ -210,10 +210,42 @@ def test_prefect_minimum_includes_server_dependencies() -> None:
     assert "cachetools>=5.0.0" in lane["constraints"]
 
 
-def test_dbt_core_minimum_matches_postgres_protobuf_generation() -> None:
+def test_dbt_core_minimum_allows_security_patched_sqlparse() -> None:
     data = ci_support_matrix.load_support_matrix()
-    assert data["platforms"]["dbt"]["core_range"] == "dbt-core>=1.10.9,<1.11.0"
+    assert data["platforms"]["dbt"]["core_range"] == "dbt-core>=1.11.14,<1.12.0"
     payload = ci_support_matrix.build_workflow_payload(data, "dbt", "release")
     assert payload["execution_matrix"] == {
-        "include": [{"core_version": "1.10.9"}, {"core_version": "1.10.20"}]
+        "include": [{"core_version": "1.11.14"}, {"core_version": "1.11.16"}]
     }
+
+
+def test_published_extras_reject_vulnerable_dependency_versions() -> None:
+    """A clean audit must also apply to installations through package extras."""
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    metadata = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    extras = metadata["project"]["optional-dependencies"]
+    floors = [
+        ("dbt-core", "1.10.20", "1.11.14", ("dbt", "all")),
+        ("sqlparse", "0.5.5", "0.6.0", ("dbt", "all")),
+        ("opentelemetry-api", "1.45.0", "1.45.1", ("dbt", "opentelemetry", "all")),
+    ]
+    for name, vulnerable, fixed, surfaces in floors:
+        for surface in surfaces:
+            requirements = {req.name: req for req in map(Requirement, extras[surface])}
+            assert vulnerable not in requirements[name].specifier, (surface, name)
+            assert fixed in requirements[name].specifier, (surface, name)
+
+
+def test_dbt_sql_package_enforces_security_supported_core() -> None:
+    import yaml
+    from packaging.specifiers import SpecifierSet
+
+    project = yaml.safe_load((ROOT / "packages/dbt/dbt_project.yml").read_text())
+    supported = SpecifierSet(",".join(project["require-dbt-version"]))
+    assert "1.10.20" not in supported
+    assert "1.11.13" not in supported
+    assert "1.11.14" in supported
+    assert "1.11.16" in supported

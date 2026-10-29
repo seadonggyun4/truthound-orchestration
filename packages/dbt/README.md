@@ -336,7 +336,7 @@ python scripts/manifest_parser.py coverage target/manifest.json --threshold 0.8
 
 ## Requirements
 
-- dbt-core >= 1.6.0
+- dbt-core >= 1.11.14, < 1.12.0; sqlparse >= 0.6.0, < 0.7.0
 - One of the supported adapters
 
 ## License

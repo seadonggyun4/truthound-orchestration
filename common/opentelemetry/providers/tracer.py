@@ -9,10 +9,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from common.opentelemetry.config import BatchConfig, OTelConfig, OTLPExporterConfig
+from common.opentelemetry.config import OTelConfig, OTLPExporterConfig
 from common.opentelemetry.exceptions import OTelNotInstalledError, OTelProviderError
 from common.opentelemetry.providers.resource import create_resource
 from common.opentelemetry.types import ExporterType, OTLPCompression, OTLPProtocol
+
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import TracerProvider
@@ -81,7 +82,8 @@ def _create_otlp_span_exporter(config: OTLPExporterConfig) -> SpanExporter:
 
         compression = None
         if config.compression == OTLPCompression.GZIP:
-            compression = "gzip"
+            from opentelemetry.exporter.otlp.proto.http import Compression as HTTPCompression
+            compression = HTTPCompression.Gzip
 
         return OTLPSpanExporter(
             endpoint=config.endpoint,
@@ -352,7 +354,7 @@ class OTelTracerProvider:
             logger.warning(f"Failed to shutdown TracerProvider: {e}")
             return False
 
-    def __enter__(self) -> "OTelTracerProvider":
+    def __enter__(self) -> OTelTracerProvider:
         """Context manager entry."""
         return self
 

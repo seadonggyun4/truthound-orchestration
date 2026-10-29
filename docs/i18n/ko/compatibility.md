@@ -38,6 +38,37 @@ This page defines the official compatibility contract for `truthound-orchestrati
 
 Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
+## 보안 의존성 기준
+
+현재 dbt Core 지원 범위는 **`>=1.11.14,<1.12.0`**이며 기본 버전은 1.11.16,
+dbt-postgres는 1.10.0을 유지합니다. Python extra와 SQL 패키지 모두 이전 Core
+버전을 거부합니다. 호환 Core도 취약 파서 설치를 허용할 수 있으므로
+`sqlparse>=0.6.0,<0.7.0`을 함께 설치해야 합니다. 앞서 검증한 1.10.9/1.10.20은
+과거 기능 검증 기록이며 현재 보안 지원 기준은 아닙니다.
+
+[dbt 공식 보안 공지](https://github.com/dbt-labs/dbt/security/advisories/GHSA-pxwq-479r-hhwr)에
+따르면 기존 파서 상한이 SQL 컴파일 경로의 서비스 거부 수정 버전 설치를 막습니다.
+Core 1.11.14는 이 상한을 완화합니다. 1.10 계열은 수정 파서를 정상적으로 설치할
+수 없으므로 `--no-deps`로 패키지 메타데이터를 우회하지 마세요.
+
+OpenTelemetry API·SDK·두 OTLP exporter의 최소 버전은 **1.45.1**입니다.
+[OpenTelemetry 공식 보안 공지](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h)의
+비정상 `tracestate` 헤더 파싱 비용 문제를 해결합니다. dbt 호스트의 전이 의존성도
+API를 사용하므로 dbt extra에 같은 최소 버전을 적용했습니다. HTTP gzip 전송은
+문자열 대신 SDK의 압축 enum을 전달하도록 수정했습니다.
+
+보안 CI는 선택한 extra 전체를 정상 설치하고 `pip check` 후 `pip-audit`를
+실행합니다. 프로젝트 설치에 `--no-deps`를 사용하지 않으며 취약점 예외도 추가하지
+않았습니다. Core 3.3.0과 dbt 1.11.14·1.11.16, OpenTelemetry 1.45.1의 독립 환경은
+모두 의존성 검사 통과 및 알려진 취약점 0건을 확인했습니다. OpenTelemetry 감사는
+기존 Protobuf 5 제약을 유지하며 dbt는 Protobuf 6을 사용합니다.
+
+회귀 검증은 네이티브 dbt CTE 삽입, 패키지 보안 최소 버전, 비정상 헤더 파싱,
+공개 exporter factory와 provider의 실제 HTTP·gRPC gzip 추적·메트릭 전송을
+포함합니다. dbt 두 버전 모두 PostgreSQL 실행과 기존 manifest coverage 기준을
+검증합니다. 수정 소스와 빌드 산출물에 대한 결과이며 새 패키지 발행이나 다른
+모든 호스트의 보안 감사 통과를 의미하지 않습니다.
+
 ## Core 3.3.0 검증
 
 이번 수정이 포함된 소스에서 빌드한 패키지를 공개 배포된 `truthound==3.3.0`
@@ -144,8 +175,8 @@ CI에는 선별된 요약 및 테스트 로그만 업로드합니다.
   `Body(min_items=...)` 때문에 `fastapi<0.130`을 사용합니다. 호스트별 제약은
   `ci/support-matrix.toml`에 기록했습니다.
 - dbt-core 1.10.0과 dbt-postgres 1.10.0은 Protobuf 주 버전이 충돌합니다.
-  호환되는 첫 1.10 Core 릴리스인 **1.10.9로 최소 버전을 정정**했고 최소·기본
-  버전 모두 PostgreSQL 실제 실행 CI를 추가했습니다.
+  초기 검증에서는 1.10.9가 설치 가능한 최소 버전이었으나, 현재는 위의 보안
+  기준에 따라 1.11.14 이상으로 지원 범위를 올렸습니다.
 - Mage 0.9.80의 `typer[all]==0.9.0`과 Core 3.3.0의 `typer>=0.12.0`은 충돌하여
   **같은 인터프리터 설치는 지원하지 않습니다**. 검증한 Mage 블록은 정상적으로
   의존성을 해결한 별도 Core 인터프리터에서 공식 Transformer를 실행하고 실패를
@@ -174,7 +205,7 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
-| dbt | `dbt-core>=1.10.9,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
+| dbt | `dbt-core>=1.11.14,<1.12.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.11.16` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
 

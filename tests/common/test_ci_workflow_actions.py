@@ -127,18 +127,25 @@ def test_dependency_review_only_flags_vulnerable_added_packages() -> None:
     findings = dependency_review.find_vulnerable_additions(changes)
 
     assert findings == [changes[2]]
-    assert "risky-new 3.0.0 via requirements.txt: GHSA-risk (critical)" in dependency_review.format_findings(findings)
+    assert (
+        "risky-new 3.0.0 via requirements.txt: GHSA-risk (critical)"
+        in dependency_review.format_findings(findings)
+    )
 
 
 def test_foundation_workflow_checks_version_surfaces() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "ci-foundation.yml").read_text(encoding="utf-8")
+    workflow_text = (ROOT / ".github" / "workflows" / "ci-foundation.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert "python scripts/ci/sync_version_surfaces.py check" in workflow_text
     assert "tests/common/test_version_surfaces.py" in workflow_text
 
 
 def test_release_gate_passes_expected_tag_to_foundation() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(encoding="utf-8")
+    workflow_text = (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert "expected_tag:" in workflow_text
     assert "github.ref_name" in workflow_text
@@ -177,12 +184,30 @@ def test_main_ci_skips_adapter_fanout_for_docs_only_changes() -> None:
     workflow_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
 
     assert "needs.changes.outputs.docs_only != 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'" in workflow_text
-    assert "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'" in workflow_text
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'"
+        in workflow_text
+    )
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'"
+        in workflow_text
+    )
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'"
+        in workflow_text
+    )
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'"
+        in workflow_text
+    )
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'"
+        in workflow_text
+    )
+    assert (
+        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'"
+        in workflow_text
+    )
 
 
 def test_reusable_workflows_expose_suite_tier_input() -> None:
@@ -202,7 +227,9 @@ def test_reusable_workflows_expose_suite_tier_input() -> None:
 
 
 def test_shared_runtime_workflow_uses_representative_smoke_and_full_contracts() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "shared-runtime.yml").read_text(encoding="utf-8")
+    workflow_text = (ROOT / ".github" / "workflows" / "shared-runtime.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert 'if [ "${SUITE_TIER}" = "full" ]; then' in workflow_text
     assert "tests/common/test_depot_models.py" in workflow_text
@@ -214,7 +241,8 @@ def test_shared_runtime_workflow_uses_representative_smoke_and_full_contracts() 
     assert "tests/common/test_truthound_capabilities.py" in workflow_text
     assert "tests/common/test_truthound_streaming.py" in workflow_text
     assert "tests/common/test_truthound_v3_contract.py" in workflow_text
-    assert "tests/opentelemetry/test_config.py" in workflow_text
+    assert "tests/opentelemetry\n" in workflow_text
+    assert "tests/opentelemetry/test_native_runtime.py" in workflow_text
     assert "python -m pytest -q \\" in workflow_text
     assert "tests/common \\" not in workflow_text
 
@@ -268,3 +296,15 @@ def test_security_workflow_splits_blocking_and_advisory_pip_audit_groups() -> No
     assert "continue-on-error: true" in workflow_text
     assert "summary-blocking:" in workflow_text
     assert "summary-advisory:" in workflow_text
+
+
+def test_security_audit_resolves_complete_extras_and_checks_installation() -> None:
+    """Audit the installed distribution contract, not a hand-picked subset of extras."""
+    import yaml
+
+    workflow = yaml.safe_load((ROOT / ".github/workflows/security.yml").read_text())
+    for job_name in ("pip-audit", "pip-audit-advisory", "pip-audit-canary"):
+        scripts = "\n".join(step.get("run", "") for step in workflow["jobs"][job_name]["steps"])
+        assert "--no-deps -e" not in scripts
+        assert 'python -m pip install "${install_args[@]}" -e "${package_target}"' in scripts
+        assert "python -m pip check" in scripts

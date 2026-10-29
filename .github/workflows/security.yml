@@ -156,7 +156,8 @@ jobs:
           if [ -n "${EXTRA}" ]; then
             package_target=".[${EXTRA}]"
           fi
-          python -m pip install --no-deps -e "${package_target}"
+          python -m pip install "${install_args[@]}" -e "${package_target}"
+          python -m pip check
       - name: Run pip-audit
         run: |
           set -euo pipefail
@@ -249,7 +250,8 @@ jobs:
           if [ -n "${EXTRA}" ]; then
             package_target=".[${EXTRA}]"
           fi
-          python -m pip install --no-deps -e "${package_target}"
+          python -m pip install "${install_args[@]}" -e "${package_target}"
+          python -m pip check
       - name: Run pip-audit advisory surface
         run: |
           set -euo pipefail
@@ -341,7 +343,8 @@ jobs:
           if [ -n "${EXTRA}" ]; then
             package_target=".[${EXTRA}]"
           fi
-          python -m pip install --no-deps -e "${package_target}"
+          python -m pip install "${install_args[@]}" -e "${package_target}"
+          python -m pip check
       - name: Run pip-audit canary
         run: |
           set -euo pipefail

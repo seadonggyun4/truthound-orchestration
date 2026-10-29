@@ -9,6 +9,13 @@ title: dbt Package Setup
 
 This page covers the supported setup path for installing Truthound into a dbt project.
 
+## 보안 지원 버전
+
+dbt Core `>=1.11.14,<1.12.0`과 `sqlparse>=0.6.0,<0.7.0`을 사용하세요.
+검증한 PostgreSQL adapter는 1.10.0입니다. `dbt deps`는 Python 파서를
+업그레이드하지 않으므로 Python 환경도 함께 갱신해야 합니다.
+[호환성 문서](../compatibility.md#보안-의존성-기준)에 보안 기준과 검증 범위가 있습니다.
+
 ## Who This Is For
 
 - teams adopting Truthound in an existing dbt repository

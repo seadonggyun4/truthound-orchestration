@@ -35,6 +35,40 @@ This page defines the official compatibility contract for `truthound-orchestrati
 
 Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
+## Security dependency baseline
+
+The current supported dbt Core range is **`>=1.11.14,<1.12.0`**, with 1.11.16 as
+primary and dbt-postgres 1.10.0 retained. Both the Python extra and the SQL package
+reject older Core versions. Install `sqlparse>=0.6.0,<0.7.0`; a compatible Core
+version alone still permits vulnerable parser versions. Previously verified
+1.10.9/1.10.20 tuples are historical functional results, not current supported
+security baselines.
+
+The [upstream dbt advisory](https://github.com/dbt-labs/dbt/security/advisories/GHSA-pxwq-479r-hhwr)
+explains that the old parser ceiling prevents fixes for denial of service on SQL
+compilation paths. Core 1.11.14 relaxes that ceiling. The 1.10 line still cannot
+resolve the fixed parser normally; do not override its metadata with `--no-deps`.
+
+OpenTelemetry API, SDK and both OTLP exporters now require **1.45.1 or newer**.
+This fixes unbounded parsing of malformed inbound `tracestate` headers described
+in the [upstream OpenTelemetry advisory](https://github.com/open-telemetry/opentelemetry-python/security/advisories/GHSA-xcq7-p3pf-p88h).
+The dbt extra also enforces the API floor because its host dependencies use that
+API. HTTP gzip export now passes the SDK compression enum instead of a string.
+
+Security CI resolves the complete selected extra and runs `pip check` before
+`pip-audit`; it no longer installs the project with `--no-deps`. No vulnerability
+exceptions were added. Independent Core 3.3.0 environments for dbt 1.11.14,
+dbt 1.11.16 and OpenTelemetry 1.45.1 each passed dependency checks and reported
+zero known vulnerabilities. The OpenTelemetry audit retains its Protobuf 5
+constraint; dbt uses Protobuf 6.
+
+Regression coverage exercises native dbt CTE injection, the package security
+floors, malformed header parsing, and real gzip-compressed trace/metric delivery
+to local HTTP and gRPC collectors through both exporter factories. Both dbt
+versions run the PostgreSQL suite and its existing manifest coverage gate.
+These are tests of the revised source and built artifacts, not a new package
+publication or certification of every other host's security audit.
+
 ## Core 3.3.0 verification
 
 The source revision containing these fixes was verified with the published
@@ -144,8 +178,8 @@ Installation findings and boundaries:
   uses `fastapi<0.130` because newer FastAPI removes its `Body(min_items=...)`
   argument. These host constraints are recorded in `ci/support-matrix.toml`.
 - dbt-core 1.10.0 and dbt-postgres 1.10.0 conflict on Protobuf major versions.
-  The minimum is corrected to **dbt-core 1.10.9**, the first compatible 1.10
-  Core release; both minimum and primary now have PostgreSQL execution CI jobs.
+  The first resolvable 1.10 Core was 1.10.9, but the security baseline above
+  now supersedes that functional minimum with 1.11.14.
 - Mage 0.9.80 pins `typer[all]==0.9.0`, while Core 3.3.0 requires `typer>=0.12.0`.
   A same-interpreter install is **unsupported**. The verified Mage block calls
   the packaged first-party transformer in a separately resolved Core interpreter
@@ -174,7 +208,7 @@ Truthound release line: `>=3.0,<4.0`
 | Prefect | `2.14.0` on `Python 3.11` | `3.6.29` on `Python 3.12` |
 | Dagster | `1.5.0` on `Python 3.11` | `1.12.18` on `Python 3.12` |
 | Kestra | `1.3.0` on `Python 3.12` | `1.3.0` on `Python 3.12` |
-| dbt | `dbt-core>=1.10.9,<1.11.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.10.20` + `dbt-postgres 1.10.0` |
+| dbt | `dbt-core>=1.11.14,<1.12.0` + `dbt-postgres>=1.10.0,<1.11.0` | `dbt-core 1.11.16` + `dbt-postgres 1.10.0` |
 
 ## Security Audit Surfaces
 
