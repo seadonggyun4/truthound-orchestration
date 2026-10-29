@@ -23,6 +23,7 @@ Example:
 
 from __future__ import annotations
 
+import importlib
 import threading
 import time
 from dataclasses import dataclass
@@ -30,7 +31,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
     from common.engines.lifecycle import EngineStateSnapshot
 
@@ -58,8 +59,6 @@ from common.engines.lifecycle import (
     EngineStateTracker,
     EngineStoppedError,
 )
-from common.exceptions import ValidationExecutionError
-from common.health import HealthCheckResult, HealthStatus
 from common.engines.truthound_mapping import (
     SEVERITY_MAPPING,
     map_profile_report,
@@ -74,6 +73,8 @@ from common.engines.truthound_runtime import (
     resolve_truthound_version,
     validate_context_mode,
 )
+from common.exceptions import ValidationExecutionError
+from common.health import HealthCheckResult, HealthStatus
 
 
 # =============================================================================
@@ -978,7 +979,10 @@ class TruthoundEngine(EngineInfoMixin):
                 compare_kwargs["threshold"] = resolved_threshold
             compare_kwargs.update(kwargs)
 
-            drift_report = truthound.compare(baseline, current, **compare_kwargs)
+            compare = getattr(truthound, "compare", None)
+            if compare is None:
+                compare = importlib.import_module("truthound.drift").compare
+            drift_report = compare(baseline, current, **compare_kwargs)
             return self._convert_drift_result(drift_report, start_time, resolved_method)
 
         except ValidationExecutionError:
@@ -1017,26 +1021,27 @@ class TruthoundEngine(EngineInfoMixin):
         drifted_count = 0
 
         for col_data in column_results:
-            is_drifted = col_data.get("is_drifted", False)
+            drift = col_data.get("drift", col_data)
+            is_drifted = drift.get("drifted", drift.get("is_drifted", False))
             if is_drifted:
                 drifted_count += 1
 
-            col_method_str = col_data.get("method", method)
+            col_method_str = drift.get("method", method)
             try:
                 col_method = DriftMethod(col_method_str)
             except ValueError:
                 col_method = drift_method
 
-            severity_str = col_data.get("severity", "info")
+            severity_str = drift.get("level", drift.get("severity", "info"))
             severity = SEVERITY_MAPPING.get(severity_str, Severity.INFO)
 
             drifted_columns.append(
                 ColumnDrift(
                     column=col_data.get("column", "unknown"),
                     method=col_method,
-                    statistic=col_data.get("statistic", 0.0),
-                    p_value=col_data.get("p_value"),
-                    threshold=col_data.get("threshold", 0.0),
+                    statistic=drift.get("statistic", 0.0),
+                    p_value=drift.get("p_value"),
+                    threshold=drift.get("threshold", 0.0),
                     is_drifted=is_drifted,
                     severity=severity,
                     baseline_stats=col_data.get("baseline_stats", {}),
@@ -1046,10 +1051,7 @@ class TruthoundEngine(EngineInfoMixin):
             )
 
         total_columns = len(column_results)
-        if drifted_count > 0:
-            status = DriftStatus.DRIFT_DETECTED
-        else:
-            status = DriftStatus.NO_DRIFT
+        status = DriftStatus.DRIFT_DETECTED if drifted_count > 0 else DriftStatus.NO_DRIFT
 
         execution_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -1107,12 +1109,13 @@ class TruthoundEngine(EngineInfoMixin):
             detector_cls = self._get_detector_class(truthound, resolved_detector)
             det_instance = detector_cls(contamination=resolved_contamination, **kwargs)
 
-            if columns is not None:
-                det_instance.fit(data, columns=list(columns))
-            else:
-                det_instance.fit(data)
+            from truthound.adapters import to_lazyframe
 
-            anomaly_report = det_instance.predict(data)
+            frame = to_lazyframe(data)
+            if columns is not None:
+                frame = frame.select(list(columns))
+            det_instance.fit(frame)
+            anomaly_report = det_instance.predict(frame)
             return self._convert_anomaly_result(
                 anomaly_report, start_time, resolved_detector, data
             )
@@ -1141,9 +1144,9 @@ class TruthoundEngine(EngineInfoMixin):
         """
         detector_map = {
             "isolation_forest": "IsolationForestDetector",
-            "z_score": "ZScoreDetector",
+            "z_score": "ZScoreAnomalyDetector",
             "lof": "LocalOutlierFactor",
-            "ensemble": "EnsembleDetector",
+            "ensemble": "EnsembleAnomalyDetector",
         }
         class_name = detector_map.get(detector)
         if class_name is None:
@@ -1153,10 +1156,12 @@ class TruthoundEngine(EngineInfoMixin):
             )
         ml_module = getattr(truthound, "ml", None)
         if ml_module is None:
-            raise ValidationExecutionError(
-                "Truthound ml module not available. "
-                "Ensure Truthound is installed with ML support."
-            )
+            try:
+                ml_module = importlib.import_module("truthound.ml")
+            except ImportError as exc:
+                raise ValidationExecutionError(
+                    "Truthound ml module not available. Install Truthound ML dependencies."
+                ) from exc
         detector_cls = getattr(ml_module, class_name, None)
         if detector_cls is None:
             raise ValidationExecutionError(
@@ -1184,6 +1189,17 @@ class TruthoundEngine(EngineInfoMixin):
         """
         report_dict = anomaly_report.to_dict()
         column_scores = report_dict.get("columns", [])
+        if "anomalies" in report_dict:
+            column_scores = [
+                {
+                    "column": ",".join(score.get("contributing_features", [])) or "_row_",
+                    "score": score["score"],
+                    "threshold": report_dict.get("threshold_used") or 0.0,
+                    "is_anomaly": score["is_anomaly"],
+                    "metadata": {"row_index": score["index"]},
+                }
+                for score in report_dict["anomalies"]
+            ]
 
         anomalies: list[AnomalyScore] = []
         for col_data in column_scores:
@@ -1198,16 +1214,13 @@ class TruthoundEngine(EngineInfoMixin):
                 )
             )
 
-        anomalous_row_count = report_dict.get("anomalous_row_count", 0)
-        total_row_count = report_dict.get("total_row_count", 0)
+        anomalous_row_count = report_dict.get("anomaly_count", report_dict.get("anomalous_row_count", 0))
+        total_row_count = report_dict.get("total_points", report_dict.get("total_row_count", 0))
 
         if not total_row_count:
             total_row_count = len(data) if hasattr(data, "__len__") else 0
 
-        if anomalous_row_count > 0:
-            status = AnomalyStatus.ANOMALY_DETECTED
-        else:
-            status = AnomalyStatus.NORMAL
+        status = AnomalyStatus.ANOMALY_DETECTED if anomalous_row_count > 0 else AnomalyStatus.NORMAL
 
         execution_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -1257,11 +1270,6 @@ class TruthoundEngine(EngineInfoMixin):
         Raises:
             ValidationExecutionError: If stream processing fails.
         """
-        try:
-            import polars as pl
-        except ImportError:
-            pass
-
         truthound = self._ensure_truthound()
         batch: list[Any] = []
         batch_index = 0

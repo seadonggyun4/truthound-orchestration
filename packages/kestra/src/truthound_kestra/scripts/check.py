@@ -41,11 +41,11 @@ Python Usage:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from common.orchestration import execute_operation
 from truthound_kestra.scripts.base import (
     CheckScriptConfig,
     DataQualityEngineProtocol,
@@ -53,7 +53,6 @@ from truthound_kestra.scripts.base import (
     extract_observability_config,
     get_engine,
 )
-from common.orchestration import execute_operation
 from truthound_kestra.utils.exceptions import (
     DataQualityError,
     EngineError,
@@ -69,7 +68,6 @@ from truthound_kestra.utils.helpers import (
     log_operation,
     validate_rules,
 )
-from truthound_kestra.utils.serialization import serialize_result
 from truthound_kestra.utils.types import (
     CheckStatus,
     ExecutionContext,
@@ -81,7 +79,7 @@ from truthound_kestra.utils.types import (
 )
 
 if TYPE_CHECKING:
-    import polars as pl
+    pass
 
 __all__ = [
     "check_quality_script",
@@ -385,17 +383,30 @@ class CheckScriptExecutor:
                 "engine": self.config.engine_name,
                 "rules_count": len(self.config.rules),
             },
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     def _extract_failures(self, raw_result: Any) -> list[ValidationFailure]:
         """Extract ValidationFailure objects from engine result."""
+        from common.base import ValidationFailure as CommonValidationFailure
+
         failures = []
         raw_failures = getattr(raw_result, "failures", [])
 
         for f in raw_failures:
             if isinstance(f, ValidationFailure):
                 failures.append(f)
+            elif isinstance(f, CommonValidationFailure):
+                severity = {"ERROR": Severity.HIGH, "WARNING": Severity.MEDIUM,
+                            "INFO": Severity.INFO, "CRITICAL": Severity.CRITICAL}
+                failures.append(ValidationFailure(
+                    rule_type=f.rule_name,
+                    column=f.column or "_table_",
+                    message=f.message,
+                    severity=severity[f.severity.name],
+                    failed_count=f.failed_count,
+                    metadata=f.metadata,
+                ))
             elif isinstance(f, dict):
                 failures.append(ValidationFailure.from_dict(f))
             elif hasattr(f, "to_dict"):

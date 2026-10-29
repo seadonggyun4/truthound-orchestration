@@ -684,7 +684,7 @@ class TestCircuitBreakerAsync:
         async def success_func() -> str:
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             cb.call_async(success_func)
         )
         assert result == "success"
@@ -697,7 +697,7 @@ class TestCircuitBreakerAsync:
             raise ValueError("error")
 
         with pytest.raises(ValueError):
-            asyncio.get_event_loop().run_until_complete(cb.call_async(failing_func))
+            asyncio.run(cb.call_async(failing_func))
 
         assert cb.is_open
 
@@ -714,13 +714,13 @@ class TestCircuitBreakerAsync:
             raise ValueError("error")
 
         with pytest.raises(ValueError):
-            asyncio.get_event_loop().run_until_complete(cb.call_async(failing_func))
+            asyncio.run(cb.call_async(failing_func))
 
         async def success_func() -> str:
             return "success"
 
         with pytest.raises(CircuitOpenError):
-            asyncio.get_event_loop().run_until_complete(cb.call_async(success_func))
+            asyncio.run(cb.call_async(success_func))
 
 
 class TestCircuitBreakerRegistry:
@@ -898,7 +898,7 @@ class TestCircuitBreakerDecorator:
         async def async_func() -> str:
             return "async_success"
 
-        result = asyncio.get_event_loop().run_until_complete(async_func())
+        result = asyncio.run(async_func())
         assert result == "async_success"
 
     def test_decorator_async_opens_on_failures(self):
@@ -915,10 +915,10 @@ class TestCircuitBreakerDecorator:
 
         for _ in range(2):
             with pytest.raises(ValueError):
-                asyncio.get_event_loop().run_until_complete(failing_func())
+                asyncio.run(failing_func())
 
         with pytest.raises(CircuitOpenError):
-            asyncio.get_event_loop().run_until_complete(failing_func())
+            asyncio.run(failing_func())
 
 
 class TestCircuitBreakerCallFunctions:
@@ -957,7 +957,7 @@ class TestCircuitBreakerCallFunctions:
         async def success_func() -> str:
             return "async_success"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             circuit_breaker_call_async(
                 success_func,
                 name="test_cb_call_async_basic",

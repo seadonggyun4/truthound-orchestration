@@ -85,7 +85,7 @@ class TestDataQualityProfileOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_profile_result = MagicMock()
             mock_profile_result.columns = []
             mock_profile_result.row_count = 100
@@ -124,7 +124,7 @@ class TestDataQualityProfileOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_profile_result = MagicMock()
             mock_profile_result.to_dict.return_value = {"row_count": 100, "columns": []}
             mock_engine.profile.return_value = mock_profile_result

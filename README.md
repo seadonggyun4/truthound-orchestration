@@ -181,6 +181,8 @@ with DAG(
 
 `truthound-orchestration` `3.x`는 `Truthound 3.x`만 지원합니다.
 
+Core **3.3.0** 배포 wheel과 이번 수정본의 호환성을 검증했습니다. 검증한 플랫폼·고급 기능 및 제한은 [호환성 문서](docs/i18n/ko/compatibility.md)를 참고하세요. 기존 배포 패키지에 이번 수정이 포함되었다는 의미는 아닙니다.
+
 - 지원 Truthound 버전: `>=3.0,<4.0`
 - 미지원 Truthound 버전: `1.x`, `2.x`
 - 이 정책은 루트 패키지와 공식 플랫폼 extra에 적용됩니다.

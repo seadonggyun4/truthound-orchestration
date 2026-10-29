@@ -547,7 +547,7 @@ class TestRetryExecutorAsync:
         async def success_func() -> str:
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             executor.execute_async(success_func)
         )
         assert result == "success"
@@ -566,7 +566,7 @@ class TestRetryExecutorAsync:
                 raise ValueError("Retry")
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             executor.execute_async(failing_then_success)
         )
         assert result == "success"
@@ -581,7 +581,7 @@ class TestRetryExecutorAsync:
             raise ValueError("Always fails")
 
         with pytest.raises(RetryExhaustedError) as exc_info:
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 executor.execute_async(always_fails)
             )
 
@@ -608,7 +608,7 @@ class TestRetryExecutorAsync:
             return "success"
 
         start = time.monotonic()
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             executor.execute_async(failing_once)
         )
         elapsed = time.monotonic() - start
@@ -724,7 +724,7 @@ class TestRetryDecoratorAsync:
                 raise ValueError("Retry")
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(failing_then_success())
+        result = asyncio.run(failing_then_success())
         assert result == "success"
         assert attempts == 3
 
@@ -741,7 +741,7 @@ class TestRetryDecoratorAsync:
                 raise ValueError("Retry")
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(failing_then_success())
+        result = asyncio.run(failing_then_success())
         assert result == "success"
 
 
@@ -785,7 +785,7 @@ class TestRetryCallFunctions:
                 raise ValueError("Retry")
             return "success"
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             retry_call_async(
                 failing_then_success,
                 config=NO_DELAY_RETRY_CONFIG.with_max_attempts(3),

@@ -237,3 +237,23 @@ def test_execute_depot_operation_emits_openlineage_depot_facet() -> None:
 
     payload = emitter.emitted_events[-1]
     assert payload["run"]["facets"]["truthound"]["depot"]["status"] == "succeeded"
+
+
+def test_dynamic_metadata_does_not_recurse_through_fabricated_converters() -> None:
+    from common.runtime import _make_json_safe
+
+    class DynamicMetadata:
+        def __getattr__(self, name):
+            if name == "to_dict":
+                return lambda: DynamicMetadata()
+            raise AttributeError(name)
+
+        def __str__(self):
+            return "dynamic-metadata"
+
+    class DeclaredMetadata:
+        def to_dict(self):
+            return {"run_id": "synthetic"}
+
+    assert _make_json_safe(DynamicMetadata()) == "dynamic-metadata"
+    assert _make_json_safe(DeclaredMetadata()) == {"run_id": "synthetic"}

@@ -228,14 +228,14 @@ class TestMockFullEngine:
 class TestAsyncMockDriftDetectionEngine:
     def test_detect_drift(self) -> None:
         engine = AsyncMockDriftDetectionEngine()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             engine.detect_drift(baseline=[], current=[])
         )
         assert result.status == DriftStatus.NO_DRIFT
 
     def test_drift_detected(self) -> None:
         engine = AsyncMockDriftDetectionEngine(should_detect_drift=True)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             engine.detect_drift(baseline=[], current=[])
         )
         assert result.status == DriftStatus.DRIFT_DETECTED
@@ -244,7 +244,7 @@ class TestAsyncMockDriftDetectionEngine:
 class TestAsyncMockAnomalyDetectionEngine:
     def test_detect_anomalies(self) -> None:
         engine = AsyncMockAnomalyDetectionEngine()
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             engine.detect_anomalies(data=[])
         )
         assert result.status == AnomalyStatus.NORMAL
@@ -259,7 +259,7 @@ class TestAsyncMockStreamingEngine:
             aiter = await engine.check_stream(stream=[])
             return [r async for r in aiter]
 
-        results = asyncio.get_event_loop().run_until_complete(collect())
+        results = asyncio.run(collect())
         assert len(results) == 2
 
     def test_protocol_conformance(self) -> None:
@@ -275,27 +275,26 @@ class TestAsyncMockFullEngine:
         batch = [CheckResult(status=CheckStatus.PASSED)]
         engine.configure_streaming(batch_results=batch)
 
-        loop = asyncio.get_event_loop()
 
-        check = loop.run_until_complete(engine.check(data=[], rules=[]))
+        check = asyncio.run(engine.check(data=[], rules=[]))
         assert isinstance(check, CheckResult)
 
-        drift = loop.run_until_complete(engine.detect_drift([], []))
+        drift = asyncio.run(engine.detect_drift([], []))
         assert drift.status == DriftStatus.DRIFT_DETECTED
 
-        anomaly = loop.run_until_complete(engine.detect_anomalies([]))
+        anomaly = asyncio.run(engine.detect_anomalies([]))
         assert anomaly.status == AnomalyStatus.ANOMALY_DETECTED
 
         async def collect() -> list[CheckResult]:
             aiter = await engine.check_stream(stream=[])
             return [r async for r in aiter]
 
-        stream = loop.run_until_complete(collect())
+        stream = asyncio.run(collect())
         assert len(stream) == 1
 
     def test_factory(self) -> None:
         engine = create_async_mock_full_engine(should_detect_drift=True)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             engine.detect_drift([], [])
         )
         assert result.status == DriftStatus.DRIFT_DETECTED

@@ -376,10 +376,6 @@ class TestChunkers:
         chunks = list(chunker.chunk(data, config))
         assert len(chunks) == 3
 
-    @pytest.mark.skipif(
-        True,  # Skip if polars not installed
-        reason="Polars not installed"
-    )
     def test_polars_chunker_with_dataframe(self):
         """Test PolarsChunker with actual Polars DataFrame."""
         import polars as pl

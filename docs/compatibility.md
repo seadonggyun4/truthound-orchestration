@@ -35,6 +35,63 @@ This page defines the official compatibility contract for `truthound-orchestrati
 
 Release-blocking compatibility and security guarantees apply to these per-surface installs. `truthound-orchestration[all]` remains available as a convenience aggregate and nightly canary surface.
 
+## Core 3.3.0 verification
+
+The source revision containing these fixes was verified with the published
+`truthound==3.3.0` wheel on Python 3.11.14 / macOS ARM64. The project remains
+Alpha. These results apply to wheels built from this revision; they do not
+retroactively certify the previously published orchestration 3.0.3 package.
+No new package publication is implied by this source update.
+
+The adapter preserves failed checks whose detailed issues were omitted, including
+Core and orchestration serialization round trips. It uses the Core drift namespace
+and nested drift verdicts, and maps native ML row counts and row indices. Prefect
+fields follow the Pydantic generation of the installed host. Kestra explicitly
+converts common failure names and severity levels into its output contract.
+
+The same change fixes synchronous health checks inside async aggregation and
+slotted Kestra configuration serialization. Async tests now own their event loops. Runtime metadata serialization also avoids
+recursing through dynamically fabricated conversion methods.
+
+| Surface | Version / execution verified |
+| --- | --- |
+| Core | Published 3.3.0 wheel; check, profile, learn, failure round trip |
+| Airflow | 3.2.0; real operator with local CSV input and captured XCom output |
+| Dagster | 1.12.18; resource inside an in-process job |
+| Prefect | 3.6.29; native Block with real Core execution and a fresh-process regression |
+| Mage | Packaged transformer execution with real Core; Mage server not started |
+| Kestra | Python SDK 1.3.0 and script executor; Kestra server not started |
+| dbt | Core 1.10.20 / postgres adapter 1.10.0; compile, seed, run, test and macro execution on isolated PostgreSQL 14.20 |
+| Advanced Core | Real KS drift and Isolation Forest, Z-score and Ensemble anomaly detection with NumPy/SciPy/scikit-learn installed |
+
+The dbt data suite produced 12 passes, 7 expected warnings for invalid seed data,
+zero errors and zero skips. Manifest coverage was 100% against the existing 80%
+gate. This validates PostgreSQL execution, not live Snowflake, BigQuery, Redshift
+or Databricks connections. Host minimum-version lanes, other Python versions,
+and complete scheduler/server deployments are outside this local verification.
+Core 3.3 does not export the adapter's legacy `lof` detector name; requesting it
+raises an explicit unsupported-class error. The three ML detectors above are the
+verified choices. Optional ML dependencies are required for that advanced lane.
+
+Reproduce installed-package checks in separate environments with the selected
+host version and the wheel built from this revision:
+
+```bash
+python -m build
+python -m pip install "truthound==3.3.0" dist/truthound_orchestration-3.0.3-py3-none-any.whl
+python -I scripts/ci/verify_core_runtime.py base
+# After installing NumPy, SciPy and scikit-learn:
+python -I scripts/ci/verify_core_runtime.py base --advanced
+# Use an environment containing the respective host dependency:
+python -I scripts/ci/verify_core_runtime.py prefect
+```
+
+Other runner labels are `airflow`, `dagster`, `mage`, and `kestra`. The runner
+asserts that both packages load from site-packages rather than the source tree.
+For dbt, use `packages/dbt/scripts/run_first_party_suite.py --mode all --target
+postgres` against an isolated test database, then run the manifest coverage gate.
+Existing optional-test skips are not evidence that those optional engines passed.
+
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 ## Generated CI Support Matrix
 

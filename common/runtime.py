@@ -43,7 +43,9 @@ def _make_json_safe(value: Any) -> Any:
         return [_make_json_safe(item) for item in value]
     if isinstance(value, (set, frozenset)):
         return [_make_json_safe(item) for item in sorted(value, key=str)]
-    if hasattr(value, "to_dict"):
+    # Dynamic proxies may manufacture a fresh ``to_dict`` result on every
+    # lookup. Only invoke a declared converter, otherwise use the fallback.
+    if callable(getattr(type(value), "to_dict", None)):
         try:
             return _make_json_safe(value.to_dict())
         except Exception:

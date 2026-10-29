@@ -379,7 +379,7 @@ class CheckScriptConfig(ScriptConfig):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        base = super().to_dict()
+        base = ScriptConfig.to_dict(self)
         base.update({
             "rules": list(self.rules),
             "fail_on_error": self.fail_on_error,
@@ -492,7 +492,7 @@ class ProfileScriptConfig(ScriptConfig):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        base = super().to_dict()
+        base = ScriptConfig.to_dict(self)
         base.update({
             "include_stats": self.include_stats,
             "include_histograms": self.include_histograms,
@@ -607,7 +607,7 @@ class LearnScriptConfig(ScriptConfig):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        base = super().to_dict()
+        base = ScriptConfig.to_dict(self)
         base.update({
             "min_confidence": self.min_confidence,
             "include_patterns": self.include_patterns,
@@ -763,7 +763,7 @@ class DriftScriptConfig(ScriptConfig):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        base = super().to_dict()
+        base = ScriptConfig.to_dict(self)
         base.update({
             "method": self.method,
             "columns": list(self.columns) if self.columns else None,
@@ -912,7 +912,7 @@ class AnomalyScriptConfig(ScriptConfig):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        base = super().to_dict()
+        base = ScriptConfig.to_dict(self)
         base.update({
             "detector": self.detector,
             "columns": list(self.columns) if self.columns else None,

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import polars as pl
 import pytest
 
-from common.base import AnomalyResult, AnomalyScore, AnomalyStatus
+from common.base import AnomalyResult, AnomalyStatus
 from common.engines.truthound import TruthoundEngine, TruthoundEngineConfig
 from common.exceptions import ValidationExecutionError
 
@@ -138,15 +139,15 @@ class TestDetectAnomalies:
         )
         engine._truthound.ml = MagicMock()
         engine._truthound.ml.IsolationForestDetector = detector_cls
-        engine._truthound.ml.ZScoreDetector = MagicMock()
+        engine._truthound.ml.ZScoreAnomalyDetector = MagicMock()
         engine._truthound.ml.LocalOutlierFactor = MagicMock()
-        engine._truthound.ml.EnsembleDetector = MagicMock()
+        engine._truthound.ml.EnsembleAnomalyDetector = MagicMock()
         return detector_instance
 
     def test_detect_anomalies_basic(self, engine: TruthoundEngine) -> None:
         det = self._setup_detector(engine)
 
-        result = engine.detect_anomalies("data")
+        result = engine.detect_anomalies(pl.DataFrame({"a": [1, 2], "b": [3, 4]}))
 
         assert isinstance(result, AnomalyResult)
         assert result.status == AnomalyStatus.ANOMALY_DETECTED
@@ -159,29 +160,30 @@ class TestDetectAnomalies:
             default_contamination=0.1,
         )
         det = self._setup_detector(engine)
-        engine._truthound.ml.ZScoreDetector = MagicMock(return_value=det)
+        engine._truthound.ml.ZScoreAnomalyDetector = MagicMock(return_value=det)
 
-        engine.detect_anomalies("data")
+        engine.detect_anomalies(pl.DataFrame({"a": [1, 2], "b": [3, 4]}))
 
-        engine._truthound.ml.ZScoreDetector.assert_called_once_with(contamination=0.1)
+        engine._truthound.ml.ZScoreAnomalyDetector.assert_called_once_with(contamination=0.1)
 
     def test_detect_anomalies_with_columns(self, engine: TruthoundEngine) -> None:
         det = self._setup_detector(engine)
 
-        engine.detect_anomalies("data", columns=["a", "b"])
+        engine.detect_anomalies(pl.DataFrame({"a": [1, 2], "b": [3, 4]}), columns=["a", "b"])
 
-        det.fit.assert_called_once_with("data", columns=["a", "b"])
+        det.fit.assert_called_once()
+        assert det.fit.call_args.args[0].collect_schema().names() == ["a", "b"]
 
     def test_detect_anomalies_unsupported_detector(self, engine: TruthoundEngine) -> None:
         with pytest.raises(ValidationExecutionError, match="Unsupported anomaly detector"):
-            engine.detect_anomalies("data", detector="nonexistent")
+            engine.detect_anomalies(pl.DataFrame({"a": [1, 2], "b": [3, 4]}), detector="nonexistent")
 
     def test_detect_anomalies_no_ml_module(self, engine: TruthoundEngine) -> None:
         engine._truthound.ml = None
         delattr(engine._truthound, "ml")
 
-        with pytest.raises(ValidationExecutionError, match="ml module not available"):
-            engine.detect_anomalies("data")
+        with patch("common.engines.truthound.importlib.import_module", side_effect=ImportError), pytest.raises(ValidationExecutionError, match="ml module not available"):
+            engine.detect_anomalies(pl.DataFrame({"a": [1, 2], "b": [3, 4]}))
 
 
 # =============================================================================
@@ -248,3 +250,20 @@ class TestTruthoundEngineConfigAnomaly:
     def test_invalid_contamination_high(self) -> None:
         with pytest.raises(ValueError, match="default_contamination"):
             TruthoundEngineConfig(default_contamination=0.5)
+
+
+def test_native_row_anomaly_verdict_is_preserved(engine: TruthoundEngine) -> None:
+    import time
+
+    report = MagicMock()
+    report.to_dict.return_value = {
+        "anomaly_count": 1, "total_points": 101, "threshold_used": 0.6,
+        "anomalies": [{"index": 100, "score": 0.9, "is_anomaly": True,
+                       "contributing_features": ["x"]}],
+    }
+    result = engine._convert_anomaly_result(report, time.perf_counter(), "isolation_forest", [])
+    assert result.status == AnomalyStatus.ANOMALY_DETECTED
+    assert result.anomalous_row_count == 1
+    assert result.total_row_count == 101
+    assert result.anomalies[0].metadata["row_index"] == 100
+    assert result.anomalies[0].column == "x"

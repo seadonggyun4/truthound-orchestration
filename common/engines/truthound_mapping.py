@@ -12,9 +12,9 @@ from common.base import (
     CheckResult,
     CheckStatus,
     ColumnProfile,
+    LearnedRule,
     LearnResult,
     LearnStatus,
-    LearnedRule,
     ProfileResult,
     ProfileStatus,
     Severity,
@@ -98,6 +98,10 @@ def _map_execution_issue(issue: Any) -> ValidationFailure:
 def _classify_check(check: Any) -> CheckStatus:
     issues = tuple(getattr(check, "issues", ()) or ())
     if not issues:
+        # Core preserves the verdict when issue details are redacted or omitted.
+        # Missing evidence must not turn an explicitly failed check into a pass.
+        if getattr(check, "success", True) is False:
+            return CheckStatus.FAILED
         return CheckStatus.PASSED
 
     max_severity = max(_severity_to_common(getattr(issue, "severity", "high")) for issue in issues)

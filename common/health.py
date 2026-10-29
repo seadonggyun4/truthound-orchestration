@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 import threading
 import time
 from abc import abstractmethod
@@ -1477,7 +1478,7 @@ class CompositeHealthChecker:
 
         async def run_check(checker: HealthChecker) -> HealthCheckResult:
             try:
-                if isinstance(checker, AsyncHealthChecker):
+                if inspect.iscoroutinefunction(checker.check):
                     return await checker.check()
                 # Run sync checker in thread pool
                 loop = asyncio.get_event_loop()

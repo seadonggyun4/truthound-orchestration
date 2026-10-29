@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from common.base import (
-    ColumnDrift,
     DriftMethod,
     DriftResult,
     DriftStatus,
@@ -275,3 +274,19 @@ class TestTruthoundEngineConfigDrift:
     def test_all_valid_methods(self, method: str) -> None:
         config = TruthoundEngineConfig(default_drift_method=method)
         assert config.default_drift_method == method
+
+
+def test_native_nested_drift_verdict_is_preserved(engine: TruthoundEngine) -> None:
+    import time
+
+    report = FakeDriftReport(columns=[{
+        "column": "x", "dtype": "Float64",
+        "drift": {"method": "ks", "statistic": 1.0, "p_value": 0.0,
+                  "threshold": 0.05, "drifted": True, "level": "high"},
+        "baseline_stats": {"count": 100}, "current_stats": {"count": 100},
+    }])
+    result = engine._convert_drift_result(report, time.perf_counter(), "ks")
+    assert result.status == DriftStatus.DRIFT_DETECTED
+    assert result.drifted_count == 1
+    assert result.drifted_columns[0].p_value == 0.0
+    assert result.drifted_columns[0].severity == Severity.ERROR

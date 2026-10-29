@@ -6,16 +6,10 @@ engines from the common/ module, following the Protocol-based design.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import inspect
-from typing import TYPE_CHECKING, Any, Sequence
-
-from prefect.blocks.core import Block
-
-try:
-    from pydantic.v1 import Field, PrivateAttr
-except ImportError:  # pragma: no cover - pydantic v1 fallback
-    from pydantic import Field, PrivateAttr
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from common.engines import normalize_runtime_context
 from common.orchestration import (
@@ -26,6 +20,9 @@ from common.orchestration import (
     run_stream_check_async,
     summarize_stream,
 )
+from prefect.blocks.core import Block
+
+from truthound_prefect._compat import Field, PrivateAttr
 from truthound_prefect.blocks.base import BaseBlock, BlockConfig
 from truthound_prefect.utils.exceptions import EngineError
 from truthound_prefect.utils.serialization import serialize_result
@@ -265,9 +262,8 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
 
     def teardown(self) -> None:
         """Clean up the block and stop the engine."""
-        if self._engine is not None and self._config.auto_stop:
-            if hasattr(self._engine, "stop"):
-                self._engine.stop()
+        if self._engine is not None and self._config.auto_stop and hasattr(self._engine, "stop"):
+            self._engine.stop()
         self._engine = None
         super().teardown()
 
@@ -286,7 +282,6 @@ class EngineBlock(BaseBlock[EngineBlockConfig]):
             from common.engines import (
                 EngineCreationRequest,
                 create_engine,
-                normalize_runtime_context,
                 run_preflight,
             )
 

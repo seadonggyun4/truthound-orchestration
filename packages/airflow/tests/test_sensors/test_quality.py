@@ -203,7 +203,7 @@ class TestDataQualitySensor:
         )
 
         # Set up the engine mock - directly setting _engine bypasses get_engine()
-        mock_engine = MagicMock()
+        mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
         mock_engine.check.return_value = mock_success_result
         sensor._engine = mock_engine
 
@@ -235,7 +235,7 @@ class TestDataQualitySensor:
         )
 
         # Set up the engine mock
-        mock_engine = MagicMock()
+        mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
         mock_engine.check.return_value = mock_failure_result
         sensor._engine = mock_engine
 
@@ -291,7 +291,7 @@ class TestDataQualitySensor:
         )
 
         # Set up the engine mock
-        mock_engine = MagicMock()
+        mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
         mock_engine.check.return_value = mock_success_result
         sensor._engine = mock_engine
 

@@ -182,6 +182,8 @@ with DAG(
 
 `truthound-orchestration` `3.x` supports `Truthound 3.x` only.
 
+Compatibility with the published **Core 3.3.0** wheel was verified for this source revision. See [compatibility details](docs/i18n/en/compatibility.md) for tested platforms, advanced features and limitations. Previously published packages do not automatically include these fixes.
+
 - Supported Truthound versions: `>=3.0,<4.0`
 - Unsupported Truthound versions: `1.x`, `2.x`
 - This policy applies to the root package and its official platform extras.

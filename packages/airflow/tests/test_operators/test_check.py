@@ -119,7 +119,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.engine_name = "truthound"
             mock_engine.engine_version = "3.1.0"
             mock_engine.check.return_value = mock_success_result
@@ -162,7 +162,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.check.return_value = mock_success_result
             mock_get_engine.return_value = mock_engine
 
@@ -199,7 +199,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.check.return_value = mock_failure_result
             mock_get_engine.return_value = mock_engine
 
@@ -230,7 +230,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.check.return_value = mock_failure_result
             mock_get_engine.return_value = mock_engine
 
@@ -262,7 +262,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.check.return_value = mock_warning_result
             mock_get_engine.return_value = mock_engine
 
@@ -295,7 +295,7 @@ class TestDataQualityCheckOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_engine.check.return_value = mock_success_result
             mock_get_engine.return_value = mock_engine
 

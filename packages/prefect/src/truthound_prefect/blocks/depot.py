@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-try:
-    from pydantic.v1 import Field
-except ImportError:  # pragma: no cover
-    from pydantic import Field  # type: ignore[assignment]
-
 from common.depot.client import DepotClient, DepotClientConfig
 from prefect.blocks.core import Block
+
+from truthound_prefect._compat import Field
 
 
 class DepotBlock(Block):

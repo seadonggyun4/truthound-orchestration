@@ -10,11 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from prefect.blocks.core import Block
 
-try:
-    from pydantic.v1 import Field, PrivateAttr
-except ImportError:  # pragma: no cover - pydantic v1 fallback
-    from pydantic import Field, PrivateAttr
-
+from truthound_prefect._compat import Field, PrivateAttr
 from truthound_prefect.sla.config import (
     AlertLevel,
     SLAConfig,

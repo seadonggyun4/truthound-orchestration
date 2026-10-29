@@ -92,7 +92,7 @@ class TestDataQualityLearnOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_learn_result = MagicMock()
             mock_learn_result.rules = [
                 MagicMock(
@@ -134,7 +134,7 @@ class TestDataQualityLearnOperator:
         mock_hook_class.return_value = mock_hook
 
         with patch("common.engines.create_engine") as mock_get_engine:
-            mock_engine = MagicMock()
+            mock_engine = MagicMock(engine_name="truthound", engine_version="3.3.0")
             mock_learn_result = MagicMock()
             mock_learn_result.rules = []
             mock_learn_result.to_dict.return_value = {"rules": []}
