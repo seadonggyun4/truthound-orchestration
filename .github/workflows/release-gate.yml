@@ -1,153 +1,50 @@
 name: Release Gate
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
-      publish_release:
-        description: Publish to PyPI after the gate succeeds
+      verification_runs:
+        description: JSON map of workflow filenames to successful same-commit full release run IDs
         required: true
-        default: false
-        type: boolean
-  workflow_call:
+        type: string
 
+permissions:
+  contents: read
+  actions: read
 concurrency:
   group: release-gate-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
-  foundation:
-    permissions:
-      contents: read
-      checks: write
-    uses: ./.github/workflows/ci-foundation.yml
-    with:
-      lane: release
-      expected_tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-
-  shared-runtime:
-    needs: foundation
-    uses: ./.github/workflows/shared-runtime.yml
-    with:
-      lane: release
-
-  airflow:
-    needs: foundation
-    uses: ./.github/workflows/airflow.yml
-    with:
-      lane: release
-
-  prefect:
-    needs: foundation
-    uses: ./.github/workflows/prefect.yml
-    with:
-      lane: release
-
-  dagster:
-    needs: foundation
-    uses: ./.github/workflows/dagster.yml
-    with:
-      lane: release
-
-  mage:
-    needs: foundation
-    uses: ./.github/workflows/mage.yml
-    with:
-      lane: release
-
-  kestra:
-    needs: foundation
-    uses: ./.github/workflows/kestra.yml
-    with:
-      lane: release
-
-  dbt:
-    needs: foundation
-    uses: ./.github/workflows/dbt.yml
-    with:
-      lane: release
-
-  security:
-    permissions:
-      actions: read
-      checks: write
-      contents: read
-      pull-requests: read
-      security-events: write
-    uses: ./.github/workflows/security.yml
-    with:
-      lane: release
-
-  gate-summary:
-    if: always()
-    needs:
-      - foundation
-      - shared-runtime
-      - airflow
-      - prefect
-      - dagster
-      - mage
-      - kestra
-      - dbt
-      - security
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
+    timeout-minutes: 10
     steps:
-      - name: Validate release gate
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Write selected independent runs
         env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
+          VERIFICATION_RUNS: ${{ inputs.verification_runs }}
         run: |
           python - <<'PY'
-          import json
           import os
-          needs = json.loads(os.environ["NEEDS_JSON"])
-          failures = {
-              name: details["result"]
-              for name, details in needs.items()
-              if details["result"] not in {"success", "skipped"}
-          }
-          if failures:
-              raise SystemExit(f"Release gate failed: {failures}")
-          print("Release gate passed")
+          from pathlib import Path
+          Path('runs.json').write_text(os.environ['VERIFICATION_RUNS'])
           PY
-
-  publish:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_release == 'true'
-    needs:
-      - gate-summary
-    uses: ./.github/workflows/publish.yml
-    secrets: inherit
-    with:
-      artifact_name: truthound-orchestration-dist
-
-  summary:
-    if: always()
-    needs:
-      - gate-summary
-      - publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - name: Validate release workflow
+      - id: verify
+        name: Verify same-commit full release evidence
         env:
-          NEEDS_JSON: ${{ toJSON(needs) }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          needs = json.loads(os.environ["NEEDS_JSON"])
-          failures = {
-              name: details["result"]
-              for name, details in needs.items()
-              if details["result"] not in {"success", "skipped"}
-          }
-          if failures:
-              raise SystemExit(f"Release workflow failed: {failures}")
-          print("Release workflow summary passed")
-          PY
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/ci/release_evidence.py verify-runs --runs runs.json
+      - uses: actions/download-artifact@v7
+        with:
+          name: truthound-orchestration-dist
+          run-id: ${{ steps.verify.outputs.foundation_run_id }}
+          github-token: ${{ github.token }}
+          path: candidate
+      - run: python scripts/ci/release_evidence.py verify-artifacts --dist-dir candidate/dist
+      - uses: actions/upload-artifact@v6
+        with:
+          name: truthound-release-evidence
+          path: release-evidence.json

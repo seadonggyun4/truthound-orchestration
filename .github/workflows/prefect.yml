@@ -1,6 +1,13 @@
 name: Prefect
 
+run-name: "Prefect · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/prefect/**', 'tests/prefect/**', '.github/workflows/prefect.yml', 'scripts/ci/host_servers/prefect*.py', 'scripts/ci/verify_prefect*.py', 'scripts/ci/verify_host_server.py']
+  push:
+    branches: [main]
+    paths: ['packages/prefect/**', 'tests/prefect/**', '.github/workflows/prefect.yml', 'scripts/ci/host_servers/prefect*.py', 'scripts/ci/verify_prefect*.py', 'scripts/ci/verify_host_server.py']
   workflow_call:
     inputs:
       lane:

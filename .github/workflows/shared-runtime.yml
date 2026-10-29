@@ -1,6 +1,13 @@
 name: Shared Runtime
 
+run-name: "Shared Runtime · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['common/**', 'tests/common/**', '!tests/common/test_ci*.py', '!tests/common/test_version_surfaces.py', '!tests/common/test_release_evidence.py', 'tests/opentelemetry/**', 'tests/enterprise/**', 'pyproject.toml', '.github/workflows/shared-runtime.yml']
+  push:
+    branches: [main]
+    paths: ['common/**', 'tests/common/**', '!tests/common/test_ci*.py', '!tests/common/test_version_surfaces.py', '!tests/common/test_release_evidence.py', 'tests/opentelemetry/**', 'tests/enterprise/**', 'pyproject.toml', '.github/workflows/shared-runtime.yml']
   workflow_call:
     inputs:
       lane:

@@ -1,56 +1,73 @@
 name: Publish
 
 on:
-  workflow_call:
-    inputs:
-      artifact_name:
-        required: false
-        type: string
-        default: truthound-orchestration-dist
   workflow_dispatch:
     inputs:
-      artifact_name:
-        description: Artifact containing built distributions
+      verification_run_id:
+        description: Successful same-commit Release Gate run ID
         required: true
-        default: truthound-orchestration-dist
         type: string
 
+permissions:
+  contents: read
+  actions: read
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
-      - name: Download distributions
-        uses: actions/download-artifact@v7
-        with:
-          name: ${{ inputs.artifact_name || github.event.inputs.artifact_name || 'truthound-orchestration-dist' }}
-          path: dist-artifact
-      - name: Install publishing dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install twine
-      - name: Re-check distributions
-        run: python -m twine check dist-artifact/dist/*
-      - name: Validate PyPI credentials
+          python-version: '3.12'
+      - name: Require same-commit release gate
         env:
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GATE_RUN: ${{ inputs.verification_run_id }}
+        run: python scripts/ci/release_evidence.py verify-gate --gate-run "$GATE_RUN"
+      - uses: actions/download-artifact@v7
+        with:
+          name: truthound-release-evidence
+          run-id: ${{ inputs.verification_run_id }}
+          github-token: ${{ github.token }}
+          path: evidence
+      - id: verify
+        name: Recheck all independent release results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/ci/release_evidence.py verify-runs --runs evidence/release-evidence.json
+      - uses: actions/download-artifact@v7
+        with:
+          name: truthound-orchestration-dist
+          run-id: ${{ steps.verify.outputs.foundation_run_id }}
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Verify exact artifacts without rebuilding
         run: |
-          if [ -z "${TWINE_PASSWORD:-}" ]; then
-            echo "::error::Missing PYPI_API_TOKEN GitHub secret. Configure the repository secret before running the publish workflow."
-            exit 1
-          fi
-      - name: Publish to PyPI
+          python scripts/ci/release_evidence.py verify-artifacts --dist-dir candidate/dist
+          python -m pip install twine
+          python -m twine check candidate/dist/*.whl candidate/dist/*.tar.gz
+      - name: Publish verified distributions to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-          TWINE_NON_INTERACTIVE: 1
-        run: python -m twine upload --skip-existing dist-artifact/dist/*
+          TWINE_NON_INTERACTIVE: '1'
+        run: |
+          if [ -z "${TWINE_PASSWORD:-}" ]; then
+            echo '::error::Missing PYPI_API_TOKEN repository secret'
+            exit 1
+          fi
+          python -m twine upload --skip-existing candidate/dist/*.whl candidate/dist/*.tar.gz
+      - name: Verify public PyPI hashes
+        run: python scripts/ci/verify_pypi_release.py --dist-dir candidate/dist
+      - name: Fresh installation from PyPI
+        run: |
+          VERSION=$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          python -m venv "$RUNNER_TEMP/pypi-smoke"
+          "$RUNNER_TEMP/pypi-smoke/bin/python" -m pip install --no-cache-dir --index-url https://pypi.org/simple "truthound-orchestration==$VERSION" 'truthound==3.3.0'
+          "$RUNNER_TEMP/pypi-smoke/bin/python" -m pip check
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/pypi-smoke/bin/python" -I -c 'import polars as pl; from common.engines.truthound import TruthoundEngine; e=TruthoundEngine(); assert e.check(pl.DataFrame({"id":[1,2,3]})).is_success; assert not e.check(pl.DataFrame({"id":[1,None,3]})).is_success'

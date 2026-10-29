@@ -1,6 +1,13 @@
 name: Dagster
 
+run-name: "Dagster · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/dagster/**', 'tests/dagster/**', '.github/workflows/dagster.yml', 'scripts/ci/host_servers/dagster*.py', 'scripts/ci/verify_dagster*.py', 'scripts/ci/verify_host_server.py']
+  push:
+    branches: [main]
+    paths: ['packages/dagster/**', 'tests/dagster/**', '.github/workflows/dagster.yml', 'scripts/ci/host_servers/dagster*.py', 'scripts/ci/verify_dagster*.py', 'scripts/ci/verify_host_server.py']
   workflow_call:
     inputs:
       lane:

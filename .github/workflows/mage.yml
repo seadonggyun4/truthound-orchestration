@@ -1,6 +1,13 @@
 name: Mage
 
+run-name: "Mage · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/mage/**', 'tests/mage/**', '.github/workflows/mage.yml', 'scripts/ci/host_servers/mage*.py', 'scripts/ci/verify_mage*.py']
+  push:
+    branches: [main]
+    paths: ['packages/mage/**', 'tests/mage/**', '.github/workflows/mage.yml', 'scripts/ci/host_servers/mage*.py', 'scripts/ci/verify_mage*.py']
   workflow_call:
     inputs:
       lane:

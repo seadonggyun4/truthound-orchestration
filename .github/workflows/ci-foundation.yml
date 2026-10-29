@@ -1,6 +1,13 @@
 name: CI Foundation
 
+run-name: "CI Foundation · ${{ inputs.lane || 'pr' }}"
+
 on:
+  pull_request:
+    paths: ['.github/workflows/**', 'scripts/ci/**', 'ci/**', 'pyproject.toml', 'packages/*/pyproject.toml', 'tests/common/test_ci*.py', 'tests/common/test_version_surfaces.py', 'tests/common/test_release_evidence.py']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/**', 'scripts/ci/**', 'ci/**', 'pyproject.toml', 'packages/*/pyproject.toml', 'tests/common/test_ci*.py', 'tests/common/test_version_surfaces.py', 'tests/common/test_release_evidence.py']
   workflow_call:
     inputs:
       lane:
@@ -100,15 +107,19 @@ jobs:
             python scripts/ci/sync_version_surfaces.py check | tee artifacts/foundation/version-surfaces.log
           fi
           python -m pytest -q \
+            tests/common/test_release_evidence.py \
             tests/common/test_ci_support_matrix.py \
             tests/common/test_ci_workflow_actions.py \
             tests/common/test_adapter_test_layout.py \
             tests/common/test_version_surfaces.py | tee artifacts/foundation/pytest.log
           python -m build --outdir dist | tee artifacts/foundation/build.log
+          python scripts/ci/release_evidence.py manifest --dist-dir dist
           python -m twine check dist/* | tee artifacts/foundation/twine.log
           python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log
           python docs/scripts/check_doc_contracts.py | tee artifacts/foundation/docs-contracts.log
-          mkdocs build --strict | tee artifacts/foundation/mkdocs.log
+          if [ "${{ inputs.lane }}" = "release" ]; then
+            mkdocs build --strict | tee artifacts/foundation/mkdocs.log
+          fi
       - name: Upload orchestration distribution artifacts
         if: always()
         uses: actions/upload-artifact@v6

@@ -1,6 +1,13 @@
 name: dbt
 
+run-name: "dbt · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/dbt/**', 'tests/dbt/**', '.github/workflows/dbt.yml', 'scripts/ci/host_servers/dbt*.py', 'scripts/ci/verify_dbt*.py']
+  push:
+    branches: [main]
+    paths: ['packages/dbt/**', 'tests/dbt/**', '.github/workflows/dbt.yml', 'scripts/ci/host_servers/dbt*.py', 'scripts/ci/verify_dbt*.py']
   workflow_call:
     inputs:
       lane:

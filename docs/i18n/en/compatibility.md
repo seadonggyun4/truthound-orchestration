@@ -327,6 +327,8 @@ Existing environments should update their bootstrap tools as well.
 
 Truthound release line: `>=3.0,<4.0`
 
+These are independently selected workflow presets, not an aggregate dispatch. Release Gate verifies completed same-commit runs; it does not start platform jobs.
+
 | Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |
 |------|---------|---------|---------|------|--------|-------------|-------------|
 | PR | `3.3.2` on `Python 3.12` | `3.9.0` on `Python 3.12` | `1.13.27` on `Python 3.12` | Functional only; host security unsupported | `2.0.0` on `Python 3.12` | `postgres` | No |

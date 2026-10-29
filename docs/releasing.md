@@ -1,49 +1,57 @@
 # Releasing
 
-`truthound-orchestration` publishes from the GitHub `Release Gate` workflow and
-uploads the built `truthound-orchestration-dist` artifact to PyPI.
+Releases use independent verification runs, an evidence-only Release Gate, and
+a separately dispatched Publish workflow. Pushing a tag never publishes or starts
+all platforms.
 
 ## One-Time Setup
 
-Before the first automated release, configure the repository secret:
-
-- Secret name: `PYPI_API_TOKEN`
-- Scope: repository secret on `seadonggyun4/truthound-orchestration`
-- Value: the PyPI API token for the `truthound-orchestration` project
-
-The publish workflow fails fast with a clear error if this secret is missing.
+Configure the repository secret named PYPI_API_TOKEN with a token scoped to the
+truthound-orchestration PyPI project. Never put it in workflow inputs or files.
 
 ## Release Flow
 
-1. Update `ci/version-surfaces.toml` with the next release version.
-2. Run `python scripts/ci/sync_version_surfaces.py write`.
-3. Commit both the manifest and the generated version-bearing files.
-4. Ensure `main` is green.
-5. Create and push a version tag such as `v3.0.1`.
-6. Let `Release Gate` run on the tag, or run it manually with `publish_release=true`.
-7. Verify that the nested `Publish` workflow finishes successfully.
+1. Update ci/version-surfaces.toml and run
+   python scripts/ci/sync_version_surfaces.py write.
+2. Commit and push the manifest and synchronized files.
+3. Run ci-foundation.yml with lane=release.
+4. Run shared-runtime.yml and each of airflow.yml, prefect.yml, dagster.yml,
+   mage.yml, kestra.yml and dbt.yml independently with lane=release and
+   suite_tier=full. Run security.yml with lane=release. These runs may be
+   completed separately; none dispatches the others.
+5. Dispatch release-gate.yml with verification_runs: a JSON object mapping the
+   nine workflow filenames to their numeric run IDs. Every run must belong to
+   this exact commit, be a full release run and finish successfully.
+6. Dispatch publish.yml on that same commit with verification_run_id set to the
+   successful Release Gate run ID.
+7. Confirm Publish succeeds, including public PyPI SHA-256 comparison and a fresh
+   installation from the public index with real Core 3.3 good/bad checks.
+8. Optionally tag the already verified commit. Tags do not cause publication.
+
+A new commit requires new verification runs. Smoke runs, missing minimum-version
+jobs, skipped required checks, failed/cancelled runs and older commits are rejected.
+Release coverage still includes every supported minimum/primary host tuple,
+all six wheel extras, dbt compile/execution and blocking security surfaces.
+Mage's known host dependency security limitation remains explicit in
+[Compatibility](compatibility.md); a functional pass does not resolve it.
+
+## Artifact Integrity
+
+Foundation builds one wheel and one sdist and records their version, commit and
+SHA-256 in release-manifest.json. Release Gate validates those exact files.
+Publish rechecks all referenced runs and hashes, downloads the same artifacts,
+and never rebuilds. PyPI hashes must match before fresh-install verification.
+The wheel/sdist exclude internal agent instructions, local verification records
+and private server configuration.
 
 ## Version Source Of Truth
 
-Do not hand-edit release-version literals in:
-
-- `pyproject.toml` files
-- adapter `version.py` modules
-- `packages/dbt/dbt_project.yml`
-- generated release-version snippets wired into CI checks
-
-Release-version changes come from `ci/version-surfaces.toml`. Host compatibility changes still belong in `ci/support-matrix.toml`.
-
-The root release lane runs `python scripts/ci/sync_version_surfaces.py check`,
-and tagged release gates also verify that the pushed tag matches the manifest.
+Use ci/version-surfaces.toml for package versions and ci/support-matrix.toml for
+host compatibility. Run the synchronization helper instead of editing version
+literals individually.
 
 ## Retry Behavior
 
-The publish step uses `twine upload --skip-existing`.
-
-That means a rerun is safe when:
-
-- a previous attempt already uploaded one or more `3.x.y` files
-- the release gate needs to be re-run after a transient GitHub or PyPI failure
-
-PyPI still forbids replacing an existing file with different contents, so version numbers remain immutable.
+Publish uses twine --skip-existing to recover a partial upload, then compares
+the public files against the verified hashes. Existing different bytes fail
+verification; skipping an upload is never treated as proof of a correct release.

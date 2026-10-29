@@ -1,6 +1,13 @@
 name: Kestra
 
+run-name: "Kestra · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/kestra/**', 'tests/kestra/**', '.github/workflows/kestra.yml', 'scripts/ci/host_servers/kestra*.py', 'scripts/ci/verify_kestra*.py']
+  push:
+    branches: [main]
+    paths: ['packages/kestra/**', 'tests/kestra/**', '.github/workflows/kestra.yml', 'scripts/ci/host_servers/kestra*.py', 'scripts/ci/verify_kestra*.py']
   workflow_call:
     inputs:
       lane:

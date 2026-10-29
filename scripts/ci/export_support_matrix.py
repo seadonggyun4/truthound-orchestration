@@ -76,7 +76,7 @@ def build_workflow_payload(
     primary_python = data["python"]["primary"]
 
     if workflow == "foundation":
-        extras = data["wheel_smoke"]["extras"]
+        extras = data["wheel_smoke"]["extras"] if lane in {"release", "nightly"} else ["base"]
         return {
             "python_version": primary_python,
             "truthound_range": truthound_range,
@@ -291,6 +291,8 @@ def render_generated_support_block(data: dict[str, Any]) -> str:
         "## Generated CI Support Matrix",
         "",
         f"Truthound release line: `{data['truthound']['range']}`",
+        "",
+        "These are independently selected workflow presets, not an aggregate dispatch. Release Gate verifies completed same-commit runs; it does not start platform jobs.",
         "",
         "| Lane | Airflow | Prefect | Dagster | Mage | Kestra | dbt Compile | dbt Execute |",
         "|------|---------|---------|---------|------|--------|-------------|-------------|",

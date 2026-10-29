@@ -9,6 +9,20 @@ title: Testing and CI Ownership
 
 Use this guide when you are adding or moving tests in `truthound-오케스트레이션`.
 
+## 독립 실행 정책
+
+Main/PR/Nightly에서 전체 어댑터를 일괄 실행하지 않습니다. 각 플랫폼은 자신의
+패키지·fixture·워크플로 변경에만 자동 실행됩니다. 공통 코드·패키지 메타데이터는
+Shared Runtime과 Foundation에서 검사하며 여섯 서버를 동시에 시작하지 않습니다.
+공통 계약 변경도 배포 전에는 각 어댑터의 독립 전체 검증이 필요합니다.
+문서는 전용 경로 필터와 엄격 빌드를 사용합니다. 일반 Foundation은 base wheel만
+검사하고 릴리스에서는 기존 6개 extra 검증을 유지합니다. Security는 의존성·보안
+설정 변경 및 기존 일일 일정에 실행됩니다. Advanced Runtime은 별도 주간 검사입니다.
+
+수동 실행으로 플랫폼, smoke/full, 최소·기본 버전 매트릭스를 선택합니다.
+Release Gate는 동일 커밋에서 완료된 결과만 모으며 검증을 일괄 실행하지 않습니다.
+Publish는 검증된 파일만 배포합니다. [배포 절차](releasing.md)를 참고하세요.
+
 ## Who This Is For
 
 - contributors adding adapter coverage

@@ -1,6 +1,13 @@
 name: Airflow
 
+run-name: "Airflow · ${{ inputs.lane || 'pr' }} · ${{ inputs.suite_tier || 'smoke' }}"
+
 on:
+  pull_request:
+    paths: ['packages/airflow/**', 'tests/airflow/**', '.github/workflows/airflow.yml', 'scripts/ci/host_servers/airflow*.py', 'scripts/ci/verify_airflow*.py', 'scripts/ci/verify_host_server.py']
+  push:
+    branches: [main]
+    paths: ['packages/airflow/**', 'tests/airflow/**', '.github/workflows/airflow.yml', 'scripts/ci/host_servers/airflow*.py', 'scripts/ci/verify_airflow*.py', 'scripts/ci/verify_host_server.py']
   workflow_call:
     inputs:
       lane:

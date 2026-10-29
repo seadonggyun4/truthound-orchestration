@@ -142,13 +142,12 @@ def test_foundation_workflow_checks_version_surfaces() -> None:
     assert "tests/common/test_version_surfaces.py" in workflow_text
 
 
-def test_release_gate_passes_expected_tag_to_foundation() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "release-gate.yml").read_text(
-        encoding="utf-8"
-    )
-
-    assert "expected_tag:" in workflow_text
-    assert "github.ref_name" in workflow_text
+def test_release_gate_requires_same_commit_independent_foundation() -> None:
+    text = (ROOT / ".github/workflows/release-gate.yml").read_text()
+    assert "verification_runs:" in text
+    assert "verify-runs" in text
+    assert "steps.verify.outputs.foundation_run_id" in text
+    assert "uses: ./.github/workflows/" not in text
 
 
 def test_publish_artifact_uses_orchestration_distribution_name() -> None:
@@ -163,51 +162,34 @@ def test_publish_artifact_uses_orchestration_distribution_name() -> None:
     assert "truthound-foundation" not in combined
 
 
-def test_pr_ci_uses_smoke_suite_tier_for_all_reusable_workflows() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "ci-pr.yml").read_text(encoding="utf-8")
-
-    assert workflow_text.count("suite_tier: smoke") == 7
-
-
-def test_main_uses_change_routed_smoke_and_nightly_keeps_full_suite_tier() -> None:
-    main_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
-    nightly_text = (ROOT / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
-
-    assert "jobs:\n  changes:" in main_text
-    assert "docs_only:" in main_text
-    assert main_text.count("suite_tier: smoke") == 7
-    assert "suite_tier: full" not in main_text
-    assert nightly_text.count("suite_tier: full") == 7
+def test_independent_workflows_default_to_smoke_without_pr_fanout() -> None:
+    assert not (ROOT / ".github/workflows/ci-pr.yml").exists()
+    for name in ("shared-runtime", "airflow", "prefect", "dagster", "mage", "kestra", "dbt"):
+        text = (ROOT / f".github/workflows/{name}.yml").read_text()
+        assert "pull_request:" in text and "paths:" in text
+        assert "default: smoke" in text and "suite_tier:" in text
 
 
-def test_main_ci_skips_adapter_fanout_for_docs_only_changes() -> None:
-    workflow_text = (ROOT / ".github" / "workflows" / "ci-main.yml").read_text(encoding="utf-8")
+def test_main_has_no_aggregate_and_full_verification_remains_available() -> None:
+    assert not (ROOT / ".github/workflows/ci-main.yml").exists()
+    assert not (ROOT / ".github/workflows/nightly.yml").exists()
+    assert (ROOT / ".github/workflows/advanced-runtime.yml").exists()
+    for name in ("shared-runtime", "airflow", "prefect", "dagster", "mage", "kestra", "dbt"):
+        text = (ROOT / f".github/workflows/{name}.yml").read_text()
+        assert "push:" in text and "workflow_dispatch:" in text
+        assert "          - full" in text and "          - release" in text
 
-    assert "needs.changes.outputs.docs_only != 'true'" in workflow_text
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.airflow == 'true'"
-        in workflow_text
-    )
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.prefect == 'true'"
-        in workflow_text
-    )
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dagster == 'true'"
-        in workflow_text
-    )
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.mage == 'true'"
-        in workflow_text
-    )
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.kestra == 'true'"
-        in workflow_text
-    )
-    assert (
-        "needs.changes.outputs.all_platforms == 'true' || needs.changes.outputs.dbt == 'true'"
-        in workflow_text
-    )
+
+def test_docs_only_changes_do_not_trigger_adapter_workflows() -> None:
+    import yaml
+
+    for name in ("airflow", "prefect", "dagster", "mage", "kestra", "dbt"):
+        data = yaml.safe_load((ROOT / f".github/workflows/{name}.yml").read_text())
+        for event in ("push", "pull_request"):
+            assert "docs/**" not in data[True][event]["paths"]
+            assert "README.md" not in data[True][event]["paths"]
+    docs = (ROOT / ".github/workflows/docs.yml").read_text()
+    assert "mkdocs build --strict" in docs
 
 
 def test_reusable_workflows_expose_suite_tier_input() -> None:

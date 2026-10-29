@@ -6,6 +6,22 @@ title: Testing and CI Ownership
 
 Use this guide when you are adding or moving tests in `truthound-orchestration`.
 
+## Independent execution policy
+
+There is no CI Main/CI PR/Nightly adapter fan-out. Adapter workflows run on
+changes to their own package, fixtures or workflow; common code and package
+metadata run Shared Runtime and Foundation instead of starting six servers.
+Changes to shared contracts still require independent full adapter verification
+before release. Docs has its own path-filtered strict build. Foundation's normal
+lane installs only the base wheel; its release lane retains all six wheel extras.
+Security runs for dependency/security configuration changes and on its existing
+daily schedule. Advanced Runtime retains the separate weekly engine canary.
+
+Use workflow_dispatch to select a platform and choose smoke/full and the
+minimum/primary release matrix. Release Gate consumes completed same-commit
+runs without launching them. Publish only consumes the verified artifacts.
+See [Releasing](releasing.md) for the exact evidence contract.
+
 ## Who This Is For
 
 - contributors adding adapter coverage
@@ -121,7 +137,7 @@ Default rule:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| a Mage-only change triggers Kestra CI | PR routing still groups adapters together | update `scripts/ci/pr_change_filter.py` and workflow wiring |
+| a Mage-only change triggers Kestra CI | PR routing still groups adapters together | update the adapter workflow path filters |
 | a dbt unit test still lives at root | adapter-native test was never migrated | move it to `packages/dbt/tests` unless it validates repo harness behavior |
 | package-local tests cannot find fixtures | shared fixtures are still root-only | move generic fixtures to `common.testing` or adapter-local `conftest.py` |
 | CI artifacts bundle multiple adapters together | workflow boundaries are still shared | split the workflow and artifact names by adapter |

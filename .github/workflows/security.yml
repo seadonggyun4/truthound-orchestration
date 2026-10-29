@@ -1,9 +1,13 @@
 name: Security
 
+run-name: "Security · ${{ inputs.lane || 'event' }}"
+
 on:
   pull_request:
+    paths: ["pyproject.toml", "packages/*/pyproject.toml", "ci/support-matrix.toml", ".github/workflows/security.yml"]
   push:
     branches: ["main"]
+    paths: ["pyproject.toml", "packages/*/pyproject.toml", "ci/support-matrix.toml", ".github/workflows/security.yml"]
   schedule:
     - cron: "30 18 * * *"
   workflow_call:
@@ -372,7 +376,7 @@ jobs:
           path: artifacts/security/*
 
   codeql:
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
