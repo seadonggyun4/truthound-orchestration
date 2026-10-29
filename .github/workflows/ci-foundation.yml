@@ -114,7 +114,7 @@ jobs:
             tests/common/test_version_surfaces.py | tee artifacts/foundation/pytest.log
           python -m build --outdir dist | tee artifacts/foundation/build.log
           python scripts/ci/release_evidence.py manifest --dist-dir dist
-          python -m twine check dist/* | tee artifacts/foundation/twine.log
+          python -m twine check dist/*.whl dist/*.tar.gz | tee artifacts/foundation/twine.log
           python scripts/ci/export_support_matrix.py sync-docs --path docs/compatibility.md | tee artifacts/foundation/support-matrix.log
           python docs/scripts/check_doc_contracts.py | tee artifacts/foundation/docs-contracts.log
           if [ "${{ inputs.lane }}" = "release" ]; then

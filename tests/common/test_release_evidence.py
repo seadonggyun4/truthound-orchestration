@@ -174,3 +174,9 @@ def test_normal_foundation_does_not_install_every_host():
         "include"
     ]
     assert [row["label"] for row in rows] == data["wheel_smoke"]["extras"]
+
+
+def test_manifest_is_not_passed_to_twine():
+    text = (ROOT / ".github/workflows/ci-foundation.yml").read_text()
+    assert "python -m twine check dist/*.whl dist/*.tar.gz" in text
+    assert "python -m twine check dist/* |" not in text
